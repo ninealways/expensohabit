@@ -15,6 +15,7 @@ let activeWorkspace = 'expense';
 let editingHabitId = null;
 let pendingHabitDeleteId = null;
 let habitCheckinDate = '';
+let mobileStartupTransactionModalOpened = false;
 
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
@@ -23,6 +24,7 @@ const money = (value) => privacyMode ? hiddenMoney() : `₹${Math.round(value).t
 const compactMoney = (value) => privacyMode ? hiddenMoney() : value >= 100000 ? `₹${(value / 100000).toFixed(value % 100000 ? 1 : 0)}L` : value >= 1000 ? `₹${(value / 1000).toFixed(value % 1000 ? 1 : 0)}k` : money(value);
 const svgIcon = (name) => `<svg class="svg-icon" aria-hidden="true"><use href="#icon-${name}"></use></svg>`;
 const esc = (value = '') => String(value).replace(/[&<>"']/g, char => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[char]));
+const isMobileViewport = () => window.matchMedia('(max-width: 640px)').matches;
 const today = () => new Date().toISOString().slice(0, 10);
 const dateKey = (date) => `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
 const longDateLabel = (date = new Date()) => date.toLocaleDateString('en-IN', { weekday:'long', day:'2-digit', month:'long', year:'numeric' }).toUpperCase();
@@ -151,7 +153,7 @@ function showAuthGate() { $('#authGate').hidden = false; }
 function displayName() { return currentUser?.name || currentUser?.email?.split('@')[0] || 'there'; }
 function dashboardGreeting() { return `Good morning, ${displayName()} <span class="title-icon">${svgIcon('insights')}</span>`; }
 function setAuthMode(mode) { authMode=mode; const isLogin=mode==='login'; $('#authTitle').textContent=isLogin?'Welcome back':'Create your account'; $('#authSubtitle').textContent=isLogin?'Sign in to access your money and habit dashboard.':'Create a secure account for your money and habit data.'; $('#authSubmit').textContent=isLogin?'Sign in':'Create account'; $('#authToggle').textContent=isLogin?'Create a new account':'I already have an account'; $('#authPassword').autocomplete=isLogin?'current-password':'new-password'; $('#authNameRow').hidden=isLogin; $('#authName').required=!isLogin; $('#inviteCodeRow').hidden=isLogin; $('#inviteCode').required=!isLogin; $('#authError').textContent=''; }
-async function submitAuth(event) { event.preventDefault(); const payload={ email:$('#authEmail').value, password:$('#authPassword').value }; if (authMode === 'register') { payload.name = $('#authName').value; payload.inviteCode = $('#inviteCode').value; } const response=await fetch(authMode==='login'?'/api/auth/login':'/api/auth/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}); const result=await response.json(); if(!response.ok){$('#authError').textContent=result.error||'Authentication failed';return;} currentUser=result; $('#authGate').hidden=true; await loadData(); updateCategoryOptions(); renderDashboard(); navigate(pageForRoute[location.pathname] || 'dashboard', false); toast(authMode==='login'?'Signed in':'Account created'); }
+async function submitAuth(event) { event.preventDefault(); const payload={ email:$('#authEmail').value, password:$('#authPassword').value }; if (authMode === 'register') { payload.name = $('#authName').value; payload.inviteCode = $('#inviteCode').value; } const response=await fetch(authMode==='login'?'/api/auth/login':'/api/auth/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}); const result=await response.json(); if(!response.ok){$('#authError').textContent=result.error||'Authentication failed';return;} currentUser=result; $('#authGate').hidden=true; await loadData(); updateCategoryOptions(); renderDashboard(); navigate(pageForRoute[location.pathname] || 'dashboard', false); maybeOpenMobileStartupTransactionModal(); toast(authMode==='login'?'Signed in':'Account created'); }
 async function logout() { const response = await fetch('/api/auth/logout', { method:'POST' }); if (!response.ok) { toast('Could not log out'); return; } currentUser = null; data = { transactions: [], schedules: [], categories: [], settings:defaultSettings }; $('#authGate').hidden = false; $('#authForm').reset(); setAuthMode('login'); history.pushState({ page:'dashboard' }, '', '/dashboard'); toast('Logged out'); }
 
 function totals() {
@@ -239,6 +241,12 @@ function openModal(type = 'expense', transaction = null) { editingTransactionId 
 function setField(name, value) { const field = $(`[name="${name}"]`); if (field) field.value = value ?? ''; }
 function openScheduleModal(schedule) { const now = new Date(); const dueDate = schedule.startDate || `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(schedule.dueDay).padStart(2,'0')}`; const days = dayList(schedule); openModal(schedule.type); editingScheduleId = schedule.id; $('#modalTitle').textContent='Edit schedule'; $('#transactionForm button[type="submit"]').textContent='Save schedule'; setField('amount', schedule.amount); setField('subcategory', schedule.subcategory); setField('date', dueDate); setField('frequency', schedule.frequency || 'Monthly'); setField('biMonthlyDayOne', days[0] || schedule.dueDay); setField('biMonthlyDayTwo', days[1] || ''); setField('endDate', schedule.endDate); setField('originalAmount', schedule.originalAmount); setField('remainingPrincipal', schedule.remainingPrincipal); setField('annualRate', schedule.annualRate); setField('interestType', schedule.interestType || 'fixed'); setField('amountInvestedToDate', schedule.amountInvestedToDate); setField('currentValue', schedule.currentValue); setField('amountWithdrawn', schedule.amountWithdrawn); setField('expectedAnnualRate', schedule.expectedAnnualRate); setField('projectionMonths', schedule.projectionMonths); const recurring = $('[name="recurring"]'); if (recurring) recurring.checked = schedule.autoAdd !== false; if ($('#categoryInput')) $('#categoryInput').value=schedule.category; updateDetailSections(); initializeDatePickers($('#transactionForm')); }
 function closeModal() { $('#modalBackdrop').hidden = true; }
+function maybeOpenMobileStartupTransactionModal() {
+  if (mobileStartupTransactionModalOpened || !isMobileViewport() || activeWorkspace !== 'expense') return;
+  if (!$('#authGate').hidden || !$('#modalBackdrop').hidden) return;
+  mobileStartupTransactionModalOpened = true;
+  setTimeout(() => { if ($('#authGate').hidden && $('#modalBackdrop').hidden) openModal('expense'); }, 350);
+}
 function setType(type) { activeType = type; $$('.type-tabs button').forEach(button => button.classList.toggle('active', button.dataset.type === type)); $('input[name="includeInReal"]').checked = type === 'expense'; if (type !== 'expense' && !editingScheduleId) $('input[name="recurring"]').checked = false; updateDetailSections(); }
 function updateDetailSections() { const showDetails = editingScheduleId || $('input[name="recurring"]').checked; const isBiMonthly = $('[name="frequency"]')?.value === 'BiMonthly'; $('#scheduleFrequencyRow').hidden = editingTransactionId || !showDetails; $('#biMonthlyDetails').hidden = editingTransactionId || !showDetails || !isBiMonthly; if (showDetails && isBiMonthly) { if (!$('[name="biMonthlyDayOne"]').value) $('[name="biMonthlyDayOne"]').value = Number($('[name="date"]').value.slice(-2)) || 1; if (!$('[name="biMonthlyDayTwo"]').value) $('[name="biMonthlyDayTwo"]').value = 15; } $('#scheduleEndDateRow').hidden = editingTransactionId || !showDetails; $('#loanDetails').hidden = !(showDetails && activeType === 'loan'); $('#investmentDetails').hidden = !(showDetails && activeType === 'investment'); }
 function updateCategoryOptions() { const categories = data.categories.filter(category => category.active !== false && category.kind === activeType).map(category => category.name).sort((a, b) => a.localeCompare(b)); $('#categoryInput').innerHTML = (categories.length ? categories : [activeType === 'loan' ? 'Loans' : activeType === 'investment' ? 'Investments' : 'Other']).map(c => `<option>${c}</option>`).join(''); }
@@ -925,7 +933,7 @@ new MutationObserver(() => initializeDatePickers($('#subPageView'))).observe($('
 window.addEventListener('popstate', () => navigate(pageForRoute[location.pathname] || 'dashboard', false));
 
 async function bootstrap() {
-  try { const auth = await checkAuth(); if (!auth.authenticated) { showAuthGate(); return; } currentUser = auth.user; await loadData(); updateCategoryOptions(); renderDashboard(); navigate(pageForRoute[location.pathname] || 'dashboard', false); }
+  try { const auth = await checkAuth(); if (!auth.authenticated) { showAuthGate(); return; } currentUser = auth.user; await loadData(); updateCategoryOptions(); renderDashboard(); navigate(pageForRoute[location.pathname] || 'dashboard', false); maybeOpenMobileStartupTransactionModal(); }
   catch (error) { console.error(error); $('#syncLabel').textContent = 'Authentication unavailable'; showAuthGate(); $('#authError').textContent='Start the API and check the sync connection.'; }
 }
 
