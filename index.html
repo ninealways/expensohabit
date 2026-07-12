@@ -10,7 +10,7 @@
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="vendor/flatpickr/flatpickr.min.css" />
     <link rel="stylesheet" href="vendor/flatpickr/plugins/monthSelect/style.css" />
-    <link rel="stylesheet" href="styles.css?v=20260712-23" />
+    <link rel="stylesheet" href="styles.css?v=20260712-29" />
   </head>
   <body>
     <svg class="icon-sprite" aria-hidden="true">
@@ -219,9 +219,14 @@
         <form id="habitForm" class="habit-modal-form">
           <label>Habit name<input name="name" placeholder="Meditation, Reading, Walking..." required /></label>
           <label>Description<textarea name="description" rows="3" placeholder="Why this habit matters, routine notes, or reminders..."></textarea></label>
+          <label>Start date<input name="startDate" type="text" data-picker="date" required /></label>
           <div class="form-row">
             <label>Goal type<select name="goalType"><option value="checkbox">Done / not done</option><option value="duration">Duration</option><option value="count">Count</option></select></label>
             <label>Target<input name="target" type="number" min="0" step="0.1" placeholder="Optional" /></label>
+          </div>
+          <div class="form-row">
+            <label>Milestone type<select name="milestoneType"><option value="days">Completed days</option><option value="total">Total value</option></select></label>
+            <label>Milestone target<input name="milestoneTarget" type="number" min="1" step="1" placeholder="30 days, 1000 steps..." /></label>
           </div>
           <div class="form-row">
             <label>Unit<input name="unit" placeholder="min, pages, steps, hrs" /></label>
@@ -253,9 +258,16 @@
       </section>
     </div>
 
+    <div class="app-loader" id="appLoader" hidden aria-live="polite" aria-busy="true">
+      <div class="loader-card">
+        <span class="loader-spinner"></span>
+        <strong id="loaderTitle">Syncing</strong>
+        <small id="loaderMessage">Waiting for the latest data...</small>
+      </div>
+    </div>
     <div class="toast" id="toast" role="status"></div>
     <script src="vendor/flatpickr/flatpickr.min.js"></script>
     <script src="vendor/flatpickr/plugins/monthSelect/index.js"></script>
-    <script src="app.js?v=20260712-23"></script>
+    <script src="app.js?v=20260712-29"></script>
   </body>
 </html>
