@@ -32,10 +32,10 @@ const seedCategories = [
   { id:'c1', name:'Food & Dining', kind:'expense', active:true }, { id:'c2', name:'Transport', kind:'expense', active:true }, { id:'c3', name:'Shopping', kind:'expense', active:true }, { id:'c4', name:'Bills & Utilities', kind:'expense', active:true }, { id:'c5', name:'Entertainment', kind:'expense', active:true }, { id:'c6', name:'Health', kind:'expense', active:true }, { id:'c7', name:'Other', kind:'expense', active:true }, { id:'c8', name:'Loans', kind:'loan', active:true }, { id:'c9', name:'Investments', kind:'investment', active:true }
 ];
 const seedHabits = [
-  { id:'h1', name:'Meditation', icon:'habit', color:'purple-bg', goalType:'duration', target:15, unit:'min', frequency:'Daily', active:true },
-  { id:'h2', name:'Reading', icon:'book', color:'amber-bg', goalType:'count', target:20, unit:'pages', frequency:'Daily', active:true },
-  { id:'h3', name:'Walking', icon:'walk', color:'teal-bg', goalType:'count', target:6000, unit:'steps', frequency:'Daily', active:true },
-  { id:'h4', name:'Sleep', icon:'moon', color:'blue-bg', goalType:'duration', target:7.5, unit:'hrs', frequency:'Daily', active:true }
+  { id:'h1', name:'Meditation', icon:'habit', color:'purple-bg', goalType:'duration', target:15, unit:'min', frequency:'Daily', startDate:'2025-05-01', milestoneType:'days', milestoneTarget:30, active:true },
+  { id:'h2', name:'Reading', icon:'book', color:'amber-bg', goalType:'count', target:20, unit:'pages', frequency:'Daily', startDate:'2025-05-01', milestoneType:'total', milestoneTarget:1000, active:true },
+  { id:'h3', name:'Walking', icon:'walk', color:'teal-bg', goalType:'count', target:6000, unit:'steps', frequency:'Daily', startDate:'2025-05-01', milestoneType:'total', milestoneTarget:100000, active:true },
+  { id:'h4', name:'Sleep', icon:'moon', color:'blue-bg', goalType:'duration', target:7.5, unit:'hrs', frequency:'Daily', startDate:'2025-05-01', milestoneType:'days', milestoneTarget:30, active:true }
 ];
 const defaultSettings = { monthlyExpenseBudget:60000, monthlyBudgetOverrides:{} };
 
@@ -189,8 +189,9 @@ app.put('/api/categories/:id', requireAuth, async (req, res) => { try { const da
 app.post('/api/habits', requireAuth, async (req, res) => {
   try {
     const database = await ensureDatabase();
-    const { name, description, icon, color, goalType, target, unit, frequency } = req.body;
+    const { name, description, icon, color, goalType, target, unit, frequency, startDate, milestoneType, milestoneTarget } = req.body;
     if (!name?.trim()) return res.status(400).json({ error:'Habit name is required.' });
+    if (startDate && !/^\d{4}-\d{2}-\d{2}$/.test(String(startDate))) return res.status(400).json({ error:'Valid start date is required.' });
     const cleanGoalType = ['checkbox','count','duration'].includes(goalType) ? goalType : 'checkbox';
     const habit = {
       id:`h-${Date.now()}`,
@@ -203,6 +204,9 @@ app.post('/api/habits', requireAuth, async (req, res) => {
       target:cleanGoalType === 'checkbox' ? 1 : Number(target) || 1,
       unit:unit?.trim() || (cleanGoalType === 'duration' ? 'min' : cleanGoalType === 'count' ? 'times' : 'done'),
       frequency:frequency || 'Daily',
+      startDate:startDate || localDate(),
+      milestoneType:['days','total'].includes(milestoneType) ? milestoneType : 'days',
+      milestoneTarget:Number(milestoneTarget) || 30,
       active:true,
       createdAt:new Date()
     };
@@ -224,6 +228,12 @@ app.put('/api/habits/:id', requireAuth, async (req, res) => {
     if (req.body.target !== undefined) updates.target = Number(req.body.target) || 1;
     if (req.body.unit?.trim()) updates.unit = req.body.unit.trim();
     if (req.body.frequency) updates.frequency = req.body.frequency;
+    if (['days','total'].includes(req.body.milestoneType)) updates.milestoneType = req.body.milestoneType;
+    if (req.body.milestoneTarget !== undefined) updates.milestoneTarget = Number(req.body.milestoneTarget) || 30;
+    if (req.body.startDate !== undefined) {
+      if (req.body.startDate && !/^\d{4}-\d{2}-\d{2}$/.test(String(req.body.startDate))) return res.status(400).json({ error:'Valid start date is required.' });
+      updates.startDate = req.body.startDate || localDate();
+    }
     if (typeof req.body.active === 'boolean') updates.active = req.body.active;
     const result = await database.collection('habits').findOneAndUpdate({ id:req.params.id, ownerId:req.user.id }, { $set:updates }, { returnDocument:'after', projection:{ _id:0, ownerId:0 } });
     res.json(result.value || result);
