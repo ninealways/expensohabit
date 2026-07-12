@@ -116,6 +116,39 @@ h1,h2,h3,p { margin:0; } h1,h2,h3 { font-family:'Plus Jakarta Sans',sans-serif; 
   .panel-heading { align-items:stretch;flex-direction:column;gap:10px;margin-bottom:13px; }
   .panel-heading .primary-button,.panel-heading .secondary-button { width:100%; }
   .panel-heading h3 { font-size:16px; }
+  .insights-shell,.insights-grid-main,.insights-lower-grid,.insights-extra-grid,.money-flow-panel,.category-chart-panel,.heatmap-panel,.split-panel,.velocity-panel,.movers-panel,.recurring-panel,.insight-list-panel { width:100%;min-width:0;overflow:hidden; }
+  .insights-hero { align-items:stretch;flex-direction:column;gap:14px; }
+  .insights-hero h3 { font-size:30px;line-height:1.04; }
+  .insights-hero .subtitle { white-space:normal;overflow-wrap:anywhere; }
+  .insight-range-control { width:100%;display:grid;grid-template-columns:1fr;justify-content:stretch;overflow:visible;padding:8px;gap:8px; }
+  .insight-range-control button { width:100%;white-space:normal; }
+  .insight-range-control label { width:100%;display:grid;grid-template-columns:1fr;align-items:stretch;white-space:normal;gap:6px;padding:8px; }
+  .insight-range-control input,.insight-range-control select { width:100%;min-width:0; }
+  .insight-range-control span { display:none; }
+  .flow-stage.radial-split { min-height:auto;display:grid;grid-template-columns:1fr;grid-template-rows:auto;gap:12px;padding:10px 0 6px;overflow:hidden; }
+  .flow-stage.radial-split:before { display:none; }
+  .radial-split .flow-total { grid-column:auto;grid-row:auto;width:132px;height:132px;margin:0 auto 4px; }
+  .radial-split .flow-total strong { font-size:20px; }
+  .radial-split .flow-lines { display:grid;gap:10px;width:100%;min-width:0; }
+  .radial-split .flow-row,.radial-split .flow-row:nth-child(n) { grid-column:auto;grid-row:auto;width:100%;min-width:0;min-height:auto;border-radius:18px;grid-template-columns:36px minmax(0,1fr) auto;gap:6px 10px;padding:12px; }
+  .radial-split .flow-row-icon { width:36px;height:36px;grid-row:1 / span 3; }
+  .radial-split .flow-row strong { grid-column:2;font-size:16px;white-space:normal; }
+  .radial-split .flow-row em { grid-column:2;grid-row:auto;justify-self:start;margin-top:2px; }
+  .flow-note { width:100%;align-items:flex-start;border-radius:14px;white-space:normal;line-height:1.35; }
+  .category-donut-wrap { min-height:auto;overflow:hidden; }
+  .category-donut-svg { max-width:100%;width:100%;height:auto;overflow:hidden; }
+  .heatmap-head,.heatmap-row { grid-template-columns:minmax(72px,.9fr) repeat(5,minmax(22px,1fr));gap:4px; }
+  .split-legend { width:100%; }
+  .split-legend span { grid-template-columns:8px minmax(0,1fr) auto;white-space:normal; }
+  .velocity-meter { grid-template-columns:1fr;justify-items:center;text-align:left; }
+  .velocity-copy { width:100%; }
+  .alert-item { grid-template-columns:1fr; }
+  .alert-item strong { white-space:normal; }
+  .trend-item { grid-template-columns:1fr;gap:7px; }
+  .trend-item svg { width:100%; }
+  .commitment-item { grid-template-columns:34px minmax(0,1fr); }
+  .commitment-item strong { grid-column:2; }
+  .movers-panel .outflow-table { min-width:0;width:100%; }
   .category-item,.upcoming-item { grid-template-columns:32px minmax(0,1fr) auto;gap:8px; }
   .chart-panel svg { max-width:100%; }
   .bottom-nav { bottom:10px;border-radius:21px; }
