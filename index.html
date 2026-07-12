@@ -1,0 +1,261 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#8c64ff" />
+    <title>ExpensoHabit</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="vendor/flatpickr/flatpickr.min.css" />
+    <link rel="stylesheet" href="vendor/flatpickr/plugins/monthSelect/style.css" />
+    <link rel="stylesheet" href="styles.css?v=20260712-23" />
+  </head>
+  <body>
+    <svg class="icon-sprite" aria-hidden="true">
+      <symbol id="icon-home" viewBox="0 0 24 24"><path d="M4 11.5 12 5l8 6.5"/><path d="M6.5 10.5V19h11v-8.5"/><path d="M10 19v-5h4v5"/></symbol>
+      <symbol id="icon-list" viewBox="0 0 24 24"><path d="M8 7h11"/><path d="M8 12h11"/><path d="M8 17h11"/><path d="M4.5 7h.01"/><path d="M4.5 12h.01"/><path d="M4.5 17h.01"/></symbol>
+      <symbol id="icon-calendar" viewBox="0 0 24 24"><path d="M7 4v3"/><path d="M17 4v3"/><rect x="4.5" y="6" width="15" height="14" rx="3"/><path d="M4.5 10h15"/><path d="M8 14h3"/><path d="M13 14h3"/></symbol>
+      <symbol id="icon-insights" viewBox="0 0 24 24"><path d="M12 4v3"/><path d="M12 17v3"/><path d="M4 12h3"/><path d="M17 12h3"/><circle cx="12" cy="12" r="4"/><path d="m15 9 2-2"/><path d="m7 17 2-2"/></symbol>
+      <symbol id="icon-menu" viewBox="0 0 24 24"><path d="M5 7h14"/><path d="M5 12h14"/><path d="M5 17h14"/></symbol>
+      <symbol id="icon-plus" viewBox="0 0 24 24"><path d="M12 5v14"/><path d="M5 12h14"/></symbol>
+      <symbol id="icon-refresh" viewBox="0 0 24 24"><path d="M20 7v5h-5"/><path d="M4 17v-5h5"/><path d="M18.5 10A7 7 0 0 0 6 7.8"/><path d="M5.5 14A7 7 0 0 0 18 16.2"/></symbol>
+      <symbol id="icon-eye" viewBox="0 0 24 24"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6z"/><circle cx="12" cy="12" r="3"/></symbol>
+      <symbol id="icon-eye-off" viewBox="0 0 24 24"><path d="m3 3 18 18"/><path d="M10.6 10.6a3 3 0 0 0 3.8 3.8"/><path d="M8.4 5.5A9.8 9.8 0 0 1 12 5c6 0 9.5 7 9.5 7a15.5 15.5 0 0 1-3 3.7"/><path d="M6.1 7.1A15.2 15.2 0 0 0 2.5 12s3.5 7 9.5 7a9.8 9.8 0 0 0 4-.8"/></symbol>
+      <symbol id="icon-export" viewBox="0 0 24 24"><path d="M12 16V5"/><path d="m8 9 4-4 4 4"/><path d="M5 15v3a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-3"/></symbol>
+      <symbol id="icon-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.5"/><path d="M5.5 20a6.5 6.5 0 0 1 13 0"/></symbol>
+      <symbol id="icon-rupee" viewBox="0 0 24 24"><path d="M8 5h9"/><path d="M8 9h9"/><path d="M9 5c5 0 5 7 0 7h-1l7 7"/></symbol>
+      <symbol id="icon-bag" viewBox="0 0 24 24"><path d="M8 9V7a4 4 0 0 1 8 0v2"/><rect x="5.5" y="9" width="13" height="10.5" rx="2.5"/></symbol>
+      <symbol id="icon-receipt" viewBox="0 0 24 24"><path d="M7 4.5h10v15l-2-1.2-2 1.2-2-1.2-2 1.2-2-1.2z"/><path d="M9 8h6"/><path d="M9 11.5h6"/><path d="M9 15h3"/></symbol>
+      <symbol id="icon-pie" viewBox="0 0 24 24"><path d="M12 4a8 8 0 1 0 8 8h-8z"/><path d="M14 4.3V10h5.7A6 6 0 0 0 14 4.3z"/></symbol>
+      <symbol id="icon-lock" viewBox="0 0 24 24"><rect x="6" y="10" width="12" height="9" rx="2"/><path d="M8.5 10V8a3.5 3.5 0 0 1 7 0v2"/></symbol>
+      <symbol id="icon-fork" viewBox="0 0 24 24"><path d="M7 4v16"/><path d="M5 4v5a2 2 0 0 0 4 0V4"/><path d="M16 4v16"/><path d="M16 4c2 1.5 3 3.2 3 5.2 0 1.8-1 3-3 3"/></symbol>
+      <symbol id="icon-car" viewBox="0 0 24 24"><path d="m6.5 11 1.5-4h8l1.5 4"/><rect x="4.5" y="10.5" width="15" height="6" rx="2"/><path d="M7.5 16.5v2"/><path d="M16.5 16.5v2"/><circle cx="8" cy="14" r=".5"/><circle cx="16" cy="14" r=".5"/></symbol>
+      <symbol id="icon-bolt" viewBox="0 0 24 24"><path d="m13 3-7 11h5l-1 7 8-12h-5z"/></symbol>
+      <symbol id="icon-shopping" viewBox="0 0 24 24"><path d="M8 9V7a4 4 0 0 1 8 0v2"/><path d="M5.5 9h13l-1 11h-11z"/></symbol>
+      <symbol id="icon-film" viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="2"/><path d="M8 5v14"/><path d="M16 5v14"/><path d="M5 9h3"/><path d="M16 9h3"/><path d="M5 15h3"/><path d="M16 15h3"/></symbol>
+      <symbol id="icon-heart" viewBox="0 0 24 24"><path d="M20 8.5c0 5-8 10.5-8 10.5S4 13.5 4 8.5A4.2 4.2 0 0 1 12 6a4.2 4.2 0 0 1 8 2.5z"/></symbol>
+      <symbol id="icon-tag" viewBox="0 0 24 24"><path d="M4.5 12.5 12 20l8-8-7.5-7.5h-8z"/><circle cx="9" cy="9" r="1"/></symbol>
+      <symbol id="icon-habit" viewBox="0 0 24 24"><path d="M12 4a6 6 0 0 0-6 6c0 4.5 6 10 6 10s6-5.5 6-10a6 6 0 0 0-6-6z"/><circle cx="12" cy="10" r="2.2"/></symbol>
+      <symbol id="icon-book" viewBox="0 0 24 24"><path d="M5 5.5A3.5 3.5 0 0 1 8.5 4H20v15H8.5A3.5 3.5 0 0 0 5 20.5z"/><path d="M5 5.5v15"/><path d="M9 8h7"/><path d="M9 12h6"/></symbol>
+      <symbol id="icon-walk" viewBox="0 0 24 24"><circle cx="13" cy="5" r="2"/><path d="m10 21 2-6"/><path d="m16 21-3-6-3-2 2-5 4 2 2 3"/><path d="m11 8-3 3"/></symbol>
+      <symbol id="icon-moon" viewBox="0 0 24 24"><path d="M20 15.5A8.5 8.5 0 0 1 8.5 4 7 7 0 1 0 20 15.5z"/></symbol>
+      <symbol id="icon-flame" viewBox="0 0 24 24"><path d="M12 21a7 7 0 0 0 7-7c0-4-3-6-5-9-.4 2-1.4 3.3-3 4.5C9.2 10.8 8 12.3 8 14.5A4 4 0 0 0 12 21z"/></symbol>
+      <symbol id="icon-expensohabit" viewBox="0 0 32 32">
+        <path d="M9 8h8"/>
+        <path d="M9 12h8"/>
+        <path d="M10 8c5.5 0 5.5 8 0 8H9l6.5 7"/>
+        <path d="M20.5 10.5c2.8 0 5 2.2 5 5 0 4-5 8-5 8s-5-4-5-8c0-.5.1-1 .2-1.5"/>
+        <circle cx="20.5" cy="15.5" r="1.7"/>
+      </symbol>
+    </svg>
+    <div class="auth-gate" id="authGate" hidden>
+      <section class="auth-card">
+        <div class="brand-mark brand-logo"><svg class="svg-icon"><use href="#icon-expensohabit"></use></svg></div>
+        <p class="panel-kicker">SECURE SYNC</p>
+        <h2 id="authTitle">Welcome back</h2>
+        <p class="subtitle" id="authSubtitle">Sign in to access your expense dashboard.</p>
+        <form id="authForm">
+          <label id="authNameRow" hidden>Name<input id="authName" type="text" autocomplete="name" placeholder="Your name" /></label>
+          <label>Email<input id="authEmail" type="email" autocomplete="email" required placeholder="you@example.com" /></label>
+          <label>Password<input id="authPassword" type="password" autocomplete="current-password" minlength="8" required placeholder="At least 8 characters" /></label>
+          <label id="inviteCodeRow" hidden>Invite code<input id="inviteCode" type="password" autocomplete="off" placeholder="Required to create account" /></label>
+          <button class="primary-button" type="submit" id="authSubmit">Sign in</button>
+        </form>
+        <p class="auth-error" id="authError"></p>
+        <button class="auth-toggle" id="authToggle" type="button">Create a new account</button>
+      </section>
+    </div>
+    <div class="app-shell">
+      <header class="topbar">
+        <a class="brand-lockup" href="/dashboard" data-page="dashboard" aria-label="Go to ExpensoHabit home">
+          <div class="brand-mark brand-logo"><svg class="svg-icon"><use href="#icon-expensohabit"></use></svg></div>
+          <div>
+            <h1>ExpensoHabit</h1>
+            <p>Track money flows. Build better habits.</p>
+          </div>
+        </a>
+        <nav class="top-nav" aria-label="Primary navigation">
+          <button class="nav-item active" data-page="dashboard"><span><svg class="svg-icon"><use href="#icon-home"></use></svg></span><small>Home</small></button>
+          <button class="nav-item" data-page="transactions"><span><svg class="svg-icon"><use href="#icon-list"></use></svg></span><small>Transactions</small></button>
+          <button class="top-add-button" id="topAddButton" aria-label="Add transaction"><svg class="svg-icon"><use href="#icon-plus"></use></svg></button>
+          <button class="nav-item" data-page="schedule"><span><svg class="svg-icon"><use href="#icon-calendar"></use></svg></span><small>Schedule</small></button>
+          <button class="nav-item" data-page="insights"><span><svg class="svg-icon"><use href="#icon-insights"></use></svg></span><small>Insights</small></button>
+          <button class="nav-item" data-page="settings"><span><svg class="svg-icon"><use href="#icon-menu"></use></svg></span><small>More</small></button>
+        </nav>
+        <div class="topbar-actions">
+          <div class="app-switcher" aria-label="Workspace switcher">
+            <button class="active" type="button" data-workspace="expense"><svg class="svg-icon"><use href="#icon-rupee"></use></svg><span>Expenses</span></button>
+            <button type="button" data-workspace="habits"><svg class="svg-icon"><use href="#icon-habit"></use></svg><span>Habits</span></button>
+          </div>
+          <span class="sync-pill"><span class="status-dot"></span><span id="syncLabel">Synced</span></span>
+          <button class="icon-button" id="refreshButton" aria-label="Refresh data" title="Refresh data"><svg class="svg-icon"><use href="#icon-refresh"></use></svg></button>
+          <button class="icon-button" id="privacyButton" aria-label="Hide amounts" title="Hide amounts"><svg class="svg-icon"><use href="#icon-eye"></use></svg></button>
+          <button class="icon-button" data-page="profile" aria-label="Profile" title="Profile"><svg class="svg-icon"><use href="#icon-user"></use></svg></button>
+        </div>
+      </header>
+
+      <main class="page-wrap">
+        <section class="hero-row">
+          <div>
+            <p class="eyebrow" id="currentDateLabel">TODAY</p>
+            <h2 id="pageTitle">Good morning, Navnit <span class="title-icon"><svg class="svg-icon"><use href="#icon-insights"></use></svg></span></h2>
+            <p class="subtitle">Here’s how your money is moving this month.</p>
+          </div>
+          <button class="primary-button" id="heroAddButton"><span>＋</span> Add transaction</button>
+        </section>
+
+        <section class="summary-grid" aria-label="Monthly summary">
+          <article class="summary-card total-card">
+            <div class="card-icon"><svg class="svg-icon"><use href="#icon-rupee"></use></svg></div>
+            <p>Total outflow</p>
+            <strong id="totalOutflow">₹0</strong>
+            <div class="summary-breakdown"><span>● Expenses <b id="summaryExpense">₹0</b><em id="summaryExpensePct">0%</em></span><span>● Loans <b id="summaryLoan">₹0</b><em id="summaryLoanPct">0%</em></span><span>● Investments <b id="summaryInvestment">₹0</b><em id="summaryInvestmentPct">0%</em></span></div>
+          </article>
+          <article class="summary-card expense-card">
+            <div class="card-icon"><svg class="svg-icon"><use href="#icon-bag"></use></svg></div>
+            <p>Real expenses</p>
+            <strong id="realExpenses">₹0</strong>
+            <small>Day-to-day spending only</small>
+          </article>
+          <article class="summary-card loan-card">
+            <div class="card-icon"><svg class="svg-icon"><use href="#icon-receipt"></use></svg></div>
+            <p>Loans</p>
+            <strong id="loanTotal">₹0</strong>
+            <small>Loan outflow · excluded</small>
+          </article>
+          <article class="summary-card investment-card">
+            <div class="card-icon"><svg class="svg-icon"><use href="#icon-pie"></use></svg></div>
+            <p>Investments</p>
+            <strong id="investmentTotal">₹0</strong>
+            <small>Investment outflow · excluded</small>
+            <button class="card-link" data-page="investments">View investments</button>
+          </article>
+        </section>
+
+        <section class="view-switch-row">
+          <div class="segmented-control" role="tablist" aria-label="Expense view">
+            <button class="active" data-view="all">All outflow</button>
+            <button data-view="real">Real expenses</button>
+          </div>
+          <p class="helper-text">Top category excludes loans &amp; investments</p>
+        </section>
+
+        <section class="content-grid">
+          <article class="panel category-panel">
+            <div class="panel-heading"><div><p class="panel-kicker">THIS MONTH</p><h3>Top categories</h3></div><button class="ghost-button" data-page="transactions">View all</button></div>
+            <div id="categoryList" class="category-list"></div>
+          </article>
+          <article class="panel upcoming-panel">
+            <div class="panel-heading"><div><p class="panel-kicker">AUTO-ADDED ON DUE DATE</p><h3>Upcoming</h3></div><button class="ghost-button" data-page="schedule">Manage</button></div>
+            <div id="upcomingList" class="upcoming-list"></div>
+          </article>
+        </section>
+
+        <section class="bottom-grid">
+          <article class="panel chart-panel">
+            <div class="panel-heading"><div><p class="panel-kicker" id="chartRangeLabel">LAST 7 DAYS</p><h3>Outflow overview</h3></div><div class="chart-heading-actions"><div class="chart-range-control" aria-label="Chart range"><button class="active" data-chart-range="last7">7 days</button><button data-chart-range="thisMonth">This month</button><button data-chart-range="lastMonth">Last month</button></div><span class="chart-total" id="chartTotal">₹0</span></div></div>
+            <div id="chart" class="chart" aria-label="Outflow chart"></div>
+            <div class="legend"><span><i class="legend-dot purple"></i>Expense</span><span><i class="legend-dot amber"></i>Loan</span><span><i class="legend-dot teal"></i>Investment</span></div>
+          </article>
+          <article class="panel logic-panel">
+            <div class="panel-heading"><div><p class="panel-kicker">HOW TOTALS WORK</p><h3>Money map</h3></div><button class="ghost-button" data-page="outflow">View report</button></div>
+            <div class="money-map"><div class="map-step expense-step"><span class="map-icon purple-bg"><svg class="svg-icon"><use href="#icon-bag"></use></svg></span><b>Regular expenses</b><small>Included in real expenses</small></div><span class="map-arrow">→</span><div class="map-step loan-step"><span class="map-icon amber-bg"><svg class="svg-icon"><use href="#icon-receipt"></use></svg></span><b>Loans</b><small>Separate loan outflow</small></div><span class="map-arrow">→</span><div class="map-step investment-step"><span class="map-icon teal-bg"><svg class="svg-icon"><use href="#icon-pie"></use></svg></span><b>Investments</b><small>Separate investment outflow</small></div></div>
+            <div class="formula"><span id="formulaExpense">₹0</span><b>+</b><span id="formulaLoan">₹0</span><b>+</b><span id="formulaInvestment">₹0</span><b>=</b><strong id="formulaTotal">₹0</strong></div>
+          </article>
+        </section>
+        <section id="subPageView" class="sub-page-view" hidden></section>
+      </main>
+
+      <nav class="bottom-nav" aria-label="Primary navigation">
+        <button class="nav-item active" data-page="dashboard"><span><svg class="svg-icon"><use href="#icon-home"></use></svg></span><small>Home</small></button>
+        <button class="nav-item" data-page="transactions"><span><svg class="svg-icon"><use href="#icon-list"></use></svg></span><small>Transactions</small></button>
+        <button class="add-fab" id="fabButton" aria-label="Add transaction"><svg class="svg-icon"><use href="#icon-plus"></use></svg></button>
+        <button class="nav-item" data-page="schedule"><span><svg class="svg-icon"><use href="#icon-calendar"></use></svg></span><small>Schedule</small></button>
+        <button class="nav-item" data-page="insights"><span><svg class="svg-icon"><use href="#icon-insights"></use></svg></span><small>Insights</small></button>
+        <button class="nav-item" data-page="settings"><span><svg class="svg-icon"><use href="#icon-menu"></use></svg></span><small>More</small></button>
+      </nav>
+    </div>
+
+    <div class="modal-backdrop" id="modalBackdrop" hidden>
+      <section class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+        <div class="modal-heading"><div><p class="panel-kicker">QUICK ENTRY</p><h3 id="modalTitle">Add transaction</h3></div><button class="close-button" id="closeModal">×</button></div>
+        <div class="type-tabs" role="tablist"><button class="active" data-type="expense">Expense</button><button data-type="loan">Loan</button><button data-type="investment">Investment</button></div>
+        <form id="transactionForm">
+          <label>Amount (₹)<input name="amount" type="number" min="1" step="1" placeholder="0" required /></label>
+          <div class="form-row"><label>Category<select name="category" id="categoryInput"></select></label><label>Subcategory<input name="subcategory" placeholder="Optional" /></label></div>
+          <div class="form-row"><label>Date<input name="date" type="text" data-picker="date" placeholder="Select date" required /></label><label>Note<input name="note" placeholder="What was this for?" /></label></div>
+          <label class="switch-line"><span><b>Include in Real Expenses</b><small>Turn off for loans, investments, or excluded items.</small></span><input class="switch" name="includeInReal" type="checkbox" checked /></label>
+          <label class="switch-line"><span><b>Recurring schedule</b><small>Automatically add this when the date arrives.</small></span><input class="switch" name="recurring" type="checkbox" /></label>
+          <label class="schedule-end-row" id="scheduleFrequencyRow" hidden>Repeat frequency<select name="frequency"><option value="Daily">Daily</option><option value="Weekly">Weekly</option><option value="Monthly" selected>Monthly</option><option value="BiMonthly">Bi-monthly</option><option value="Quarterly">Quarterly</option><option value="Yearly">Yearly</option></select><small>Monthly is the default for fixed payments.</small></label>
+          <div class="schedule-detail-section" id="biMonthlyDetails" hidden>
+            <p class="form-section-title">Bi-monthly dates</p>
+            <div class="form-row"><label>First date<input name="biMonthlyDayOne" type="number" min="1" max="31" step="1" placeholder="1" /></label><label>Second date<input name="biMonthlyDayTwo" type="number" min="1" max="31" step="1" placeholder="15" /></label></div>
+            <small class="form-help">The same amount will be added on both selected dates each month.</small>
+          </div>
+          <label class="schedule-end-row" id="scheduleEndDateRow" hidden>Schedule end date (optional)<input name="endDate" type="text" data-picker="date" placeholder="Select end date" /><small>Leave blank to continue indefinitely.</small></label>
+          <div class="schedule-detail-section" id="loanDetails" hidden>
+            <p class="form-section-title">Loan details</p>
+            <div class="form-row"><label>Original loan amount<input name="originalAmount" type="number" min="0" step="1" placeholder="Optional" /></label><label>Remaining principal<input name="remainingPrincipal" type="number" min="0" step="1" placeholder="Optional" /></label></div>
+            <div class="form-row"><label>Interest type<select name="interestType"><option value="fixed">Fixed</option><option value="floating">Floating</option></select></label><label>Annual interest rate (%)<input name="annualRate" type="number" min="0" step="0.01" placeholder="Optional" /></label></div>
+            <small class="form-help">The EMI and end date will be used to estimate remaining principal and interest.</small>
+          </div>
+          <div class="schedule-detail-section" id="investmentDetails" hidden>
+            <p class="form-section-title">Investment details</p>
+            <div class="form-row"><label>Amount invested till now<input name="amountInvestedToDate" type="number" min="0" step="1" placeholder="Optional" /></label><label>Current value<input name="currentValue" type="number" min="0" step="1" placeholder="Optional" /></label></div>
+            <label>Amount withdrawn to date<input name="amountWithdrawn" type="number" min="0" step="1" placeholder="0" /></label>
+            <div class="form-row"><label>Expected annual return (%)<input name="expectedAnnualRate" type="number" step="0.01" placeholder="Optional" /></label><label>Projection period (months)<input name="projectionMonths" type="number" min="1" step="1" placeholder="Optional" /></label></div>
+            <small class="form-help">Leave expected return blank for stocks or gold. We will show current gain/loss without projecting returns.</small>
+          </div>
+          <div class="modal-actions"><button type="button" class="secondary-button" id="cancelModal">Cancel</button><button class="primary-button" type="submit">Save transaction</button></div>
+        </form>
+      </section>
+    </div>
+
+    <div class="modal-backdrop" id="habitModalBackdrop" hidden>
+      <section class="modal habit-modal" role="dialog" aria-modal="true" aria-labelledby="habitModalTitle">
+        <div class="modal-heading"><div><p class="panel-kicker">HABIT SETUP</p><h3 id="habitModalTitle">Add habit</h3></div><button class="close-button" id="closeHabitModal">×</button></div>
+        <form id="habitForm" class="habit-modal-form">
+          <label>Habit name<input name="name" placeholder="Meditation, Reading, Walking..." required /></label>
+          <label>Description<textarea name="description" rows="3" placeholder="Why this habit matters, routine notes, or reminders..."></textarea></label>
+          <div class="form-row">
+            <label>Goal type<select name="goalType"><option value="checkbox">Done / not done</option><option value="duration">Duration</option><option value="count">Count</option></select></label>
+            <label>Target<input name="target" type="number" min="0" step="0.1" placeholder="Optional" /></label>
+          </div>
+          <div class="form-row">
+            <label>Unit<input name="unit" placeholder="min, pages, steps, hrs" /></label>
+            <label>Icon<select name="icon"><option value="habit">Habit</option><option value="book">Book</option><option value="walk">Walk</option><option value="moon">Sleep</option><option value="heart">Health</option><option value="bolt">Energy</option><option value="flame">Streak</option></select></label>
+          </div>
+          <label>Color<select name="color"><option value="purple-bg">Purple</option><option value="amber-bg">Amber</option><option value="teal-bg">Teal</option><option value="blue-bg">Blue</option></select></label>
+          <label class="switch-line"><span>Active habit<small>Turn off to pause tracking without deleting history.</small></span><input name="active" type="checkbox" class="switch" checked /></label>
+          <div class="modal-actions"><button type="button" class="secondary-button" id="cancelHabitModal">Cancel</button><button class="primary-button" type="submit">Save habit</button></div>
+        </form>
+      </section>
+    </div>
+
+    <div class="modal-backdrop" id="habitCheckinModalBackdrop" hidden>
+      <section class="modal habit-checkin-modal" role="dialog" aria-modal="true" aria-labelledby="habitCheckinTitle">
+        <div class="modal-heading"><div><p class="panel-kicker">DAILY ROUTINE</p><h3 id="habitCheckinTitle">Habit check-in</h3></div><button class="close-button" id="closeHabitCheckinModal">×</button></div>
+        <form id="habitCheckinForm">
+          <label>Check-in date<input name="date" type="text" data-picker="date" required /></label>
+          <div class="habit-checkin-list" id="habitCheckinList"></div>
+          <div class="modal-actions"><button type="button" class="secondary-button" id="cancelHabitCheckinModal">Cancel</button><button class="primary-button" type="submit">Save check-in</button></div>
+        </form>
+      </section>
+    </div>
+
+    <div class="modal-backdrop" id="confirmModalBackdrop" hidden>
+      <section class="modal confirm-modal" role="dialog" aria-modal="true" aria-labelledby="confirmModalTitle">
+        <div class="modal-heading"><div><p class="panel-kicker">CONFIRMATION</p><h3 id="confirmModalTitle">Delete habit?</h3></div><button class="close-button" id="closeConfirmModal">×</button></div>
+        <p class="confirm-copy" id="confirmModalCopy">This action cannot be undone.</p>
+        <div class="modal-actions"><button type="button" class="secondary-button" id="cancelConfirmModal">Cancel</button><button class="primary-button danger-button" id="confirmDeleteButton" type="button">Delete</button></div>
+      </section>
+    </div>
+
+    <div class="toast" id="toast" role="status"></div>
+    <script src="vendor/flatpickr/flatpickr.min.js"></script>
+    <script src="vendor/flatpickr/plugins/monthSelect/index.js"></script>
+    <script src="app.js?v=20260712-23"></script>
+  </body>
+</html>
