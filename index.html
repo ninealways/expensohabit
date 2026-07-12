@@ -10,9 +10,9 @@
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="vendor/flatpickr/flatpickr.min.css" />
     <link rel="stylesheet" href="vendor/flatpickr/plugins/monthSelect/style.css" />
-    <link rel="stylesheet" href="styles.css?v=20260712-29" />
+    <link rel="stylesheet" href="styles.css?v=20260712-30" />
   </head>
-  <body>
+  <body class="app-booting">
     <svg class="icon-sprite" aria-hidden="true">
       <symbol id="icon-home" viewBox="0 0 24 24"><path d="M4 11.5 12 5l8 6.5"/><path d="M6.5 10.5V19h11v-8.5"/><path d="M10 19v-5h4v5"/></symbol>
       <symbol id="icon-list" viewBox="0 0 24 24"><path d="M8 7h11"/><path d="M8 12h11"/><path d="M8 17h11"/><path d="M4.5 7h.01"/><path d="M4.5 12h.01"/><path d="M4.5 17h.01"/></symbol>
@@ -50,6 +50,14 @@
         <circle cx="20.5" cy="15.5" r="1.7"/>
       </symbol>
     </svg>
+    <div class="boot-gate" id="bootGate" aria-live="polite" aria-busy="true">
+      <section class="boot-card">
+        <div class="brand-mark brand-logo"><svg class="svg-icon"><use href="#icon-expensohabit"></use></svg></div>
+        <span class="loader-spinner"></span>
+        <strong>Loading ExpensoHabit</strong>
+        <small>Checking your secure session...</small>
+      </section>
+    </div>
     <div class="auth-gate" id="authGate" hidden>
       <section class="auth-card">
         <div class="brand-mark brand-logo"><svg class="svg-icon"><use href="#icon-expensohabit"></use></svg></div>
@@ -67,7 +75,7 @@
         <button class="auth-toggle" id="authToggle" type="button">Create a new account</button>
       </section>
     </div>
-    <div class="app-shell">
+    <div class="app-shell" id="appShell" hidden>
       <header class="topbar">
         <a class="brand-lockup" href="/dashboard" data-page="dashboard" aria-label="Go to ExpensoHabit home">
           <div class="brand-mark brand-logo"><svg class="svg-icon"><use href="#icon-expensohabit"></use></svg></div>
@@ -268,6 +276,14 @@
     <div class="toast" id="toast" role="status"></div>
     <script src="vendor/flatpickr/flatpickr.min.js"></script>
     <script src="vendor/flatpickr/plugins/monthSelect/index.js"></script>
-    <script src="app.js?v=20260712-29"></script>
+    <script src="js/api.js?v=20260712-31"></script>
+    <script src="js/auth.js?v=20260712-31"></script>
+    <script src="js/router.js?v=20260712-31"></script>
+    <script src="js/pages/basic.js?v=20260712-32"></script>
+    <script src="js/pages/transactions.js?v=20260712-33"></script>
+    <script src="js/pages/schedule.js?v=20260712-34"></script>
+    <script src="js/pages/habits.js?v=20260712-35"></script>
+    <script src="js/pages/insights.js?v=20260712-36"></script>
+    <script src="app.js?v=20260712-36"></script>
   </body>
 </html>
