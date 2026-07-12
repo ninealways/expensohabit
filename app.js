@@ -16,6 +16,7 @@ let editingHabitId = null;
 let pendingHabitDeleteId = null;
 let habitCheckinDate = '';
 let mobileStartupTransactionModalOpened = false;
+let activeApiRequests = 0;
 
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
@@ -26,6 +27,36 @@ const svgIcon = (name) => `<svg class="svg-icon" aria-hidden="true"><use href="#
 const esc = (value = '') => String(value).replace(/[&<>"']/g, char => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[char]));
 const isMobileViewport = () => window.matchMedia('(max-width: 640px)').matches;
 const today = () => new Date().toISOString().slice(0, 10);
+const nativeFetch = window.fetch.bind(window);
+function apiRequestMessage(input, init = {}) {
+  const method = String(init.method || 'GET').toUpperCase();
+  if (method === 'GET') return 'Loading the latest data...';
+  if (method === 'DELETE') return 'Deleting and syncing...';
+  return 'Saving and syncing...';
+}
+function setAppLoading(isLoading, message = 'Waiting for the latest data...') {
+  const loader = $('#appLoader');
+  if (!loader) return;
+  $('#loaderMessage').textContent = message;
+  loader.hidden = !isLoading;
+  document.body.classList.toggle('is-loading', isLoading);
+}
+window.fetch = async (input, init = {}) => {
+  const url = typeof input === 'string' ? input : input?.url || '';
+  const showLoader = String(url).includes('/api/');
+  if (showLoader) {
+    activeApiRequests += 1;
+    setAppLoading(true, apiRequestMessage(input, init));
+  }
+  try {
+    return await nativeFetch(input, init);
+  } finally {
+    if (showLoader) {
+      activeApiRequests = Math.max(0, activeApiRequests - 1);
+      if (!activeApiRequests) setAppLoading(false);
+    }
+  }
+};
 const dateKey = (date) => `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
 const longDateLabel = (date = new Date()) => date.toLocaleDateString('en-IN', { weekday:'long', day:'2-digit', month:'long', year:'numeric' }).toUpperCase();
 const addDays = (date, days) => { const next = new Date(date); next.setDate(next.getDate() + days); return next; };
