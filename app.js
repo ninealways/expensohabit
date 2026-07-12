@@ -198,12 +198,36 @@ function initializeDatePickers(root = document) {
 }
 
 async function checkAuth() { const response = await fetch('/api/auth/me'); if (!response.ok) throw new Error('Authentication service unavailable'); return response.json(); }
-function showAuthGate() { $('#authGate').hidden = false; }
+function showBootGate(message = 'Checking your secure session...') {
+  const boot = $('#bootGate');
+  if (boot) {
+    boot.hidden = false;
+    const text = boot.querySelector('small');
+    if (text) text.textContent = message;
+  }
+  $('#authGate').hidden = true;
+  $('#appShell').hidden = true;
+  document.body.classList.add('app-booting');
+  document.body.classList.remove('app-ready');
+}
+function showAuthGate() {
+  $('#bootGate').hidden = true;
+  $('#authGate').hidden = false;
+  $('#appShell').hidden = true;
+  document.body.classList.remove('app-booting', 'app-ready');
+}
+function showAppShell() {
+  $('#bootGate').hidden = true;
+  $('#authGate').hidden = true;
+  $('#appShell').hidden = false;
+  document.body.classList.remove('app-booting');
+  document.body.classList.add('app-ready');
+}
 function displayName() { return currentUser?.name || currentUser?.email?.split('@')[0] || 'there'; }
 function dashboardGreeting() { return `Good morning, ${displayName()} <span class="title-icon">${svgIcon('insights')}</span>`; }
 function setAuthMode(mode) { authMode=mode; const isLogin=mode==='login'; $('#authTitle').textContent=isLogin?'Welcome back':'Create your account'; $('#authSubtitle').textContent=isLogin?'Sign in to access your money and habit dashboard.':'Create a secure account for your money and habit data.'; $('#authSubmit').textContent=isLogin?'Sign in':'Create account'; $('#authToggle').textContent=isLogin?'Create a new account':'I already have an account'; $('#authPassword').autocomplete=isLogin?'current-password':'new-password'; $('#authNameRow').hidden=isLogin; $('#authName').required=!isLogin; $('#inviteCodeRow').hidden=isLogin; $('#inviteCode').required=!isLogin; $('#authError').textContent=''; }
-async function submitAuth(event) { event.preventDefault(); const payload={ email:$('#authEmail').value, password:$('#authPassword').value }; if (authMode === 'register') { payload.name = $('#authName').value; payload.inviteCode = $('#inviteCode').value; } const response=await fetch(authMode==='login'?'/api/auth/login':'/api/auth/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}); const result=await response.json(); if(!response.ok){$('#authError').textContent=result.error||'Authentication failed';return;} currentUser=result; $('#authGate').hidden=true; await loadData(); updateCategoryOptions(); renderDashboard(); navigate(pageForRoute[location.pathname] || 'dashboard', false); maybeOpenMobileStartupTransactionModal(); toast(authMode==='login'?'Signed in':'Account created'); }
-async function logout() { const response = await fetch('/api/auth/logout', { method:'POST' }); if (!response.ok) { toast('Could not log out'); return; } currentUser = null; data = { transactions: [], schedules: [], categories: [], settings:defaultSettings }; $('#authGate').hidden = false; $('#authForm').reset(); setAuthMode('login'); history.pushState({ page:'dashboard' }, '', '/dashboard'); toast('Logged out'); }
+async function submitAuth(event) { event.preventDefault(); const payload={ email:$('#authEmail').value, password:$('#authPassword').value }; if (authMode === 'register') { payload.name = $('#authName').value; payload.inviteCode = $('#inviteCode').value; } const response=await fetch(authMode==='login'?'/api/auth/login':'/api/auth/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}); const result=await response.json(); if(!response.ok){$('#authError').textContent=result.error||'Authentication failed';return;} currentUser=result; await loadData(); updateCategoryOptions(); renderDashboard(); navigate(pageForRoute[location.pathname] || 'dashboard', false); showAppShell(); maybeOpenMobileStartupTransactionModal(); toast(authMode==='login'?'Signed in':'Account created'); }
+async function logout() { const response = await fetch('/api/auth/logout', { method:'POST' }); if (!response.ok) { toast('Could not log out'); return; } currentUser = null; data = { transactions: [], schedules: [], categories: [], habits: [], habitLogs: [], settings:defaultSettings }; $('#authForm').reset(); setAuthMode('login'); history.pushState({ page:'dashboard' }, '', '/dashboard'); showAuthGate(); toast('Logged out'); }
 
 function totals() {
   const transactions = dashboardMonthTransactions();
@@ -997,8 +1021,24 @@ new MutationObserver(() => initializeDatePickers($('#subPageView'))).observe($('
 window.addEventListener('popstate', () => navigate(pageForRoute[location.pathname] || 'dashboard', false));
 
 async function bootstrap() {
-  try { const auth = await checkAuth(); if (!auth.authenticated) { showAuthGate(); return; } currentUser = auth.user; await loadData(); updateCategoryOptions(); renderDashboard(); navigate(pageForRoute[location.pathname] || 'dashboard', false); maybeOpenMobileStartupTransactionModal(); }
-  catch (error) { console.error(error); $('#syncLabel').textContent = 'Authentication unavailable'; showAuthGate(); $('#authError').textContent='Start the API and check the sync connection.'; }
+  showBootGate();
+  try {
+    const auth = await checkAuth();
+    if (!auth.authenticated) { showAuthGate(); return; }
+    currentUser = auth.user;
+    await loadData();
+    updateCategoryOptions();
+    renderDashboard();
+    navigate(pageForRoute[location.pathname] || 'dashboard', false);
+    showAppShell();
+    maybeOpenMobileStartupTransactionModal();
+  }
+  catch (error) {
+    console.error(error);
+    $('#syncLabel').textContent = 'Authentication unavailable';
+    showAuthGate();
+    $('#authError').textContent='Start the API and check the sync connection.';
+  }
 }
 
 updateCategoryOptions(); updatePrivacyButton(); initializeDatePickers(document); bootstrap();
