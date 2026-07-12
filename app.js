@@ -16,10 +16,10 @@ let editingHabitId = null;
 let pendingHabitDeleteId = null;
 let habitCheckinDate = '';
 let mobileStartupTransactionModalOpened = false;
-let activeApiRequests = 0;
 
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
+window.ExpensoApi?.installFetchLoader();
 const hiddenMoney = () => '₹••••';
 const money = (value) => privacyMode ? hiddenMoney() : `₹${Math.round(value).toLocaleString('en-IN')}`;
 const compactMoney = (value) => privacyMode ? hiddenMoney() : value >= 100000 ? `₹${(value / 100000).toFixed(value % 100000 ? 1 : 0)}L` : value >= 1000 ? `₹${(value / 1000).toFixed(value % 1000 ? 1 : 0)}k` : money(value);
@@ -27,36 +27,6 @@ const svgIcon = (name) => `<svg class="svg-icon" aria-hidden="true"><use href="#
 const esc = (value = '') => String(value).replace(/[&<>"']/g, char => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[char]));
 const isMobileViewport = () => window.matchMedia('(max-width: 640px)').matches;
 const today = () => new Date().toISOString().slice(0, 10);
-const nativeFetch = window.fetch.bind(window);
-function apiRequestMessage(input, init = {}) {
-  const method = String(init.method || 'GET').toUpperCase();
-  if (method === 'GET') return 'Loading the latest data...';
-  if (method === 'DELETE') return 'Deleting and syncing...';
-  return 'Saving and syncing...';
-}
-function setAppLoading(isLoading, message = 'Waiting for the latest data...') {
-  const loader = $('#appLoader');
-  if (!loader) return;
-  $('#loaderMessage').textContent = message;
-  loader.hidden = !isLoading;
-  document.body.classList.toggle('is-loading', isLoading);
-}
-window.fetch = async (input, init = {}) => {
-  const url = typeof input === 'string' ? input : input?.url || '';
-  const showLoader = String(url).includes('/api/');
-  if (showLoader) {
-    activeApiRequests += 1;
-    setAppLoading(true, apiRequestMessage(input, init));
-  }
-  try {
-    return await nativeFetch(input, init);
-  } finally {
-    if (showLoader) {
-      activeApiRequests = Math.max(0, activeApiRequests - 1);
-      if (!activeApiRequests) setAppLoading(false);
-    }
-  }
-};
 const dateKey = (date) => `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
 const longDateLabel = (date = new Date()) => date.toLocaleDateString('en-IN', { weekday:'long', day:'2-digit', month:'long', year:'numeric' }).toUpperCase();
 const addDays = (date, days) => { const next = new Date(date); next.setDate(next.getDate() + days); return next; };
@@ -197,7 +167,7 @@ function initializeDatePickers(root = document) {
   });
 }
 
-async function checkAuth() { const response = await fetch('/api/auth/me'); if (!response.ok) throw new Error('Authentication service unavailable'); return response.json(); }
+const checkAuth = () => window.ExpensoAuth.checkSession();
 function showBootGate(message = 'Checking your secure session...') {
   const boot = $('#bootGate');
   if (boot) {
@@ -226,8 +196,8 @@ function showAppShell() {
 function displayName() { return currentUser?.name || currentUser?.email?.split('@')[0] || 'there'; }
 function dashboardGreeting() { return `Good morning, ${displayName()} <span class="title-icon">${svgIcon('insights')}</span>`; }
 function setAuthMode(mode) { authMode=mode; const isLogin=mode==='login'; $('#authTitle').textContent=isLogin?'Welcome back':'Create your account'; $('#authSubtitle').textContent=isLogin?'Sign in to access your money and habit dashboard.':'Create a secure account for your money and habit data.'; $('#authSubmit').textContent=isLogin?'Sign in':'Create account'; $('#authToggle').textContent=isLogin?'Create a new account':'I already have an account'; $('#authPassword').autocomplete=isLogin?'current-password':'new-password'; $('#authNameRow').hidden=isLogin; $('#authName').required=!isLogin; $('#inviteCodeRow').hidden=isLogin; $('#inviteCode').required=!isLogin; $('#authError').textContent=''; }
-async function submitAuth(event) { event.preventDefault(); const payload={ email:$('#authEmail').value, password:$('#authPassword').value }; if (authMode === 'register') { payload.name = $('#authName').value; payload.inviteCode = $('#inviteCode').value; } const response=await fetch(authMode==='login'?'/api/auth/login':'/api/auth/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}); const result=await response.json(); if(!response.ok){$('#authError').textContent=result.error||'Authentication failed';return;} currentUser=result; await loadData(); updateCategoryOptions(); renderDashboard(); navigate(pageForRoute[location.pathname] || 'dashboard', false); showAppShell(); maybeOpenMobileStartupTransactionModal(); toast(authMode==='login'?'Signed in':'Account created'); }
-async function logout() { const response = await fetch('/api/auth/logout', { method:'POST' }); if (!response.ok) { toast('Could not log out'); return; } currentUser = null; data = { transactions: [], schedules: [], categories: [], habits: [], habitLogs: [], settings:defaultSettings }; $('#authForm').reset(); setAuthMode('login'); history.pushState({ page:'dashboard' }, '', '/dashboard'); showAuthGate(); toast('Logged out'); }
+async function submitAuth(event) { event.preventDefault(); const payload={ email:$('#authEmail').value, password:$('#authPassword').value }; if (authMode === 'register') { payload.name = $('#authName').value; payload.inviteCode = $('#inviteCode').value; } try { currentUser = authMode === 'login' ? await window.ExpensoAuth.login(payload) : await window.ExpensoAuth.register(payload); } catch (error) { $('#authError').textContent = error.message || 'Authentication failed'; return; } await loadData(); updateCategoryOptions(); renderDashboard(); navigate(window.ExpensoRouter.pageFromLocation(), false); showAppShell(); maybeOpenMobileStartupTransactionModal(); toast(authMode==='login'?'Signed in':'Account created'); }
+async function logout() { try { await window.ExpensoAuth.logout(); } catch (error) { toast(error.message || 'Could not log out'); return; } currentUser = null; data = { transactions: [], schedules: [], categories: [], habits: [], habitLogs: [], settings:defaultSettings }; $('#authForm').reset(); setAuthMode('login'); history.pushState({ page:'dashboard' }, '', '/dashboard'); showAuthGate(); toast('Logged out'); }
 
 function totals() {
   const transactions = dashboardMonthTransactions();
@@ -337,15 +307,10 @@ async function addTransaction(event) {
 }
 
 function toast(message) { const el = $('#toast'); el.textContent = message; el.classList.add('show'); setTimeout(() => el.classList.remove('show'), 2400); }
-const routeForPage = { dashboard:'/dashboard', transactions:'/transactions', schedule:'/schedule', settings:'/settings', outflow:'/outflow', investments:'/investments', insights:'/insights', profile:'/profile', habits:'/habits' };
-routeForPage.habitInsights = '/habit-insights';
-routeForPage.habitManage = '/habit-manage';
-routeForPage.habitCheckins = '/habit-checkins';
-const pageForRoute = { '/':'dashboard', '/dashboard':'dashboard', '/transactions':'transactions', '/schedule':'schedule', '/settings':'settings', '/outflow':'outflow', '/investments':'investments', '/insights':'insights', '/profile':'profile', '/habits':'habits', '/habit-insights':'habitInsights', '/habit-manage':'habitManage', '/habit-checkins':'habitCheckins' };
 const pageTitles = { transactions:'Your transactions', schedule:'Plan your payments', outflow:'Outflow report', investments:'Investments', insights:'Spend insights', profile:'Profile', settings:'Keep your data yours', habits:'Habit tracker', habitInsights:'Habit insights', habitManage:'Manage habits', habitCheckins:'Habit check-ins' };
 
 function navigate(page, updateUrl = true) {
-  activePage = page; activeWorkspace = ['habits','habitInsights','habitManage','habitCheckins'].includes(page) ? 'habits' : 'expense'; if (updateUrl && routeForPage[page] && location.pathname !== routeForPage[page]) history.pushState({ page }, '', routeForPage[page]); document.body.classList.toggle('dashboard-mode', page === 'dashboard'); document.body.classList.toggle('habits-mode', activeWorkspace === 'habits'); $$('.nav-item').forEach(item => item.classList.toggle('active', item.dataset.page === page)); $$('[data-workspace]').forEach(item => item.classList.toggle('active', item.dataset.workspace === activeWorkspace));
+  activePage = page; activeWorkspace = ['habits','habitInsights','habitManage','habitCheckins'].includes(page) ? 'habits' : 'expense'; if (updateUrl) window.ExpensoRouter.push(page); document.body.classList.toggle('dashboard-mode', page === 'dashboard'); document.body.classList.toggle('habits-mode', activeWorkspace === 'habits'); $$('.nav-item').forEach(item => item.classList.toggle('active', item.dataset.page === page)); $$('[data-workspace]').forEach(item => item.classList.toggle('active', item.dataset.workspace === activeWorkspace));
   const dashboardSections = $$('.hero-row,.summary-grid,.view-switch-row,.content-grid,.bottom-grid'); const subPage = $('#subPageView');
   if (page === 'habits') { dashboardSections.forEach(section => section.hidden = true); subPage.hidden = false; subPage.innerHTML = renderHabitsMockPage(); initializeDatePickers(subPage); return; }
   if (page === 'habitInsights') { dashboardSections.forEach(section => section.hidden = true); subPage.hidden = false; subPage.innerHTML = renderHabitInsightsPage(); initializeDatePickers(subPage); return; }
@@ -1018,7 +983,7 @@ $('#subPageView').addEventListener('submit', async event => {
 $('#subPageView').addEventListener('click', event => { const range = event.target.dataset.range; if (!range) return; const now = new Date(); const month = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`; const dates = reportDates(); const from = range === 'this-month' ? `${month}-01` : dates.from; const to = range === 'this-month' ? `${month}-${String(new Date(now.getFullYear(), now.getMonth()+1, 0).getDate()).padStart(2,'0')}` : dates.to; $('#subPageView').innerHTML = renderOutflowReport(from, to); });
 $('#subPageView').addEventListener('submit', event => { if (!['outflowFilters','insightFilters','transactionFilters'].includes(event.target.id)) return; event.preventDefault(); const form = new FormData(event.target); if (event.target.id === 'transactionFilters') { applyTransactionFiltersFromForm(event.target, event.submitter?.dataset.transactionMode || transactionFilter.mode || 'thisMonth'); return; } if (event.target.id === 'insightFilters') { const mode = event.submitter?.dataset.insightMode || 'monthRange'; const fromMonth = form.get('fromMonth'); const toMonth = form.get('toMonth'); const fromYear = form.get('fromYear'); const toYear = form.get('toYear'); insightFilter = mode === 'yearRange' ? { mode, fromYear, toYear, fromMonth, toMonth } : { mode, fromMonth, toMonth, fromYear, toYear }; $('#subPageView').innerHTML = renderInsightsPage(); return; } $('#subPageView').innerHTML = renderOutflowReport(form.get('from'), form.get('to')); });
 new MutationObserver(() => initializeDatePickers($('#subPageView'))).observe($('#subPageView'), { childList:true, subtree:true });
-window.addEventListener('popstate', () => navigate(pageForRoute[location.pathname] || 'dashboard', false));
+window.addEventListener('popstate', () => navigate(window.ExpensoRouter.pageFromLocation(), false));
 
 async function bootstrap() {
   showBootGate();
@@ -1029,7 +994,7 @@ async function bootstrap() {
     await loadData();
     updateCategoryOptions();
     renderDashboard();
-    navigate(pageForRoute[location.pathname] || 'dashboard', false);
+    navigate(window.ExpensoRouter.pageFromLocation(), false);
     showAppShell();
     maybeOpenMobileStartupTransactionModal();
   }
