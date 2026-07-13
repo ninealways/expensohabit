@@ -2,6 +2,7 @@
   const routeForPage = {
     dashboard:'/dashboard',
     transactions:'/transactions',
+    calendar:'/calendar',
     schedule:'/schedule',
     settings:'/settings',
     outflow:'/outflow',
