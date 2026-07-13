@@ -265,7 +265,16 @@ function renderDashboard() {
   $('#summaryLoanPct').textContent = `${percent(t.loan, t.total)}%`;
   $('#summaryInvestmentPct').textContent = `${percent(t.investment, t.total)}%`;
   $('#formulaExpense').textContent = money(t.expenseTotal); $('#formulaLoan').textContent = money(t.loan); $('#formulaInvestment').textContent = money(t.investment); $('#formulaTotal').textContent = money(t.total);
-  renderCategories(dashboardView); renderUpcoming(); renderChart(dashboardView);
+  renderCategories(dashboardView); renderUpcoming(); renderChart(dashboardView); renderHomeVelocity(t.real);
+}
+
+function renderHomeVelocity(realSpend) {
+  const target = $('#homeVelocity');
+  if (!target || typeof spendVelocity !== 'function') return;
+  const range = insightRange({ mode:'thisMonth' });
+  const velocity = spendVelocity(range, realSpend);
+  const targetPct = percent(realSpend, velocity.target);
+  target.innerHTML = `<div class="velocity-ring" style="--pace:${Math.min(100, targetPct) * 3.6}deg"><strong>${targetPct}%</strong><small>of target</small></div><div class="velocity-copy"><p class="velocity-status ${velocity.statusTone}">${velocity.status}</p><b>${money(realSpend)}</b><div class="velocity-detail-list"><span><i>${svgIcon('insights')}</i><span class="velocity-text">Projected month-end <b class="${velocity.statusTone}">${money(velocity.projected)}</b></span></span><span><i>${svgIcon('tag')}</i><span class="velocity-text">Target <b>${money(velocity.target)}</b></span></span><span><i>${svgIcon('bolt')}</i><span class="velocity-text">Daily budget <b>${money(velocity.dailyBudget)}</b><small>Actual <b>${money(velocity.daily)}</b> per active day</small></span></span></div></div>`;
 }
 
 function dashboardMonthTransactions() {
