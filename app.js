@@ -452,7 +452,7 @@ function renderHabitCheckinRows(date, focusHabitId = '') {
     const log = habitLog(habit.id, date);
     const checked = log?.completed || false;
     const sleep = isSleepHabit(habit);
-    return `<div class="habit-checkin-row ${focusHabitId && focusHabitId !== habit.id ? 'muted' : ''}">
+    return `<div class="habit-checkin-row ${sleep ? 'sleep-row' : ''} ${focusHabitId && focusHabitId !== habit.id ? 'muted' : ''}">
       <label class="habit-checkin-toggle"><input type="checkbox" name="completed-${habit.id}" ${checked ? 'checked' : ''} /><span class="map-icon ${habit.color}">${svgIcon(habit.icon)}</span><b>${esc(habit.name)}</b></label>
       ${sleep ? `<div class="sleep-time-fields"><label>Sleep from<input name="sleepStart-${habit.id}" type="text" data-picker="time" value="${log?.sleepStart || ''}" placeholder="12:30 AM" /></label><label>Wake up<input name="sleepEnd-${habit.id}" type="text" data-picker="time" value="${log?.sleepEnd || ''}" placeholder="08:00 AM" /></label><small>${log?.sleepStart && log?.sleepEnd ? sleepLogText(log) : `Target ${habitTargetText(habit)}`}</small><input name="value-${habit.id}" type="hidden" value="${log?.value || ''}" /></div>` : habit.goalType !== 'checkbox' ? `<label>Value<input name="value-${habit.id}" type="number" step="0.1" min="0" value="${log?.value || ''}" placeholder="${habitTargetText(habit)}" /></label>` : `<input name="value-${habit.id}" type="hidden" value="${checked ? 1 : 0}" />`}
       <label>Note<textarea name="note-${habit.id}" rows="2" placeholder="Anything to remember for this day...">${esc(log?.note || '')}</textarea></label>
