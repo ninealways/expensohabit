@@ -52,6 +52,20 @@ function normalizeMonthKey(value) {
   const monthIndex = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'].indexOf(match[1].slice(0, 3).toLowerCase());
   return monthIndex >= 0 ? `${match[2]}-${String(monthIndex + 1).padStart(2, '0')}` : '';
 }
+function timeToMinutes(value = '') {
+  const match = String(value || '').match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) return null;
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  return hours >= 0 && hours <= 23 && minutes >= 0 && minutes <= 59 ? hours * 60 + minutes : null;
+}
+function sleepHours(from, to) {
+  const start = timeToMinutes(from);
+  let end = timeToMinutes(to);
+  if (start === null || end === null) return null;
+  if (end <= start) end += 24 * 60;
+  return Math.round(((end - start) / 60) * 10) / 10;
+}
 function cookies(req) { return Object.fromEntries((req.headers.cookie || '').split(';').filter(Boolean).map(part => { const [key, ...value] = part.trim().split('='); return [key, decodeURIComponent(value.join('='))]; })); }
 async function currentUser(req) { const token = cookies(req)[sessionCookie]; if (!token) return null; const session = await (await ensureDatabase()).collection('sessions').findOne({ token, expiresAt:{ $gt:new Date() } }); if (!session) return null; return db.collection('users').findOne({ id:session.userId }, { projection:{ _id:0, passwordHash:0, passwordSalt:0 } }); }
 async function requireAuth(req, res, next) { try { req.user = await currentUser(req); if (!req.user) return res.status(401).json({ error:'Authentication required' }); next(); } catch (error) { res.status(500).json({ error:error.message }); } }
@@ -254,12 +268,13 @@ app.delete('/api/habits/:id', requireAuth, async (req, res) => {
 app.post('/api/habit-logs', requireAuth, async (req, res) => {
   try {
     const database = await ensureDatabase();
-    const { habitId, date, value, completed, note } = req.body;
+    const { habitId, date, value, completed, note, sleepStart, sleepEnd } = req.body;
     if (!habitId || !/^\d{4}-\d{2}-\d{2}$/.test(String(date || ''))) return res.status(400).json({ error:'Habit and date are required.' });
     const habit = await database.collection('habits').findOne({ id:habitId, ownerId:req.user.id });
     if (!habit) return res.status(404).json({ error:'Habit not found.' });
-    const numericValue = value === '' || value === null || value === undefined ? 0 : Number(value) || 0;
-    const log = { id:`hl-${habitId}-${date}`, ownerId:req.user.id, habitId, date, value:numericValue, completed:typeof completed === 'boolean' ? completed : numericValue >= Number(habit.target || 1), note:note?.trim() || '', updatedAt:new Date() };
+    const sleepValue = sleepStart && sleepEnd ? sleepHours(sleepStart, sleepEnd) : null;
+    const numericValue = sleepValue !== null ? sleepValue : value === '' || value === null || value === undefined ? 0 : Number(value) || 0;
+    const log = { id:`hl-${habitId}-${date}`, ownerId:req.user.id, habitId, date, value:numericValue, completed:typeof completed === 'boolean' ? completed : numericValue >= Number(habit.target || 1), note:note?.trim() || '', ...(sleepValue !== null ? { sleepStart, sleepEnd } : {}), updatedAt:new Date() };
     await database.collection('habitLogs').updateOne({ ownerId:req.user.id, habitId, date }, { $set:log }, { upsert:true });
     const { ownerId, _id, ...publicLog } = log;
     res.json(publicLog);
