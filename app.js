@@ -51,7 +51,38 @@ function scheduleMonthlyAmount(schedule) { return (Number(schedule.amount) || 0)
 const activeHabits = () => (data.habits || []).filter(habit => habit.active !== false);
 const habitLog = (habitId, date = today()) => (data.habitLogs || []).find(log => log.habitId === habitId && log.date === date);
 const habitTargetText = (habit) => habit.goalType === 'checkbox' ? 'Done' : `${Number(habit.target || 0).toLocaleString('en-IN')} ${habit.unit || ''}`.trim();
-const habitValueText = (habit, log = habitLog(habit.id)) => habit.goalType === 'checkbox' ? (log?.completed ? 'Done' : 'Not done') : `${Number(log?.value || 0).toLocaleString('en-IN')} / ${habitTargetText(habit)}`;
+const isSleepHabit = (habit = {}) => String(`${habit.name || ''} ${habit.icon || ''}`).toLowerCase().includes('sleep') || habit.icon === 'moon';
+function timeToMinutes(value = '') {
+  const match = String(value).match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) return null;
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  return hours >= 0 && hours <= 23 && minutes >= 0 && minutes <= 59 ? hours * 60 + minutes : null;
+}
+function sleepHours(from, to) {
+  const start = timeToMinutes(from);
+  let end = timeToMinutes(to);
+  if (start === null || end === null) return 0;
+  if (end <= start) end += 24 * 60;
+  return Math.round(((end - start) / 60) * 10) / 10;
+}
+function formatClock(value = '') {
+  const minutes = timeToMinutes(value);
+  if (minutes === null) return '';
+  const date = new Date(2000, 0, 1, Math.floor(minutes / 60), minutes % 60);
+  return date.toLocaleTimeString('en-IN', { hour:'numeric', minute:'2-digit' });
+}
+function formatSleepDuration(hours = 0) {
+  const totalMinutes = Math.round(Number(hours || 0) * 60);
+  const wholeHours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return minutes ? `${wholeHours}h ${String(minutes).padStart(2, '0')}m` : `${wholeHours}h`;
+}
+function sleepLogText(log = {}) {
+  const range = log.sleepStart && log.sleepEnd ? `${formatClock(log.sleepStart)} → ${formatClock(log.sleepEnd)}` : 'Sleep time not logged';
+  return `${range} · ${formatSleepDuration(log.value)}`;
+}
+const habitValueText = (habit, log = habitLog(habit.id)) => isSleepHabit(habit) && log ? sleepLogText(log) : habit.goalType === 'checkbox' ? (log?.completed ? 'Done' : 'Not done') : `${Number(log?.value || 0).toLocaleString('en-IN')} / ${habitTargetText(habit)}`;
 const habitStartDate = (habit) => {
   if (habit.startDate) return habit.startDate;
   const firstLog = (data.habitLogs || []).filter(log => log.habitId === habit.id).map(log => log.date).sort()[0];
@@ -405,9 +436,10 @@ function renderHabitCheckinRows(date, focusHabitId = '') {
   return habits.map(habit => {
     const log = habitLog(habit.id, date);
     const checked = log?.completed || false;
+    const sleep = isSleepHabit(habit);
     return `<div class="habit-checkin-row ${focusHabitId && focusHabitId !== habit.id ? 'muted' : ''}">
       <label class="habit-checkin-toggle"><input type="checkbox" name="completed-${habit.id}" ${checked ? 'checked' : ''} /><span class="map-icon ${habit.color}">${svgIcon(habit.icon)}</span><b>${esc(habit.name)}</b></label>
-      ${habit.goalType !== 'checkbox' ? `<label>Value<input name="value-${habit.id}" type="number" step="0.1" min="0" value="${log?.value || ''}" placeholder="${habitTargetText(habit)}" /></label>` : `<input name="value-${habit.id}" type="hidden" value="${checked ? 1 : 0}" />`}
+      ${sleep ? `<div class="sleep-time-fields"><label>Sleep from<input name="sleepStart-${habit.id}" type="time" value="${log?.sleepStart || ''}" /></label><label>Wake up<input name="sleepEnd-${habit.id}" type="time" value="${log?.sleepEnd || ''}" /></label><small>${log?.sleepStart && log?.sleepEnd ? sleepLogText(log) : `Target ${habitTargetText(habit)}`}</small><input name="value-${habit.id}" type="hidden" value="${log?.value || ''}" /></div>` : habit.goalType !== 'checkbox' ? `<label>Value<input name="value-${habit.id}" type="number" step="0.1" min="0" value="${log?.value || ''}" placeholder="${habitTargetText(habit)}" /></label>` : `<input name="value-${habit.id}" type="hidden" value="${checked ? 1 : 0}" />`}
       <label>Note<textarea name="note-${habit.id}" rows="2" placeholder="Anything to remember for this day...">${esc(log?.note || '')}</textarea></label>
     </div>`;
   }).join('') || '<p class="empty-state">Add active habits before checking in.</p>';
@@ -470,9 +502,12 @@ async function submitHabitCheckin(event) {
   const habits = activeHabits().filter(habit => habitIsStarted(habit, date));
   for (const habit of habits) {
     const completed = !!form.elements[`completed-${habit.id}`]?.checked;
-    const value = habit.goalType === 'checkbox' ? (completed ? 1 : 0) : form.elements[`value-${habit.id}`]?.value || 0;
+    const sleep = isSleepHabit(habit);
+    const sleepStart = form.elements[`sleepStart-${habit.id}`]?.value || '';
+    const sleepEnd = form.elements[`sleepEnd-${habit.id}`]?.value || '';
+    const value = sleep ? sleepHours(sleepStart, sleepEnd) : habit.goalType === 'checkbox' ? (completed ? 1 : 0) : form.elements[`value-${habit.id}`]?.value || 0;
     const note = form.elements[`note-${habit.id}`]?.value || '';
-    const response = await fetch('/api/habit-logs', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ habitId:habit.id, date, value, completed:habit.goalType === 'checkbox' ? completed : completed || Number(value || 0) >= Number(habit.target || 1), note }) });
+    const response = await fetch('/api/habit-logs', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ habitId:habit.id, date, value, completed:habit.goalType === 'checkbox' ? completed : completed || Number(value || 0) >= Number(habit.target || 1), note, ...(sleep ? { sleepStart, sleepEnd } : {}) }) });
     if (!response.ok) { const result = await response.json(); toast(result.error || 'Could not save check-in'); return; }
   }
   closeHabitCheckinModal();

@@ -86,6 +86,12 @@ function renderHabitInsightsPage() {
   const noteLogs = (data.habitLogs || []).filter(log => { const habit = allHabits.find(item => item.id === log.habitId); return habit && log.note && monthDates.includes(log.date) && habitIsStarted(habit, log.date); }).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5);
   const activeCount = activeStartedHabits().length;
   const inactiveCount = allHabits.filter(habit => habit.active === false).length;
+  const sleepHabit = allHabits.find(habit => isSleepHabit(habit));
+  const sleepLogs = sleepHabit ? monthDates.map(date => habitLog(sleepHabit.id, date)).filter(log => log && Number(log.value || 0) > 0) : [];
+  const sleepAverage = sleepLogs.length ? sleepLogs.reduce((sum, log) => sum + Number(log.value || 0), 0) / sleepLogs.length : 0;
+  const sleepTarget = Number(sleepHabit?.target || 7.5);
+  const sleepTargetHits = sleepLogs.filter(log => Number(log.value || 0) >= sleepTarget).length;
+  const latestSleep = sleepLogs.slice().sort((a, b) => b.date.localeCompare(a.date))[0];
   return `<section class="habits-shell">
     <article class="panel habits-hero">
       <div><p class="panel-kicker">HABIT INSIGHTS</p><h3>Routine report</h3><p class="subtitle">Patterns, streaks, and consistency for your habits.</p></div>
@@ -95,7 +101,7 @@ function renderHabitInsightsPage() {
       <article class="habit-summary-card featured"><span class="map-icon purple-bg">${svgIcon('calendar')}</span><p>Best day this month</p><strong>${bestDay?.done || 0}/${bestDay?.total || activeCount}</strong><small>${bestDay ? new Date(`${bestDay.date}T00:00:00`).toLocaleDateString('en-IN', { day:'2-digit', month:'short' }) : 'No check-ins yet'}</small></article>
       <article class="habit-summary-card"><span class="map-icon amber-bg">${svgIcon('bolt')}</span><p>Missed opportunities</p><strong>${rows.reduce((sum, row) => sum + row.misses, 0)}</strong><small>Unchecked habit-days in 30 days</small></article>
       <article class="habit-summary-card"><span class="map-icon teal-bg">${svgIcon('heart')}</span><p>Active habits</p><strong>${activeCount}</strong><small>${inactiveCount} paused</small></article>
-      <article class="habit-summary-card"><span class="map-icon blue-bg">${svgIcon('book')}</span><p>Notes captured</p><strong>${noteLogs.length}</strong><small>Recent daily reflections</small></article>
+      <article class="habit-summary-card"><span class="map-icon blue-bg">${svgIcon('moon')}</span><p>Sleep average</p><strong>${sleepAverage ? sleepAverage.toFixed(1) : '—'} hrs</strong><small>${sleepLogs.length ? `${sleepTargetHits}/${sleepLogs.length} days met target` : 'No sleep logs yet'}</small></article>
     </section>
     <section class="habits-grid">
       <article class="panel">
@@ -126,6 +132,16 @@ function renderHabitInsightsPage() {
       <article class="panel">
         <div class="panel-heading"><div><p class="panel-kicker">VALUE HABITS</p><h3>Logged averages vs target</h3></div></div>
         <div class="habit-insight-list">${rows.filter(row => row.habit.goalType !== 'checkbox').map(row => `<div><b>${esc(row.habit.name)}</b><span>30-day average: ${row.avg ? row.avg.toFixed(row.avg >= 10 ? 0 : 1) : '—'} ${esc(row.habit.unit || '')}. Target: ${habitTargetText(row.habit)}.</span></div>`).join('') || '<p class="empty-state">Duration/count habits will show averages here.</p>'}</div>
+      </article>
+    </section>
+    <section class="habits-grid secondary">
+      <article class="panel sleep-pattern-panel">
+        <div class="panel-heading"><div><p class="panel-kicker">SLEEP CYCLE</p><h3>Sleep pattern</h3></div><button class="mini-button" data-action="open-habit-checkin" data-id="${sleepHabit?.id || ''}" type="button">Log sleep</button></div>
+        ${sleepHabit ? `<div class="sleep-pattern-summary"><div><span>Latest</span><b>${latestSleep ? sleepLogText(latestSleep) : 'No sleep logged'}</b></div><div><span>30-day average</span><b>${sleepAverage ? `${sleepAverage.toFixed(1)} hrs` : '—'}</b></div><div><span>Target hit rate</span><b>${sleepLogs.length ? `${Math.round(sleepTargetHits / sleepLogs.length * 100)}%` : '—'}</b></div></div><div class="sleep-bars">${sleepLogs.slice(-10).map(log => `<div><span>${new Date(`${log.date}T00:00:00`).toLocaleDateString('en-IN', { day:'2-digit', month:'short' })}</span><i><em style="width:${Math.min(100, Number(log.value || 0) / Math.max(10, sleepTarget) * 100)}%"></em></i><b>${formatSleepDuration(log.value)}</b><small>${log.sleepStart && log.sleepEnd ? `${formatClock(log.sleepStart)} → ${formatClock(log.sleepEnd)}` : 'No time range'}</small></div>`).join('') || '<p class="empty-state">Sleep bars appear after check-ins.</p>'}</div>` : '<p class="empty-state">Add a Sleep habit to track sleep windows and total hours.</p>'}
+      </article>
+      <article class="panel">
+        <div class="panel-heading"><div><p class="panel-kicker">SLEEP NOTES</p><h3>What to watch</h3></div></div>
+        <div class="habit-insight-list">${sleepHabit ? [`Target is ${sleepTarget} hrs. Keep bedtime and wake-up time consistent to stabilize the cycle.`, sleepAverage ? `Current 30-day average is ${sleepAverage.toFixed(1)} hrs across ${sleepLogs.length} logged nights.` : 'Log sleep from and wake-up time for a few days to establish a baseline.', latestSleep ? `Latest sleep: ${sleepLogText(latestSleep)} on ${latestSleep.date}.` : 'No latest sleep entry yet.'].map((text, index) => `<div><b>${['Target','Average','Latest'][index]}</b><span>${text}</span></div>`).join('') : '<p class="empty-state">Sleep analysis appears after adding a Sleep habit.</p>'}</div>
       </article>
     </section>
     <section class="habits-grid secondary">
@@ -165,7 +181,7 @@ function renderHabitCheckinsPage() {
     </article>
     <article class="panel">
       <div class="panel-heading"><div><p class="panel-kicker">RECENT CHECK-INS</p><h3>History</h3></div><span class="tag">${rows.length} entries</span></div>
-      <div class="table-scroll"><table class="outflow-table habit-history-table"><thead><tr><th>Date</th><th>Habit</th><th>Status</th><th>Value</th><th>Note</th><th></th></tr></thead><tbody>${rows.map(({ log, habit }) => `<tr><td>${log.date}</td><td>${esc(habit.name)}</td><td>${log.completed ? 'Done' : 'Not done'}</td><td>${habit.goalType === 'checkbox' ? '—' : `${Number(log.value || 0).toLocaleString('en-IN')} ${esc(habit.unit || '')}`}</td><td>${esc(log.note || '')}</td><td><button class="mini-button" data-action="open-habit-checkin" data-date="${log.date}" data-id="${habit.id}" type="button">Edit</button><button class="mini-button warn" data-action="delete-habit-log" data-id="${habit.id}" data-date="${log.date}" type="button">Delete</button></td></tr>`).join('') || '<tr><td colspan="6">No check-ins yet.</td></tr>'}</tbody></table></div>
+      <div class="table-scroll"><table class="outflow-table habit-history-table"><thead><tr><th>Date</th><th>Habit</th><th>Status</th><th>Value</th><th>Note</th><th></th></tr></thead><tbody>${rows.map(({ log, habit }) => `<tr><td>${log.date}</td><td>${esc(habit.name)}</td><td>${log.completed ? 'Done' : 'Not done'}</td><td>${isSleepHabit(habit) ? sleepLogText(log) : habit.goalType === 'checkbox' ? '—' : `${Number(log.value || 0).toLocaleString('en-IN')} ${esc(habit.unit || '')}`}</td><td>${esc(log.note || '')}</td><td><button class="mini-button" data-action="open-habit-checkin" data-date="${log.date}" data-id="${habit.id}" type="button">Edit</button><button class="mini-button warn" data-action="delete-habit-log" data-id="${habit.id}" data-date="${log.date}" type="button">Delete</button></td></tr>`).join('') || '<tr><td colspan="6">No check-ins yet.</td></tr>'}</tbody></table></div>
     </article>
   </section>`;
 }
