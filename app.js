@@ -183,6 +183,21 @@ function initializeDatePickers(root = document) {
       prevArrow:'‹'
     });
   });
+  root.querySelectorAll('[data-picker="time"]').forEach(input => {
+    if (input._flatpickr) { input._flatpickr.setDate(input.value, false, 'H:i'); return; }
+    window.flatpickr(input, {
+      enableTime:true,
+      noCalendar:true,
+      dateFormat:'H:i',
+      altInput:true,
+      altFormat:'h:i K',
+      allowInput:true,
+      disableMobile:true,
+      minuteIncrement:5,
+      nextArrow:'›',
+      prevArrow:'‹'
+    });
+  });
   root.querySelectorAll('[data-picker="month"]').forEach(input => {
     if (input._flatpickr) { input._flatpickr.setDate(input.value, false, 'Y-m'); return; }
     const options = {
@@ -439,7 +454,7 @@ function renderHabitCheckinRows(date, focusHabitId = '') {
     const sleep = isSleepHabit(habit);
     return `<div class="habit-checkin-row ${focusHabitId && focusHabitId !== habit.id ? 'muted' : ''}">
       <label class="habit-checkin-toggle"><input type="checkbox" name="completed-${habit.id}" ${checked ? 'checked' : ''} /><span class="map-icon ${habit.color}">${svgIcon(habit.icon)}</span><b>${esc(habit.name)}</b></label>
-      ${sleep ? `<div class="sleep-time-fields"><label>Sleep from<input name="sleepStart-${habit.id}" type="time" value="${log?.sleepStart || ''}" /></label><label>Wake up<input name="sleepEnd-${habit.id}" type="time" value="${log?.sleepEnd || ''}" /></label><small>${log?.sleepStart && log?.sleepEnd ? sleepLogText(log) : `Target ${habitTargetText(habit)}`}</small><input name="value-${habit.id}" type="hidden" value="${log?.value || ''}" /></div>` : habit.goalType !== 'checkbox' ? `<label>Value<input name="value-${habit.id}" type="number" step="0.1" min="0" value="${log?.value || ''}" placeholder="${habitTargetText(habit)}" /></label>` : `<input name="value-${habit.id}" type="hidden" value="${checked ? 1 : 0}" />`}
+      ${sleep ? `<div class="sleep-time-fields"><label>Sleep from<input name="sleepStart-${habit.id}" type="text" data-picker="time" value="${log?.sleepStart || ''}" placeholder="12:30 AM" /></label><label>Wake up<input name="sleepEnd-${habit.id}" type="text" data-picker="time" value="${log?.sleepEnd || ''}" placeholder="08:00 AM" /></label><small>${log?.sleepStart && log?.sleepEnd ? sleepLogText(log) : `Target ${habitTargetText(habit)}`}</small><input name="value-${habit.id}" type="hidden" value="${log?.value || ''}" /></div>` : habit.goalType !== 'checkbox' ? `<label>Value<input name="value-${habit.id}" type="number" step="0.1" min="0" value="${log?.value || ''}" placeholder="${habitTargetText(habit)}" /></label>` : `<input name="value-${habit.id}" type="hidden" value="${checked ? 1 : 0}" />`}
       <label>Note<textarea name="note-${habit.id}" rows="2" placeholder="Anything to remember for this day...">${esc(log?.note || '')}</textarea></label>
     </div>`;
   }).join('') || '<p class="empty-state">Add active habits before checking in.</p>';
