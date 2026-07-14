@@ -457,6 +457,10 @@ function openHabitModal(habit = null) {
   form.target.value = habit?.goalType === 'checkbox' ? '' : habit?.target || '';
   form.milestoneType.value = habit?.milestoneType || 'days';
   form.milestoneTarget.value = habit?.milestoneTarget || 30;
+  form.growthTarget.value = habit?.growthTarget || '';
+  form.growthTargetDate.value = habit?.growthTargetDate || '';
+  form.growthStrategy.value = habit?.growthStrategy || 'manual';
+  form.growthStep.value = habit?.growthStep || '';
   form.unit.value = habit?.unit || '';
   form.icon.value = habit?.icon || 'habit';
   form.color.value = habit?.color || 'purple-bg';
@@ -510,7 +514,7 @@ async function submitHabit(event) {
   event.preventDefault();
   const form = new FormData(event.target);
   const goalType = form.get('goalType') || 'checkbox';
-  const payload = { name:form.get('name'), description:form.get('description'), startDate:form.get('startDate') || today(), goalType, target:form.get('target'), unit:form.get('unit'), milestoneType:form.get('milestoneType') || 'days', milestoneTarget:form.get('milestoneTarget') || 30, icon:form.get('icon'), color:form.get('color'), frequency:'Daily', active:event.target.active.checked };
+  const payload = { name:form.get('name'), description:form.get('description'), startDate:form.get('startDate') || today(), goalType, target:form.get('target'), unit:form.get('unit'), milestoneType:form.get('milestoneType') || 'days', milestoneTarget:form.get('milestoneTarget') || 30, growthTarget:form.get('growthTarget'), growthTargetDate:form.get('growthTargetDate'), growthStrategy:form.get('growthStrategy') || 'manual', growthStep:form.get('growthStep'), icon:form.get('icon'), color:form.get('color'), frequency:'Daily', active:event.target.active.checked };
   const wasEditing = !!editingHabitId;
   const response = await fetch(editingHabitId ? `/api/habits/${editingHabitId}` : '/api/habits', { method:editingHabitId ? 'PUT' : 'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) });
   const result = await response.json();

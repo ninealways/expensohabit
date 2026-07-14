@@ -203,7 +203,7 @@ app.put('/api/categories/:id', requireAuth, async (req, res) => { try { const da
 app.post('/api/habits', requireAuth, async (req, res) => {
   try {
     const database = await ensureDatabase();
-    const { name, description, icon, color, goalType, target, unit, frequency, startDate, milestoneType, milestoneTarget } = req.body;
+    const { name, description, icon, color, goalType, target, unit, frequency, startDate, milestoneType, milestoneTarget, growthTarget, growthTargetDate, growthStrategy, growthStep } = req.body;
     if (!name?.trim()) return res.status(400).json({ error:'Habit name is required.' });
     if (startDate && !/^\d{4}-\d{2}-\d{2}$/.test(String(startDate))) return res.status(400).json({ error:'Valid start date is required.' });
     const cleanGoalType = ['checkbox','count','duration'].includes(goalType) ? goalType : 'checkbox';
@@ -221,6 +221,10 @@ app.post('/api/habits', requireAuth, async (req, res) => {
       startDate:startDate || localDate(),
       milestoneType:['days','total'].includes(milestoneType) ? milestoneType : 'days',
       milestoneTarget:Number(milestoneTarget) || 30,
+      growthTarget:Number(growthTarget) || null,
+      growthTargetDate:/^\d{4}-\d{2}-\d{2}$/.test(String(growthTargetDate || '')) ? growthTargetDate : null,
+      growthStrategy:['manual','linear','stepped'].includes(growthStrategy) ? growthStrategy : 'manual',
+      growthStep:Number(growthStep) || null,
       active:true,
       createdAt:new Date()
     };
@@ -244,6 +248,13 @@ app.put('/api/habits/:id', requireAuth, async (req, res) => {
     if (req.body.frequency) updates.frequency = req.body.frequency;
     if (['days','total'].includes(req.body.milestoneType)) updates.milestoneType = req.body.milestoneType;
     if (req.body.milestoneTarget !== undefined) updates.milestoneTarget = Number(req.body.milestoneTarget) || 30;
+    if (req.body.growthTarget !== undefined) updates.growthTarget = Number(req.body.growthTarget) || null;
+    if (req.body.growthTargetDate !== undefined) {
+      if (req.body.growthTargetDate && !/^\d{4}-\d{2}-\d{2}$/.test(String(req.body.growthTargetDate))) return res.status(400).json({ error:'Valid growth target date is required.' });
+      updates.growthTargetDate = req.body.growthTargetDate || null;
+    }
+    if (['manual','linear','stepped'].includes(req.body.growthStrategy)) updates.growthStrategy = req.body.growthStrategy;
+    if (req.body.growthStep !== undefined) updates.growthStep = Number(req.body.growthStep) || null;
     if (req.body.startDate !== undefined) {
       if (req.body.startDate && !/^\d{4}-\d{2}-\d{2}$/.test(String(req.body.startDate))) return res.status(400).json({ error:'Valid start date is required.' });
       updates.startDate = req.body.startDate || localDate();
