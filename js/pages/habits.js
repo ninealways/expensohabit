@@ -2,16 +2,17 @@ function renderHabitsMockPage() {
   const habits = activeStartedHabits();
   const dates = weekDates();
   const weeklyHabits = activeHabits().filter(habit => habitDatesInRange(habit, dates).length);
+  const scoringWeekDates = habitScoringDates(dates);
   const dayLabels = dates.map(date => new Date(`${date}T00:00:00`).toLocaleDateString('en-IN', { weekday:'short' }));
   const completed = habits.filter(habit => habitCompleted(habit)).length;
-  const weeklyChecks = weeklyHabits.reduce((sum, habit) => sum + habitDatesInRange(habit, dates).length, 0);
-  const weeklyCompleted = weeklyHabits.reduce((sum, habit) => sum + habitDatesInRange(habit, dates).filter(date => habitCompleted(habit, date)).length, 0);
+  const weeklyChecks = weeklyHabits.reduce((sum, habit) => sum + habitDatesInRange(habit, scoringWeekDates).length, 0);
+  const weeklyCompleted = weeklyHabits.reduce((sum, habit) => sum + habitDatesInRange(habit, scoringWeekDates).filter(date => habitCompleted(habit, date)).length, 0);
   const streakRows = habits.map(habit => ({ habit, streak:habitStreak(habit) })).sort((a, b) => b.streak - a.streak);
   const best = streakRows[0];
   const sleep = weeklyHabits.find(habit => habit.name.toLowerCase().includes('sleep'));
   const sleepLogs = sleep ? habitDatesInRange(sleep, dates).map(date => habitLog(sleep.id, date)).filter(Boolean) : [];
   const sleepAverage = sleepLogs.length ? sleepLogs.reduce((sum, log) => sum + Number(log.value || 0), 0) / sleepLogs.length : 0;
-  const weakest = weeklyHabits.map(habit => { const validDates = habitDatesInRange(habit, dates); return { habit, total:validDates.length, done:validDates.filter(date => habitCompleted(habit, date)).length }; }).filter(row => row.total).sort((a, b) => (a.done / a.total) - (b.done / b.total))[0];
+  const weakest = weeklyHabits.map(habit => { const validDates = habitDatesInRange(habit, scoringWeekDates); return { habit, total:validDates.length, done:validDates.filter(date => habitCompleted(habit, date)).length }; }).filter(row => row.total).sort((a, b) => (a.done / a.total) - (b.done / b.total))[0];
   return `<section class="habits-shell">
     <article class="panel habits-hero">
       <div>
@@ -66,10 +67,12 @@ function renderHabitInsightsPage() {
   const allHabits = data.habits || [];
   const dates = weekDates();
   const monthDates = Array.from({ length:30 }, (_, index) => dateKey(addDays(new Date(), -29 + index)));
-  const insightHabits = habits.filter(habit => habitDatesInRange(habit, monthDates).length);
+  const scoringWeekDates = habitScoringDates(dates);
+  const scoringMonthDates = habitScoringDates(monthDates);
+  const insightHabits = habits.filter(habit => habitDatesInRange(habit, scoringMonthDates).length);
   const rows = insightHabits.map(habit => {
-    const validWeekDates = habitDatesInRange(habit, dates);
-    const validMonthDates = habitDatesInRange(habit, monthDates);
+    const validWeekDates = habitDatesInRange(habit, scoringWeekDates);
+    const validMonthDates = habitDatesInRange(habit, scoringMonthDates);
     const weekDone = validWeekDates.filter(date => habitCompleted(habit, date)).length;
     const monthDone = validMonthDates.filter(date => habitCompleted(habit, date)).length;
     const streak = habitStreak(habit);
@@ -80,7 +83,7 @@ function renderHabitInsightsPage() {
     const milestone = habitMilestoneProgress(habit);
     return { habit, weekDone, monthDone, misses, streak, avg, bestDay, milestone, validMonthCount:validMonthDates.length, weekRate:validWeekDates.length ? Math.round(weekDone / validWeekDates.length * 100) : 0, monthRate:validMonthDates.length ? Math.round(monthDone / validMonthDates.length * 100) : 0 };
   }).sort((a, b) => b.monthRate - a.monthRate);
-  const dailyTotals = monthDates.map(date => { const eligible = habits.filter(habit => habitIsStarted(habit, date)); return { date, total:eligible.length, done:eligible.filter(habit => habitCompleted(habit, date)).length }; });
+  const dailyTotals = scoringMonthDates.map(date => { const eligible = habits.filter(habit => habitIsStarted(habit, date)); return { date, total:eligible.length, done:eligible.filter(habit => habitCompleted(habit, date)).length }; });
   const bestDay = dailyTotals.filter(day => day.total).slice().sort((a, b) => b.done - a.done)[0];
   const lowDays = dailyTotals.filter(day => day.total && day.done > 0 && day.done < Math.max(1, day.total / 2)).slice(-4);
   const noteLogs = (data.habitLogs || []).filter(log => { const habit = allHabits.find(item => item.id === log.habitId); return habit && log.note && monthDates.includes(log.date) && habitIsStarted(habit, log.date); }).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5);
@@ -99,7 +102,7 @@ function renderHabitInsightsPage() {
     </article>
     <section class="habit-summary-grid">
       <article class="habit-summary-card featured"><span class="map-icon purple-bg">${svgIcon('calendar')}</span><p>Best day this month</p><strong>${bestDay?.done || 0}/${bestDay?.total || activeCount}</strong><small>${bestDay ? new Date(`${bestDay.date}T00:00:00`).toLocaleDateString('en-IN', { day:'2-digit', month:'short' }) : 'No check-ins yet'}</small></article>
-      <article class="habit-summary-card"><span class="map-icon amber-bg">${svgIcon('bolt')}</span><p>Missed opportunities</p><strong>${rows.reduce((sum, row) => sum + row.misses, 0)}</strong><small>Unchecked habit-days in 30 days</small></article>
+      <article class="habit-summary-card"><span class="map-icon amber-bg">${svgIcon('bolt')}</span><p>Missed opportunities</p><strong>${rows.reduce((sum, row) => sum + row.misses, 0)}</strong><small>Unchecked closed habit-days</small></article>
       <article class="habit-summary-card"><span class="map-icon teal-bg">${svgIcon('heart')}</span><p>Active habits</p><strong>${activeCount}</strong><small>${inactiveCount} paused</small></article>
       <article class="habit-summary-card"><span class="map-icon blue-bg">${svgIcon('moon')}</span><p>Sleep average</p><strong>${sleepAverage ? sleepAverage.toFixed(1) : '—'} hrs</strong><small>${sleepLogs.length ? `${sleepTargetHits}/${sleepLogs.length} days met target` : 'No sleep logs yet'}</small></article>
     </section>
