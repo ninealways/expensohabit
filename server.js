@@ -1,6 +1,5 @@
 const path = require('path');
 const express = require('express');
-const { MongoClient } = require('mongodb');
 const crypto = require('crypto');
 require('dotenv').config();
 
@@ -9,6 +8,8 @@ const port = process.env.PORT || 4173;
 const mongoUri = process.env.MONGODB_URI;
 const dbName = process.env.MONGODB_DB || 'daily_expenses';
 const inviteCode = process.env.INVITE_CODE;
+let MongoClient;
+let mongoModulePromise;
 let db;
 const sessionCookie = 'daily_expenses_session';
 
@@ -132,6 +133,10 @@ app.put('/api/profile', requireAuth, async (req, res) => {
 async function ensureDatabase() {
   if (!mongoUri) throw new Error('MONGODB_URI is not configured');
   if (db) return db;
+  if (!MongoClient) {
+    mongoModulePromise ||= import('mongodb');
+    MongoClient = (await mongoModulePromise).MongoClient;
+  }
   const client = new MongoClient(mongoUri);
   await client.connect();
   db = client.db(dbName);
