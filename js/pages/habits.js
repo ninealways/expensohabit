@@ -96,7 +96,7 @@ function sleepBucketLabel(key, range) {
 }
 function sleepTrendRows(sleepHabit, range) {
   if (!sleepHabit) return [];
-  const rawLogs = (data.habitLogs || []).filter(log => log.habitId === sleepHabit.id && Number(log.value || 0) > 0).sort((a, b) => a.date.localeCompare(b.date));
+  const rawLogs = (data.habitLogs || []).filter(log => log.habitId === sleepHabit.id && Number(log.value || 0) > 0 && habitDayClosed(log.date)).sort((a, b) => a.date.localeCompare(b.date));
   const start = sleepRangeStart(range);
   const scoped = start ? rawLogs.filter(log => (range === 'yearly' ? log.date.slice(0, 7) >= start : log.date >= start)) : rawLogs;
   const groups = scoped.reduce((acc, log) => {
@@ -151,7 +151,7 @@ function habitValueLabel(value, habit) {
   return `${Math.round(value).toLocaleString('en-IN')} ${esc(habit.unit || '')}`.trim();
 }
 function habitRecentRows(habit, days = 30) {
-  const dates = Array.from({ length:days }, (_, index) => dateKey(addDays(new Date(), -(days - 1) + index))).filter(date => habitIsStarted(habit, date));
+  const dates = habitScoringDates(Array.from({ length:days }, (_, index) => dateKey(addDays(new Date(), -(days - 1) + index)))).filter(date => habitIsStarted(habit, date));
   return dates.map(date => {
     const log = habitLog(habit.id, date);
     const value = habit.goalType === 'checkbox' ? (log?.completed ? 100 : 0) : Number(log?.value || 0);
@@ -241,11 +241,11 @@ function renderHabitInsightsPage() {
   const dailyTotals = scoringMonthDates.map(date => { const eligible = habits.filter(habit => habitIsStarted(habit, date)); return { date, total:eligible.length, done:eligible.filter(habit => habitCompleted(habit, date)).length }; });
   const bestDay = dailyTotals.filter(day => day.total).slice().sort((a, b) => b.done - a.done)[0];
   const lowDays = dailyTotals.filter(day => day.total && day.done > 0 && day.done < Math.max(1, day.total / 2)).slice(-4);
-  const noteLogs = (data.habitLogs || []).filter(log => { const habit = allHabits.find(item => item.id === log.habitId); return habit && log.note && monthDates.includes(log.date) && habitIsStarted(habit, log.date); }).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5);
+  const noteLogs = (data.habitLogs || []).filter(log => { const habit = allHabits.find(item => item.id === log.habitId); return habit && log.note && scoringMonthDates.includes(log.date) && habitIsStarted(habit, log.date); }).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5);
   const activeCount = activeStartedHabits().length;
   const inactiveCount = allHabits.filter(habit => habit.active === false).length;
   const sleepHabit = allHabits.find(habit => isSleepHabit(habit));
-  const sleepLogs = sleepHabit ? monthDates.map(date => habitLog(sleepHabit.id, date)).filter(log => log && Number(log.value || 0) > 0) : [];
+  const sleepLogs = sleepHabit ? scoringMonthDates.map(date => habitLog(sleepHabit.id, date)).filter(log => log && Number(log.value || 0) > 0) : [];
   const sleepAverage = sleepLogs.length ? sleepLogs.reduce((sum, log) => sum + Number(log.value || 0), 0) / sleepLogs.length : 0;
   const sleepTarget = Number(sleepHabit?.target || 7.5);
   const sleepTargetHits = sleepLogs.filter(log => Number(log.value || 0) >= sleepTarget).length;

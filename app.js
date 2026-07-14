@@ -100,6 +100,8 @@ function habitDayClosed(date = today()) {
   const current = today();
   if (date < current) return true;
   if (date > current) return false;
+  const todaysHabits = activeStartedHabits(current);
+  if (todaysHabits.length && todaysHabits.every(habit => habitLog(habit.id, current))) return true;
   const now = new Date();
   return now.getHours() * 60 + now.getMinutes() >= 23 * 60 + 50;
 }
@@ -607,7 +609,7 @@ $('#subPageView').addEventListener('submit', async event => {
   data = await (await fetch('/api/data')).json(); data.settings = normalizeSettings(data.settings);
   updateCategoryOptions(); navigate('settings'); toast('Category added');
 });
-$('#subPageView').addEventListener('click', event => { const range = event.target.dataset.range; if (!range) return; const now = new Date(); const month = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`; const dates = reportDates(); const from = range === 'this-month' ? `${month}-01` : dates.from; const to = range === 'this-month' ? `${month}-${String(new Date(now.getFullYear(), now.getMonth()+1, 0).getDate()).padStart(2,'0')}` : dates.to; $('#subPageView').innerHTML = renderOutflowReport(from, to); });
+$('#subPageView').addEventListener('click', event => { const target = event.target.closest('[data-range]'); if (!target || target.dataset.action || activePage !== 'outflow') return; const range = target.dataset.range; const now = new Date(); const month = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`; const dates = reportDates(); const from = range === 'this-month' ? `${month}-01` : dates.from; const to = range === 'this-month' ? `${month}-${String(new Date(now.getFullYear(), now.getMonth()+1, 0).getDate()).padStart(2,'0')}` : dates.to; $('#subPageView').innerHTML = renderOutflowReport(from, to); });
 $('#subPageView').addEventListener('submit', event => { if (!['outflowFilters','insightFilters','transactionFilters'].includes(event.target.id)) return; event.preventDefault(); const form = new FormData(event.target); if (event.target.id === 'transactionFilters') { applyTransactionFiltersFromForm(event.target, event.submitter?.dataset.transactionMode || transactionFilter.mode || 'thisMonth'); return; } if (event.target.id === 'insightFilters') { const mode = event.submitter?.dataset.insightMode || 'monthRange'; const fromMonth = form.get('fromMonth'); const toMonth = form.get('toMonth'); const fromYear = form.get('fromYear'); const toYear = form.get('toYear'); insightFilter = mode === 'yearRange' ? { mode, fromYear, toYear, fromMonth, toMonth } : { mode, fromMonth, toMonth, fromYear, toYear }; $('#subPageView').innerHTML = renderInsightsPage(); return; } $('#subPageView').innerHTML = renderOutflowReport(form.get('from'), form.get('to')); });
 new MutationObserver(() => initializeDatePickers($('#subPageView'))).observe($('#subPageView'), { childList:true, subtree:true });
 window.addEventListener('popstate', () => navigate(window.ExpensoRouter.pageFromLocation(), false));
