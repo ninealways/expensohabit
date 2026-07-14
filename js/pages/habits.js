@@ -62,6 +62,90 @@ function renderHabitsMockPage() {
   </section>`;
 }
 
+function averageClock(values, bedtime = false) {
+  const minutes = values.map(timeToMinutes).filter(value => value !== null).map(value => bedtime && value < 720 ? value + 1440 : value);
+  if (!minutes.length) return '';
+  const avg = Math.round(minutes.reduce((sum, value) => sum + value, 0) / minutes.length) % 1440;
+  return `${String(Math.floor(avg / 60)).padStart(2, '0')}:${String(avg % 60).padStart(2, '0')}`;
+}
+function sleepRangeStart(range) {
+  const now = new Date();
+  if (range === 'daily') return dateKey(addDays(now, -6));
+  if (range === 'weekly') return dateKey(addDays(now, -55));
+  if (range === 'monthly') return dateKey(addDays(now, -29));
+  if (range === 'yearly') return monthInputKey(addMonthsToDate(now, -11));
+  return '';
+}
+function sleepBucketKey(log, range) {
+  if (range === 'weekly') {
+    const date = new Date(`${log.date}T00:00:00`);
+    const weekStart = weekDates(date)[0];
+    return weekStart;
+  }
+  if (range === 'yearly' || (range === 'all' && sleepRangeLogCount() > 60)) return log.date.slice(0, 7);
+  return log.date;
+}
+function sleepRangeLogCount() {
+  const sleepHabit = (data.habits || []).find(habit => isSleepHabit(habit));
+  return sleepHabit ? (data.habitLogs || []).filter(log => log.habitId === sleepHabit.id && Number(log.value || 0) > 0).length : 0;
+}
+function sleepBucketLabel(key, range) {
+  if (key.length === 7) return new Date(`${key}-01T00:00:00`).toLocaleDateString('en-IN', { month:'short', year:'2-digit' });
+  if (range === 'weekly') return new Date(`${key}T00:00:00`).toLocaleDateString('en-IN', { day:'2-digit', month:'short' });
+  return new Date(`${key}T00:00:00`).toLocaleDateString('en-IN', { day:'2-digit', month:'short' });
+}
+function sleepTrendRows(sleepHabit, range) {
+  if (!sleepHabit) return [];
+  const rawLogs = (data.habitLogs || []).filter(log => log.habitId === sleepHabit.id && Number(log.value || 0) > 0).sort((a, b) => a.date.localeCompare(b.date));
+  const start = sleepRangeStart(range);
+  const scoped = start ? rawLogs.filter(log => (range === 'yearly' ? log.date.slice(0, 7) >= start : log.date >= start)) : rawLogs;
+  const groups = scoped.reduce((acc, log) => {
+    const key = sleepBucketKey(log, range);
+    acc[key] = acc[key] || [];
+    acc[key].push(log);
+    return acc;
+  }, {});
+  return Object.entries(groups).map(([key, logs]) => {
+    const avg = logs.reduce((sum, log) => sum + Number(log.value || 0), 0) / logs.length;
+    const startTime = averageClock(logs.map(log => log.sleepStart), true);
+    const endTime = averageClock(logs.map(log => log.sleepEnd), false);
+    return { key, label:sleepBucketLabel(key, range), value:avg, count:logs.length, startTime, endTime, latest:logs[logs.length - 1] };
+  }).sort((a, b) => a.key.localeCompare(b.key));
+}
+function renderSleepTrendChart(rows, target = 7.5) {
+  if (!rows.length) return '<p class="empty-state">Log sleep from and wake-up time to see the sleep cycle graph.</p>';
+  const width = 640;
+  const height = 250;
+  const left = 54;
+  const right = 18;
+  const top = 20;
+  const bottom = 46;
+  const values = rows.map(row => row.value);
+  const min = Math.max(0, Math.min(6, Math.floor(Math.min(...values, target) - .5)));
+  const max = Math.max(9, Math.ceil(Math.max(...values, target) + .5));
+  const x = index => left + (rows.length === 1 ? (width - left - right) / 2 : index * ((width - left - right) / (rows.length - 1)));
+  const y = value => top + (max - value) / (max - min) * (height - top - bottom);
+  const points = rows.map((row, index) => `${x(index).toFixed(1)},${y(row.value).toFixed(1)}`).join(' ');
+  const area = `${left},${height - bottom} ${points} ${x(rows.length - 1).toFixed(1)},${height - bottom}`;
+  const targetY = y(target);
+  const grid = [min, min + (max - min) * .33, min + (max - min) * .66, max].map(value => `<g><line x1="${left}" x2="${width - right}" y1="${y(value).toFixed(1)}" y2="${y(value).toFixed(1)}" /><text x="6" y="${(y(value) + 4).toFixed(1)}">${value.toFixed(value % 1 ? 1 : 0)}h</text></g>`).join('');
+  return `<div class="sleep-chart-wrap"><svg class="sleep-cycle-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="Time in bed sleep trend">${grid}<line class="sleep-target-line" x1="${left}" x2="${width - right}" y1="${targetY.toFixed(1)}" y2="${targetY.toFixed(1)}" /><polygon class="sleep-area" points="${area}" /><polyline class="sleep-line" points="${points}" />${rows.map((row, index) => `<g class="sleep-point"><circle cx="${x(index).toFixed(1)}" cy="${y(row.value).toFixed(1)}" r="4"><title>${row.label}: ${formatSleepDuration(row.value)} · ${row.startTime && row.endTime ? `${formatClock(row.startTime)} → ${formatClock(row.endTime)}` : 'No time range'}</title></circle>${index % Math.ceil(rows.length / 6 || 1) === 0 || index === rows.length - 1 ? `<text x="${x(index).toFixed(1)}" y="${height - 18}" text-anchor="middle">${row.label}</text>` : ''}</g>`).join('')}</svg></div>`;
+}
+function renderSleepTrend(sleepHabit, range = habitSleepRange) {
+  if (!sleepHabit) return '<p class="empty-state">Add a Sleep habit to track sleep windows and total hours.</p>';
+  const target = Number(sleepHabit.target || 7.5);
+  const rows = sleepTrendRows(sleepHabit, range);
+  const avg = rows.length ? rows.reduce((sum, row) => sum + row.value, 0) / rows.length : 0;
+  const variance = rows.length ? rows.reduce((sum, row) => sum + Math.abs(row.value - avg), 0) / rows.length : 0;
+  const avgStart = averageClock(rows.map(row => row.startTime).filter(Boolean), true);
+  const avgEnd = averageClock(rows.map(row => row.endTime).filter(Boolean), false);
+  const latest = rows[rows.length - 1];
+  const trend = rows.length > 1 ? latest.value - rows[0].value : 0;
+  const feedback = !rows.length ? 'Start logging sleep from and wake-up times to build a baseline.' : avg < target - .5 ? `Average is ${formatSleepDuration(avg)}, below your ${target}h target. Try moving bedtime earlier by 15–30 minutes.` : variance > .8 ? `Average is on track, but sleep length varies by about ${variance.toFixed(1)}h. A more consistent bedtime/wake-up window should help.` : `Sleep duration is stable. Keep the ${avgStart && avgEnd ? `${formatClock(avgStart)} → ${formatClock(avgEnd)}` : 'current'} window consistent.`;
+  const ranges = [['daily','Daily'],['weekly','Weekly'],['monthly','Monthly'],['yearly','Yearly'],['all','All time']];
+  return `<div class="sleep-trend-card"><div class="sleep-range-tabs">${ranges.map(([value, label]) => `<button class="${range === value ? 'active' : ''}" data-action="sleep-range" data-range="${value}" type="button">${label}</button>`).join('')}</div><div class="sleep-pattern-summary"><div><span>Average time in bed</span><b>${avg ? formatSleepDuration(avg) : '—'}</b></div><div><span>Sleep window</span><b>${avgStart && avgEnd ? `${formatClock(avgStart)} → ${formatClock(avgEnd)}` : 'Needs time logs'}</b></div><div><span>Trend</span><b>${rows.length > 1 ? `${trend >= 0 ? '+' : '−'}${formatSleepDuration(Math.abs(trend))}` : '—'}</b></div></div>${renderSleepTrendChart(rows, target)}<div class="sleep-detail-strip">${latest ? `<span><b>Latest</b>${latest.label} · ${formatSleepDuration(latest.value)} · ${latest.startTime && latest.endTime ? `${formatClock(latest.startTime)} → ${formatClock(latest.endTime)}` : 'No time range'}</span>` : '<span><b>Latest</b>No sleep log yet</span>'}<span><b>Target</b>${target}h/night</span><span><b>Consistency</b>${variance ? `${variance.toFixed(1)}h avg variation` : '—'}</span></div><div class="sleep-feedback"><b>Improvement feedback</b><span>${feedback}</span></div></div>`;
+}
+
 function renderHabitInsightsPage() {
   const habits = activeHabits();
   const allHabits = data.habits || [];
@@ -140,7 +224,7 @@ function renderHabitInsightsPage() {
     <section class="habits-grid secondary">
       <article class="panel sleep-pattern-panel">
         <div class="panel-heading"><div><p class="panel-kicker">SLEEP CYCLE</p><h3>Sleep pattern</h3></div><button class="mini-button" data-action="open-habit-checkin" data-id="${sleepHabit?.id || ''}" type="button">Log sleep</button></div>
-        ${sleepHabit ? `<div class="sleep-pattern-summary"><div><span>Latest</span><b>${latestSleep ? sleepLogText(latestSleep) : 'No sleep logged'}</b></div><div><span>30-day average</span><b>${sleepAverage ? `${sleepAverage.toFixed(1)} hrs` : '—'}</b></div><div><span>Target hit rate</span><b>${sleepLogs.length ? `${Math.round(sleepTargetHits / sleepLogs.length * 100)}%` : '—'}</b></div></div><div class="sleep-bars">${sleepLogs.slice(-10).map(log => `<div><span>${new Date(`${log.date}T00:00:00`).toLocaleDateString('en-IN', { day:'2-digit', month:'short' })}</span><i><em style="width:${Math.min(100, Number(log.value || 0) / Math.max(10, sleepTarget) * 100)}%"></em></i><b>${formatSleepDuration(log.value)}</b><small>${log.sleepStart && log.sleepEnd ? `${formatClock(log.sleepStart)} → ${formatClock(log.sleepEnd)}` : 'No time range'}</small></div>`).join('') || '<p class="empty-state">Sleep bars appear after check-ins.</p>'}</div>` : '<p class="empty-state">Add a Sleep habit to track sleep windows and total hours.</p>'}
+        ${renderSleepTrend(sleepHabit)}
       </article>
       <article class="panel">
         <div class="panel-heading"><div><p class="panel-kicker">SLEEP NOTES</p><h3>What to watch</h3></div></div>
