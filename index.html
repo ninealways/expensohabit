@@ -10,7 +10,7 @@
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="vendor/flatpickr/flatpickr.min.css" />
     <link rel="stylesheet" href="vendor/flatpickr/plugins/monthSelect/style.css" />
-    <link rel="stylesheet" href="styles.css?v=20260713-06" />
+    <link rel="stylesheet" href="styles.css?v=20260714-05" />
   </head>
   <body class="app-booting">
     <svg class="icon-sprite" aria-hidden="true">
@@ -248,6 +248,18 @@
             <label>Milestone type<select name="milestoneType"><option value="days">Completed days</option><option value="total">Total value</option></select></label>
             <label>Milestone target<input name="milestoneTarget" type="number" min="1" step="1" placeholder="30 days, 1000 steps..." /></label>
           </div>
+          <div class="schedule-detail-section habit-growth-section">
+            <p class="form-section-title">Growth target</p>
+            <div class="form-row">
+              <label>Long-term daily target<input name="growthTarget" type="number" min="0" step="0.1" placeholder="60 min, 10000 steps..." /></label>
+              <label>Target date<input name="growthTargetDate" type="text" data-picker="date" placeholder="Optional" /></label>
+            </div>
+            <div class="form-row">
+              <label>Ramp strategy<select name="growthStrategy"><option value="manual">Manual</option><option value="linear">Linear</option><option value="stepped">Stepped</option></select></label>
+              <label>Increase step<input name="growthStep" type="number" min="0" step="0.1" placeholder="5 min, 1000 steps..." /></label>
+            </div>
+            <small class="form-help">Use this for long-term capability. Your daily target remains the achievable target for today.</small>
+          </div>
           <div class="form-row">
             <label>Unit<input name="unit" placeholder="min, pages, steps, hrs" /></label>
             <label>Icon<select name="icon"><option value="habit">Habit</option><option value="book">Book</option><option value="walk">Walk</option><option value="moon">Sleep</option><option value="heart">Health</option><option value="bolt">Energy</option><option value="flame">Streak</option></select></label>
@@ -266,6 +278,18 @@
           <label>Check-in date<input name="date" type="text" data-picker="date" required /></label>
           <div class="habit-checkin-list" id="habitCheckinList"></div>
           <div class="modal-actions"><button type="button" class="secondary-button" id="cancelHabitCheckinModal">Cancel</button><button class="primary-button" type="submit">Save check-in</button></div>
+        </form>
+      </section>
+    </div>
+
+    <div class="modal-backdrop" id="categoryModalBackdrop" hidden>
+      <section class="modal category-modal" role="dialog" aria-modal="true" aria-labelledby="categoryModalTitle">
+        <div class="modal-heading"><div><p class="panel-kicker">CATEGORY SETUP</p><h3 id="categoryModalTitle">Add category</h3></div><button class="close-button" id="closeCategoryModal">×</button></div>
+        <form id="categoryForm" class="category-modal-form">
+          <label>Category name<input name="name" placeholder="Food, Fuel, Insurance..." required /></label>
+          <label>Category type<select name="kind"><option value="expense">Expense</option><option value="loan">Loan</option><option value="investment">Investment</option></select></label>
+          <label id="categorySpendGroupRow">Spend group<select name="spendGroup"><option value="need">Need</option><option value="commitment">Commitment</option><option value="growth">Growth</option><option value="goodToHave">Good to have</option><option value="leisure">Leisure</option></select><small class="form-help">Used only for expense insights. Loans and investments are excluded.</small></label>
+          <div class="modal-actions"><button type="button" class="secondary-button" id="cancelCategoryModal">Cancel</button><button class="primary-button" type="submit">Save category</button></div>
         </form>
       </section>
     </div>
@@ -291,12 +315,12 @@
     <script src="js/api.js?v=20260712-31"></script>
     <script src="js/auth.js?v=20260712-31"></script>
     <script src="js/router.js?v=20260712-31"></script>
-    <script src="js/pages/basic.js?v=20260712-32"></script>
+    <script src="js/pages/basic.js?v=20260714-02"></script>
     <script src="js/pages/transactions.js?v=20260712-33"></script>
     <script src="js/pages/schedule.js?v=20260712-34"></script>
-    <script src="js/pages/habits.js?v=20260713-03"></script>
-    <script src="js/pages/insights.js?v=20260712-36"></script>
+    <script src="js/pages/habits.js?v=20260714-04"></script>
+    <script src="js/pages/insights.js?v=20260714-03"></script>
     <script src="js/pages/calendar.js?v=20260713-02"></script>
-    <script src="app.js?v=20260713-06"></script>
+    <script src="app.js?v=20260714-06"></script>
   </body>
 </html>

@@ -1,6 +1,5 @@
 const path = require('path');
 const express = require('express');
-const { MongoClient } = require('mongodb');
 const crypto = require('crypto');
 require('dotenv').config();
 
@@ -9,6 +8,8 @@ const port = process.env.PORT || 4173;
 const mongoUri = process.env.MONGODB_URI;
 const dbName = process.env.MONGODB_DB || 'daily_expenses';
 const inviteCode = process.env.INVITE_CODE;
+let MongoClient;
+let mongoModulePromise;
 let db;
 const sessionCookie = 'daily_expenses_session';
 
@@ -29,7 +30,7 @@ const seedSchedules = [
   { id:'s4', type:'investment', amount:500, category:'Investments', subcategory:'Stock', dueDay:20, frequency:'Monthly', autoAdd:true }
 ];
 const seedCategories = [
-  { id:'c1', name:'Food & Dining', kind:'expense', active:true }, { id:'c2', name:'Transport', kind:'expense', active:true }, { id:'c3', name:'Shopping', kind:'expense', active:true }, { id:'c4', name:'Bills & Utilities', kind:'expense', active:true }, { id:'c5', name:'Entertainment', kind:'expense', active:true }, { id:'c6', name:'Health', kind:'expense', active:true }, { id:'c7', name:'Other', kind:'expense', active:true }, { id:'c8', name:'Loans', kind:'loan', active:true }, { id:'c9', name:'Investments', kind:'investment', active:true }
+  { id:'c1', name:'Food & Dining', kind:'expense', spendGroup:'need', active:true }, { id:'c2', name:'Transport', kind:'expense', spendGroup:'need', active:true }, { id:'c3', name:'Shopping', kind:'expense', spendGroup:'goodToHave', active:true }, { id:'c4', name:'Bills & Utilities', kind:'expense', spendGroup:'commitment', active:true }, { id:'c5', name:'Entertainment', kind:'expense', spendGroup:'leisure', active:true }, { id:'c6', name:'Health', kind:'expense', spendGroup:'growth', active:true }, { id:'c7', name:'Other', kind:'expense', spendGroup:'goodToHave', active:true }, { id:'c8', name:'Loans', kind:'loan', active:true }, { id:'c9', name:'Investments', kind:'investment', active:true }
 ];
 const seedHabits = [
   { id:'h1', name:'Meditation', icon:'habit', color:'purple-bg', goalType:'duration', target:15, unit:'min', frequency:'Daily', startDate:'2025-05-01', milestoneType:'days', milestoneTarget:30, active:true },
@@ -38,6 +39,7 @@ const seedHabits = [
   { id:'h4', name:'Sleep', icon:'moon', color:'blue-bg', goalType:'duration', target:7.5, unit:'hrs', frequency:'Daily', startDate:'2025-05-01', milestoneType:'days', milestoneTarget:30, active:true }
 ];
 const defaultSettings = { monthlyExpenseBudget:60000, monthlyBudgetOverrides:{} };
+const validSpendGroups = ['need','commitment','growth','goodToHave','leisure'];
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname), { setHeaders: (res) => res.setHeader('Cache-Control', 'no-store') }));
@@ -70,6 +72,15 @@ function cookies(req) { return Object.fromEntries((req.headers.cookie || '').spl
 async function currentUser(req) { const token = cookies(req)[sessionCookie]; if (!token) return null; const session = await (await ensureDatabase()).collection('sessions').findOne({ token, expiresAt:{ $gt:new Date() } }); if (!session) return null; return db.collection('users').findOne({ id:session.userId }, { projection:{ _id:0, passwordHash:0, passwordSalt:0 } }); }
 async function requireAuth(req, res, next) { try { req.user = await currentUser(req); if (!req.user) return res.status(401).json({ error:'Authentication required' }); next(); } catch (error) { res.status(500).json({ error:error.message }); } }
 function setSession(res, token) { res.setHeader('Set-Cookie', `${sessionCookie}=${encodeURIComponent(token)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=604800`); }
+function defaultSpendGroup(name = '') {
+  const value = String(name).toLowerCase();
+  if (/loan|emi|insurance|subscription|term|bill|utility|electricity|rent/.test(value)) return 'commitment';
+  if (/book|course|learn|education|health|gym|fitness|medical|doctor/.test(value)) return 'growth';
+  if (/entertain|movie|restaurant|travel|leisure|game|hobby/.test(value)) return 'leisure';
+  if (/shopping|auto|fuel|wallet|misc|gadget|home/.test(value)) return 'goodToHave';
+  return 'need';
+}
+function cleanSpendGroup(value, name = '') { return validSpendGroups.includes(value) ? value : defaultSpendGroup(name); }
 
 app.post('/api/auth/register', async (req, res) => {
   try {
@@ -122,6 +133,10 @@ app.put('/api/profile', requireAuth, async (req, res) => {
 async function ensureDatabase() {
   if (!mongoUri) throw new Error('MONGODB_URI is not configured');
   if (db) return db;
+  if (!MongoClient) {
+    mongoModulePromise ||= import('mongodb');
+    MongoClient = (await mongoModulePromise).MongoClient;
+  }
   const client = new MongoClient(mongoUri);
   await client.connect();
   db = client.db(dbName);
@@ -136,7 +151,7 @@ async function ensureDatabase() {
   return db;
 }
 
-async function ensureUserData(userId) { const database = await ensureDatabase(); const transactions = database.collection('transactions'); const schedules = database.collection('schedules'); const categories = database.collection('categories'); const settings = database.collection('settings'); const habits = database.collection('habits'); if (!await settings.findOne({ ownerId:userId })) await settings.insertOne({ ownerId:userId, ...defaultSettings }); const hasUserTransactions = await transactions.countDocuments({ ownerId:userId }); const hasLegacy = await transactions.countDocuments({ ownerId:{ $exists:false } }); if (!hasUserTransactions && hasLegacy) { await transactions.updateMany({ ownerId:{ $exists:false } }, { $set:{ ownerId:userId } }); await schedules.updateMany({ ownerId:{ $exists:false } }, { $set:{ ownerId:userId } }); } else if (!hasUserTransactions) { await transactions.insertMany(seedTransactions.map(item => ({ ...item, ownerId:userId }))); await schedules.insertMany(seedSchedules.map(item => ({ ...item, ownerId:userId }))); } if (!await categories.countDocuments({ ownerId:userId })) await categories.insertMany(seedCategories.map(item => ({ ...item, ownerId:userId }))); if (!await habits.countDocuments({ ownerId:userId })) await habits.insertMany(seedHabits.map(item => ({ ...item, ownerId:userId }))); }
+async function ensureUserData(userId) { const database = await ensureDatabase(); const transactions = database.collection('transactions'); const schedules = database.collection('schedules'); const categories = database.collection('categories'); const settings = database.collection('settings'); const habits = database.collection('habits'); if (!await settings.findOne({ ownerId:userId })) await settings.insertOne({ ownerId:userId, ...defaultSettings }); const hasUserTransactions = await transactions.countDocuments({ ownerId:userId }); const hasLegacy = await transactions.countDocuments({ ownerId:{ $exists:false } }); if (!hasUserTransactions && hasLegacy) { await transactions.updateMany({ ownerId:{ $exists:false } }, { $set:{ ownerId:userId } }); await schedules.updateMany({ ownerId:{ $exists:false } }, { $set:{ ownerId:userId } }); } else if (!hasUserTransactions) { await transactions.insertMany(seedTransactions.map(item => ({ ...item, ownerId:userId }))); await schedules.insertMany(seedSchedules.map(item => ({ ...item, ownerId:userId }))); } if (!await categories.countDocuments({ ownerId:userId })) await categories.insertMany(seedCategories.map(item => ({ ...item, ownerId:userId }))); const uncategorized = await categories.find({ ownerId:userId, kind:'expense', $or:[{ spendGroup:{ $exists:false } }, { spendGroup:null }, { spendGroup:{ $nin:validSpendGroups } }] }).toArray(); await Promise.all(uncategorized.map(category => categories.updateOne({ _id:category._id }, { $set:{ spendGroup:cleanSpendGroup(category.spendGroup, category.name) } }))); if (!await habits.countDocuments({ ownerId:userId })) await habits.insertMany(seedHabits.map(item => ({ ...item, ownerId:userId }))); }
 
 function localDate(value = new Date()) { const date = value instanceof Date ? value : new Date(`${value}T00:00:00`); return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`; }
 function addMonths(date, months) { const next = new Date(date); const day = next.getDate(); next.setDate(1); next.setMonth(next.getMonth() + months); next.setDate(Math.min(day, new Date(next.getFullYear(), next.getMonth() + 1, 0).getDate())); return next; }
@@ -197,13 +212,13 @@ app.post('/api/transactions', requireAuth, async (req, res) => {
   catch (error) { res.status(500).json({ error:error.message }); }
 });
 
-app.post('/api/categories', requireAuth, async (req, res) => { try { const database = await ensureDatabase(); const { name, kind } = req.body; if (!name?.trim() || !['expense','loan','investment'].includes(kind)) return res.status(400).json({ error:'Category name and type are required.' }); const category = { id:`c-${Date.now()}`, ownerId:req.user.id, name:name.trim(), kind, active:true }; await database.collection('categories').insertOne(category); res.status(201).json({ ...category, ownerId:undefined }); } catch (error) { res.status(500).json({ error:error.message }); } });
-app.put('/api/categories/:id', requireAuth, async (req, res) => { try { const database = await ensureDatabase(); const updates = {}; if (req.body.name?.trim()) updates.name=req.body.name.trim(); if (['expense','loan','investment'].includes(req.body.kind)) updates.kind=req.body.kind; if (typeof req.body.active === 'boolean') updates.active=req.body.active; const result = await database.collection('categories').findOneAndUpdate({ id:req.params.id, ownerId:req.user.id }, { $set:updates }, { returnDocument:'after', projection:{ _id:0, ownerId:0 } }); res.json(result.value || result); } catch (error) { res.status(500).json({ error:error.message }); } });
+app.post('/api/categories', requireAuth, async (req, res) => { try { const database = await ensureDatabase(); const { name, kind, spendGroup } = req.body; if (!name?.trim() || !['expense','loan','investment'].includes(kind)) return res.status(400).json({ error:'Category name and type are required.' }); const cleanName = name.trim(); const category = { id:`c-${Date.now()}`, ownerId:req.user.id, name:cleanName, kind, ...(kind === 'expense' ? { spendGroup:cleanSpendGroup(spendGroup, cleanName) } : {}), active:true }; await database.collection('categories').insertOne(category); const { ownerId, _id, ...publicCategory } = category; res.status(201).json(publicCategory); } catch (error) { res.status(500).json({ error:error.message }); } });
+app.put('/api/categories/:id', requireAuth, async (req, res) => { try { const database = await ensureDatabase(); const existing = await database.collection('categories').findOne({ id:req.params.id, ownerId:req.user.id }); if (!existing) return res.status(404).json({ error:'Category not found' }); const updates = {}; if (req.body.name?.trim()) updates.name=req.body.name.trim(); if (['expense','loan','investment'].includes(req.body.kind)) updates.kind=req.body.kind; const finalKind = updates.kind || existing.kind; const finalName = updates.name || existing.name; if (finalKind === 'expense') updates.spendGroup = cleanSpendGroup(req.body.spendGroup ?? existing.spendGroup, finalName); else updates.spendGroup = null; if (typeof req.body.active === 'boolean') updates.active=req.body.active; const result = await database.collection('categories').findOneAndUpdate({ id:req.params.id, ownerId:req.user.id }, { $set:updates }, { returnDocument:'after', projection:{ _id:0, ownerId:0 } }); res.json(result.value || result); } catch (error) { res.status(500).json({ error:error.message }); } });
 
 app.post('/api/habits', requireAuth, async (req, res) => {
   try {
     const database = await ensureDatabase();
-    const { name, description, icon, color, goalType, target, unit, frequency, startDate, milestoneType, milestoneTarget } = req.body;
+    const { name, description, icon, color, goalType, target, unit, frequency, startDate, milestoneType, milestoneTarget, growthTarget, growthTargetDate, growthStrategy, growthStep } = req.body;
     if (!name?.trim()) return res.status(400).json({ error:'Habit name is required.' });
     if (startDate && !/^\d{4}-\d{2}-\d{2}$/.test(String(startDate))) return res.status(400).json({ error:'Valid start date is required.' });
     const cleanGoalType = ['checkbox','count','duration'].includes(goalType) ? goalType : 'checkbox';
@@ -221,6 +236,10 @@ app.post('/api/habits', requireAuth, async (req, res) => {
       startDate:startDate || localDate(),
       milestoneType:['days','total'].includes(milestoneType) ? milestoneType : 'days',
       milestoneTarget:Number(milestoneTarget) || 30,
+      growthTarget:Number(growthTarget) || null,
+      growthTargetDate:/^\d{4}-\d{2}-\d{2}$/.test(String(growthTargetDate || '')) ? growthTargetDate : null,
+      growthStrategy:['manual','linear','stepped'].includes(growthStrategy) ? growthStrategy : 'manual',
+      growthStep:Number(growthStep) || null,
       active:true,
       createdAt:new Date()
     };
@@ -244,6 +263,13 @@ app.put('/api/habits/:id', requireAuth, async (req, res) => {
     if (req.body.frequency) updates.frequency = req.body.frequency;
     if (['days','total'].includes(req.body.milestoneType)) updates.milestoneType = req.body.milestoneType;
     if (req.body.milestoneTarget !== undefined) updates.milestoneTarget = Number(req.body.milestoneTarget) || 30;
+    if (req.body.growthTarget !== undefined) updates.growthTarget = Number(req.body.growthTarget) || null;
+    if (req.body.growthTargetDate !== undefined) {
+      if (req.body.growthTargetDate && !/^\d{4}-\d{2}-\d{2}$/.test(String(req.body.growthTargetDate))) return res.status(400).json({ error:'Valid growth target date is required.' });
+      updates.growthTargetDate = req.body.growthTargetDate || null;
+    }
+    if (['manual','linear','stepped'].includes(req.body.growthStrategy)) updates.growthStrategy = req.body.growthStrategy;
+    if (req.body.growthStep !== undefined) updates.growthStep = Number(req.body.growthStep) || null;
     if (req.body.startDate !== undefined) {
       if (req.body.startDate && !/^\d{4}-\d{2}-\d{2}$/.test(String(req.body.startDate))) return res.status(400).json({ error:'Valid start date is required.' });
       updates.startDate = req.body.startDate || localDate();
