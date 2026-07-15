@@ -16,8 +16,9 @@ function filteredTransactions(filter = transactionFilter) {
     const matchesRange = transaction.date >= range.from && transaction.date <= range.to;
     const matchesType = !filter.type || filter.type === 'all' || transaction.type === filter.type;
     const matchesCategory = !filter.category || filter.category === 'all' || transaction.category === filter.category;
+    const matchesSpendGroup = !filter.spendGroup || filter.spendGroup === 'all' || (transaction.type === 'expense' && categorySpendGroup(transaction.category) === filter.spendGroup);
     const text = `${transaction.subcategory || ''} ${transaction.category || ''} ${transaction.note || ''} ${transaction.type || ''}`.toLowerCase();
-    return matchesRange && matchesType && matchesCategory && (!query || text.includes(query));
+    return matchesRange && matchesType && matchesCategory && matchesSpendGroup && (!query || text.includes(query));
   });
   const sorters = {
     dateDesc:(a,b) => b.date.localeCompare(a.date) || (b.amount - a.amount),
@@ -36,6 +37,7 @@ function renderTransactionFilters(filter = transactionFilter) {
   const toYear = filter.toYear || fromYear;
   const typeOptions = [['all','All types'],['expense','Expenses'],['loan','Loans'],['investment','Investments']].map(([value, label]) => `<option value="${value}" ${filter.type === value ? 'selected' : ''}>${label}</option>`).join('');
   const categoryOptions = `<option value="all">All categories</option>${transactionCategories().map(category => `<option value="${category}" ${filter.category === category ? 'selected' : ''}>${category}</option>`).join('')}`;
+  const spendGroupOptions = `<option value="all">All spend groups</option>${Object.entries(spendGroups).map(([value, group]) => `<option value="${value}" ${filter.spendGroup === value ? 'selected' : ''}>${group.label}</option>`).join('')}`;
   const sortOptions = [['dateDesc','Newest first'],['dateAsc','Oldest first'],['amountDesc','Amount high to low'],['amountAsc','Amount low to high'],['nameAsc','Name A-Z']].map(([value, label]) => `<option value="${value}" ${filter.sort === value ? 'selected' : ''}>${label}</option>`).join('');
   return `<form id="transactionFilters" class="transaction-filter-panel">
     <div class="insight-range-control transaction-range-control">
@@ -47,6 +49,7 @@ function renderTransactionFilters(filter = transactionFilter) {
       <label>Search<input name="search" type="search" value="${filter.search || ''}" placeholder="Name, note, category..." /></label>
       <label>Type<select name="type">${typeOptions}</select></label>
       <label>Category<select name="category">${categoryOptions}</select></label>
+      <label>Spend group<select name="spendGroup">${spendGroupOptions}</select></label>
       <label>Sort<select name="sort">${sortOptions}</select></label>
     </div>
   </form>`;
@@ -61,6 +64,6 @@ function renderTransactionsPage() {
 
 function applyTransactionFiltersFromForm(form, mode = transactionFilter.mode || 'thisMonth') {
   const data = new FormData(form);
-  transactionFilter = { mode, fromMonth:data.get('fromMonth'), toMonth:data.get('toMonth'), fromYear:data.get('fromYear'), toYear:data.get('toYear'), search:data.get('search') || '', type:data.get('type') || 'all', category:data.get('category') || 'all', sort:data.get('sort') || 'dateDesc' };
+  transactionFilter = { mode, fromMonth:data.get('fromMonth'), toMonth:data.get('toMonth'), fromYear:data.get('fromYear'), toYear:data.get('toYear'), search:data.get('search') || '', type:data.get('type') || 'all', category:data.get('category') || 'all', spendGroup:data.get('spendGroup') || 'all', sort:data.get('sort') || 'dateDesc' };
   $('#subPageView').innerHTML = renderTransactionsPage();
 }

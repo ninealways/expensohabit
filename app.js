@@ -14,7 +14,7 @@ let calendarFilter = { view:'month', month:'', type:'all', selectedDate:'' };
 let privacyMode = localStorage.getItem('dailyExpensesPrivacy') !== 'shown';
 let scheduleTab = 'expense';
 let investmentTab = 'portfolio';
-let transactionFilter = { mode:'thisMonth', type:'all', category:'all', search:'', sort:'dateDesc' };
+let transactionFilter = { mode:'thisMonth', type:'all', category:'all', spendGroup:'all', search:'', sort:'dateDesc' };
 let activeWorkspace = 'expense';
 let editingHabitId = null;
 let pendingHabitDeleteId = null;
