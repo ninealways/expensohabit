@@ -192,7 +192,7 @@ function habitGrowthFeedback(habit, current, monthRate) {
 }
 function renderHabitLineChart(habit, rows, currentTarget = habit.goalType === 'checkbox' ? 100 : Number(habit.target || 1), growthTarget = habit.goalType === 'checkbox' ? 0 : Number(habit.growthTarget || 0)) {
   if (!rows.length) return '<p class="empty-state">No check-ins yet for this habit.</p>';
-  const width = 560, height = 188, left = 42, right = 16, top = 16, bottom = 36;
+  const width = 560, height = 210, left = 52, right = 22, top = 22, bottom = 44;
   const values = rows.map(row => row.value);
   const max = Math.max(1, Math.ceil(Math.max(...values, currentTarget, growthTarget || 0) * 1.12));
   const x = index => left + (rows.length === 1 ? (width - left - right) / 2 : index * ((width - left - right) / (rows.length - 1)));
@@ -200,7 +200,15 @@ function renderHabitLineChart(habit, rows, currentTarget = habit.goalType === 'c
   const points = rows.map((row, index) => `${x(index).toFixed(1)},${y(row.value).toFixed(1)}`).join(' ');
   const targetY = y(currentTarget);
   const growthY = growthTarget ? y(growthTarget) : null;
-  return `<div class="habit-trend-chart-wrap"><svg class="habit-trend-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="${esc(habit.name)} trend"><line class="habit-grid-line" x1="${left}" x2="${width - right}" y1="${top}" y2="${top}" /><line class="habit-grid-line" x1="${left}" x2="${width - right}" y1="${height - bottom}" y2="${height - bottom}" /><text x="4" y="${top + 4}">${habitValueLabel(max, habit)}</text><text x="4" y="${height - bottom + 4}">0</text><line class="habit-target-line" x1="${left}" x2="${width - right}" y1="${targetY.toFixed(1)}" y2="${targetY.toFixed(1)}" /><text x="${width - right - 4}" y="${(targetY - 5).toFixed(1)}" text-anchor="end">Current target</text>${growthTarget ? `<line class="habit-growth-line" x1="${left}" x2="${width - right}" y1="${growthY.toFixed(1)}" y2="${growthY.toFixed(1)}" /><text x="${width - right - 4}" y="${(growthY - 5).toFixed(1)}" text-anchor="end">Growth target</text>` : ''}<polyline class="habit-trend-line" points="${points}" />${rows.map((row, index) => index % Math.ceil(rows.length / 5 || 1) === 0 || index === rows.length - 1 ? `<text x="${x(index).toFixed(1)}" y="${height - 12}" text-anchor="middle">${row.label}</text>` : '').join('')}</svg></div>`;
+  const mid = Math.round(max / 2);
+  const markerEvery = Math.max(1, Math.ceil(rows.length / 6));
+  const pointLabels = rows.map((row, index) => {
+    const showLabel = rows.length <= 7 || index % markerEvery === 0 || index === rows.length - 1;
+    const cx = x(index);
+    const cy = y(row.value);
+    return `<g class="habit-trend-point"><circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="4"><title>${row.label}: ${habitValueLabel(row.value, habit)}</title></circle>${showLabel ? `<text class="habit-value-label" x="${cx.toFixed(1)}" y="${Math.max(14, cy - 10).toFixed(1)}" text-anchor="middle">${habitValueLabel(row.value, habit)}</text><text x="${cx.toFixed(1)}" y="${height - 14}" text-anchor="middle">${row.label}</text>` : ''}</g>`;
+  }).join('');
+  return `<div class="habit-trend-chart-wrap"><svg class="habit-trend-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="${esc(habit.name)} trend"><line class="habit-grid-line" x1="${left}" x2="${width - right}" y1="${top}" y2="${top}" /><line class="habit-grid-line" x1="${left}" x2="${width - right}" y1="${y(mid).toFixed(1)}" y2="${y(mid).toFixed(1)}" /><line class="habit-grid-line" x1="${left}" x2="${width - right}" y1="${height - bottom}" y2="${height - bottom}" /><text x="6" y="${top + 4}">${habitValueLabel(max, habit)}</text><text x="6" y="${y(mid).toFixed(1)}">${habitValueLabel(mid, habit)}</text><text x="6" y="${height - bottom + 4}">0</text><line class="habit-target-line" x1="${left}" x2="${width - right}" y1="${targetY.toFixed(1)}" y2="${targetY.toFixed(1)}" />${growthTarget ? `<line class="habit-growth-line" x1="${left}" x2="${width - right}" y1="${growthY.toFixed(1)}" y2="${growthY.toFixed(1)}" />` : ''}<polyline class="habit-trend-line" points="${points}" />${pointLabels}</svg><div class="habit-chart-legend"><span><i class="target-dot current"></i>Current target <b>${habitValueLabel(currentTarget, habit)}</b></span>${growthTarget ? `<span><i class="target-dot growth"></i>Growth target <b>${habitValueLabel(growthTarget, habit)}</b></span>` : ''}<span><i class="target-dot actual"></i>Latest <b>${habitValueLabel(rows[rows.length - 1].value, habit)}</b></span></div></div>`;
 }
 function renderCombinedGrowthGraph(rows) {
   const growthRows = rows.filter(row => row.habit.goalType !== 'checkbox' && Number(row.habit.growthTarget || 0));
