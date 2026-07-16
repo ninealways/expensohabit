@@ -309,8 +309,25 @@ function renderHomeVelocity(realSpend) {
   if (!target || typeof spendVelocity !== 'function') return;
   const range = insightRange({ mode:'thisMonth' });
   const velocity = spendVelocity(range, realSpend);
-  const targetPct = percent(realSpend, velocity.target);
-  target.innerHTML = `<div class="velocity-ring" style="--pace:${Math.min(100, targetPct) * 3.6}deg"><strong>${targetPct}%</strong><small>of target</small></div><div class="velocity-copy"><p class="velocity-status ${velocity.statusTone}">${velocity.status}</p><b>${money(realSpend)}</b><div class="velocity-detail-list"><span><i>${svgIcon('insights')}</i><span class="velocity-text">Projected month-end <b class="${velocity.statusTone}">${money(velocity.projected)}</b></span></span><span><i>${svgIcon('tag')}</i><span class="velocity-text">Target <b>${money(velocity.target)}</b></span></span><span><i>${svgIcon('bolt')}</i><span class="velocity-text">Daily budget <b>${money(velocity.dailyBudget)}</b><small>Actual <b>${money(velocity.daily)}</b> per active day</small></span></span></div></div>`;
+  const start = new Date(`${range.from}T00:00:00`);
+  const elapsedDays = Math.max(1, velocity.elapsedDays || 1);
+  const days = Array.from({ length:elapsedDays }, (_, index) => dateKey(addDays(start, index)));
+  const dailyTotals = days.map(day => data.transactions
+    .filter(transaction => transaction.date === day && transaction.type === 'expense' && transaction.includeInReal !== false)
+    .reduce((sum, transaction) => sum + Number(transaction.amount || 0), 0));
+  const width = 360, height = 150, left = 38, right = 14, top = 18, bottom = 30;
+  const max = Math.max(1, Math.ceil(Math.max(...dailyTotals, velocity.dailyBudget, velocity.daily) * 1.16));
+  const x = index => left + (days.length === 1 ? (width - left - right) / 2 : index * ((width - left - right) / (days.length - 1)));
+  const y = value => top + (max - value) / max * (height - top - bottom);
+  const points = dailyTotals.map((value, index) => `${x(index).toFixed(1)},${y(value).toFixed(1)}`).join(' ');
+  const budgetY = y(velocity.dailyBudget);
+  const projectedY = y(velocity.daily);
+  const labelEvery = Math.max(1, Math.ceil(days.length / 5));
+  const pointDots = dailyTotals.map((value, index) => {
+    const showLabel = value > 0 || index === days.length - 1;
+    return `<g><circle cx="${x(index).toFixed(1)}" cy="${y(value).toFixed(1)}" r="${showLabel ? 3.5 : 2}" class="pace-point"><title>${days[index]}: ${money(value)}</title></circle>${showLabel ? `<text class="pace-value-label" x="${x(index).toFixed(1)}" y="${Math.max(12, y(value) - 8).toFixed(1)}" text-anchor="middle">${compactMoney(value)}</text>` : ''}${index % labelEvery === 0 || index === days.length - 1 ? `<text class="pace-axis-label" x="${x(index).toFixed(1)}" y="${height - 8}" text-anchor="middle">${days[index].slice(-2)}</text>` : ''}</g>`;
+  }).join('');
+  target.innerHTML = `<div class="home-pace-chart"><svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Daily real spend versus daily budget"><line class="pace-grid-line" x1="${left}" x2="${width - right}" y1="${top}" y2="${top}" /><line class="pace-grid-line" x1="${left}" x2="${width - right}" y1="${height - bottom}" y2="${height - bottom}" /><text class="pace-axis-label" x="4" y="${top + 4}">${compactMoney(max)}</text><text class="pace-axis-label" x="4" y="${height - bottom + 4}">0</text><line class="pace-budget-line" x1="${left}" x2="${width - right}" y1="${budgetY.toFixed(1)}" y2="${budgetY.toFixed(1)}" /><line class="pace-projected-line" x1="${left}" x2="${width - right}" y1="${projectedY.toFixed(1)}" y2="${projectedY.toFixed(1)}" /><polyline class="pace-actual-line" points="${points}" />${pointDots}</svg></div><div class="home-pace-legend"><span><i class="actual"></i>Actual daily spend</span><span><i class="target"></i>Daily budget ${money(velocity.dailyBudget)}</span><span><i class="projected"></i>Actual avg ${money(velocity.daily)}</span></div><div class="home-pace-metrics"><span><small>Projected month-end</small><b class="${velocity.statusTone}">${money(velocity.projected)}</b></span><span><small>Monthly target</small><b>${money(velocity.target)}</b></span><span><small>Real spend so far</small><b>${money(realSpend)}</b></span></div>`;
 }
 
 function dashboardMonthTransactions() {
