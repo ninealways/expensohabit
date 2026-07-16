@@ -222,9 +222,9 @@
           <div class="schedule-detail-section" id="investmentDetails" hidden>
             <p class="form-section-title">Investment details</p>
             <div class="form-row"><label>Amount invested till now<input name="amountInvestedToDate" type="number" min="0" step="1" placeholder="Optional" /></label><label>Current value<input name="currentValue" type="number" min="0" step="1" placeholder="Optional" /></label></div>
-            <label>Amount withdrawn to date<input name="amountWithdrawn" type="number" min="0" step="1" placeholder="0" /></label>
-            <div class="form-row"><label>Expected annual return (%)<input name="expectedAnnualRate" type="number" step="0.01" placeholder="Optional" /></label><label>Projection period (months)<input name="projectionMonths" type="number" min="1" step="1" placeholder="Optional" /></label></div>
-            <small class="form-help">Leave expected return blank for stocks or gold. We will show current gain/loss without projecting returns.</small>
+            <div class="form-row"><label>Valuation date<input name="investmentValuationDate" type="text" data-picker="date" placeholder="Date of current value" /></label><label>Amount withdrawn to date<input name="amountWithdrawn" type="number" min="0" step="1" placeholder="0" /></label></div>
+            <div class="form-row"><label>Expected annual return (%)<input name="expectedAnnualRate" type="number" step="0.01" placeholder="Optional" /></label><label>Projection end date<input name="projectionEndDate" type="text" data-picker="date" placeholder="Select end date" /></label></div>
+            <small class="form-help">Projection starts from the current value on valuation date, then adds future recurring contributions until the projection end date.</small>
           </div>
           <div class="modal-actions"><button type="button" class="secondary-button" id="cancelModal">Cancel</button><button class="primary-button" type="submit">Save transaction</button></div>
         </form>
@@ -327,12 +327,12 @@
     <script src="js/api.js?v=20260712-31"></script>
     <script src="js/auth.js?v=20260712-31"></script>
     <script src="js/router.js?v=20260712-31"></script>
-    <script src="js/pages/basic.js?v=20260715-01"></script>
+    <script src="js/pages/basic.js?v=20260716-01"></script>
     <script src="js/pages/transactions.js?v=20260716-02"></script>
     <script src="js/pages/schedule.js?v=20260712-34"></script>
     <script src="js/pages/habits.js?v=20260714-04"></script>
     <script src="js/pages/insights.js?v=20260714-03"></script>
     <script src="js/pages/calendar.js?v=20260716-01"></script>
-    <script src="app.js?v=20260716-03"></script>
+    <script src="app.js?v=20260716-04"></script>
   </body>
 </html>
