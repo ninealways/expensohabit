@@ -9,14 +9,42 @@ function transactionCategories() {
   return [...new Set(data.transactions.map(transaction => transaction.category).filter(Boolean))].sort((a, b) => a.localeCompare(b));
 }
 
+function selectedFilterValues(value) {
+  if (Array.isArray(value)) return value.filter(item => item && item !== 'all');
+  return value && value !== 'all' ? [value] : [];
+}
+
+function selectedTransactionFilterValues(form, name) {
+  if (!form) return [];
+  return [...form.querySelectorAll(`input[name="${name}"]:checked`)].map(input => input.value).filter(value => value && value !== 'all');
+}
+
+function renderMultiSelectFilter(name, label, allLabel, options, selectedValue) {
+  const selected = selectedFilterValues(selectedValue);
+  const summary = selected.length ? `${selected.length} selected` : allLabel;
+  const checked = value => selected.length ? selected.includes(value) : value === 'all';
+  const isOpen = typeof transactionOpenMultiFilter !== 'undefined' && transactionOpenMultiFilter === name;
+  return `<div class="multi-filter-label"><span>${label}</span>
+    <details class="multi-select-filter" ${isOpen ? 'open' : ''}>
+      <summary>${summary}</summary>
+      <div class="multi-select-menu">
+        <label><input type="checkbox" name="${name}" value="all" ${checked('all') ? 'checked' : ''} /> ${allLabel}</label>
+        ${options.map(([value, optionLabel]) => `<label><input type="checkbox" name="${name}" value="${esc(value)}" ${checked(value) ? 'checked' : ''} /> ${optionLabel}</label>`).join('')}
+      </div>
+    </details>
+  </div>`;
+}
+
 function filteredTransactions(filter = transactionFilter) {
   const range = transactionRange(filter);
   const query = (filter.search || '').trim().toLowerCase();
+  const selectedCategories = selectedFilterValues(filter.category);
+  const selectedSpendGroups = selectedFilterValues(filter.spendGroup);
   const rows = data.transactions.filter(transaction => {
     const matchesRange = transaction.date >= range.from && transaction.date <= range.to;
     const matchesType = !filter.type || filter.type === 'all' || transaction.type === filter.type;
-    const matchesCategory = !filter.category || filter.category === 'all' || transaction.category === filter.category;
-    const matchesSpendGroup = !filter.spendGroup || filter.spendGroup === 'all' || (transaction.type === 'expense' && categorySpendGroup(transaction.category) === filter.spendGroup);
+    const matchesCategory = !selectedCategories.length || selectedCategories.includes(transaction.category);
+    const matchesSpendGroup = !selectedSpendGroups.length || (transaction.type === 'expense' && selectedSpendGroups.includes(categorySpendGroup(transaction.category)));
     const text = `${transaction.subcategory || ''} ${transaction.category || ''} ${transaction.note || ''} ${transaction.type || ''}`.toLowerCase();
     return matchesRange && matchesType && matchesCategory && matchesSpendGroup && (!query || text.includes(query));
   });
@@ -36,8 +64,8 @@ function renderTransactionFilters(filter = transactionFilter) {
   const fromYear = filter.fromYear || currentYear();
   const toYear = filter.toYear || fromYear;
   const typeOptions = [['all','All types'],['expense','Expenses'],['loan','Loans'],['investment','Investments']].map(([value, label]) => `<option value="${value}" ${filter.type === value ? 'selected' : ''}>${label}</option>`).join('');
-  const categoryOptions = `<option value="all">All categories</option>${transactionCategories().map(category => `<option value="${category}" ${filter.category === category ? 'selected' : ''}>${category}</option>`).join('')}`;
-  const spendGroupOptions = `<option value="all">All spend groups</option>${Object.entries(spendGroups).map(([value, group]) => `<option value="${value}" ${filter.spendGroup === value ? 'selected' : ''}>${group.label}</option>`).join('')}`;
+  const categoryOptions = transactionCategories().map(category => [category, category]);
+  const spendGroupOptions = Object.entries(spendGroups).map(([value, group]) => [value, group.label]);
   const sortOptions = [['dateDesc','Newest first'],['dateAsc','Oldest first'],['amountDesc','Amount high to low'],['amountAsc','Amount low to high'],['nameAsc','Name A-Z']].map(([value, label]) => `<option value="${value}" ${filter.sort === value ? 'selected' : ''}>${label}</option>`).join('');
   return `<form id="transactionFilters" class="transaction-filter-panel">
     <div class="insight-range-control transaction-range-control">
@@ -48,8 +76,8 @@ function renderTransactionFilters(filter = transactionFilter) {
     <div class="transaction-table-tools">
       <label>Search<input name="search" type="search" value="${filter.search || ''}" placeholder="Name, note, category..." /></label>
       <label>Type<select name="type">${typeOptions}</select></label>
-      <label>Category<select name="category">${categoryOptions}</select></label>
-      <label>Spend group<select name="spendGroup">${spendGroupOptions}</select></label>
+      ${renderMultiSelectFilter('category', 'Category', 'All categories', categoryOptions, filter.category)}
+      ${renderMultiSelectFilter('spendGroup', 'Spend group', 'All spend groups', spendGroupOptions, filter.spendGroup)}
       <label>Sort<select name="sort">${sortOptions}</select></label>
     </div>
   </form>`;
@@ -64,6 +92,6 @@ function renderTransactionsPage() {
 
 function applyTransactionFiltersFromForm(form, mode = transactionFilter.mode || 'thisMonth') {
   const data = new FormData(form);
-  transactionFilter = { mode, fromMonth:data.get('fromMonth'), toMonth:data.get('toMonth'), fromYear:data.get('fromYear'), toYear:data.get('toYear'), search:data.get('search') || '', type:data.get('type') || 'all', category:data.get('category') || 'all', spendGroup:data.get('spendGroup') || 'all', sort:data.get('sort') || 'dateDesc' };
+  transactionFilter = { mode, fromMonth:data.get('fromMonth'), toMonth:data.get('toMonth'), fromYear:data.get('fromYear'), toYear:data.get('toYear'), search:data.get('search') || '', type:data.get('type') || 'all', category:selectedTransactionFilterValues(form, 'category'), spendGroup:selectedTransactionFilterValues(form, 'spendGroup'), sort:data.get('sort') || 'dateDesc' };
   $('#subPageView').innerHTML = renderTransactionsPage();
 }

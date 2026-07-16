@@ -14,7 +14,8 @@ let calendarFilter = { view:'month', month:'', type:'all', selectedDate:'' };
 let privacyMode = localStorage.getItem('dailyExpensesPrivacy') !== 'shown';
 let scheduleTab = 'expense';
 let investmentTab = 'portfolio';
-let transactionFilter = { mode:'thisMonth', type:'all', category:'all', spendGroup:'all', search:'', sort:'dateDesc' };
+let transactionFilter = { mode:'thisMonth', type:'all', category:[], spendGroup:[], search:'', sort:'dateDesc' };
+let transactionOpenMultiFilter = '';
 let activeWorkspace = 'expense';
 let editingHabitId = null;
 let pendingHabitDeleteId = null;
@@ -684,9 +685,62 @@ $('#transactionForm select[name="frequency"]').addEventListener('change', () => 
 $$('.type-tabs button').forEach(button => button.addEventListener('click', () => { setType(button.dataset.type); updateCategoryOptions(); })); $$('[data-workspace]').forEach(button => button.addEventListener('click', () => navigate(button.dataset.workspace === 'habits' ? 'habits' : 'dashboard'))); $$('.nav-item,[data-page]').forEach(button => button.addEventListener('click', async event => { if (button.matches('a')) event.preventDefault(); navigate(button.dataset.page); if (button.dataset.page === 'dashboard') await refreshData(); })); $$('.segmented-control button').forEach(button => button.addEventListener('click', () => { dashboardView = button.dataset.view; $$('.segmented-control button').forEach(b => b.classList.remove('active')); button.classList.add('active'); renderDashboard(); toast(dashboardView === 'real' ? 'Showing real expenses only' : 'Showing all outflow'); }));
 $$('[data-chart-range]').forEach(button => button.addEventListener('click', () => { chartRange = button.dataset.chartRange; $$('[data-chart-range]').forEach(b => b.classList.remove('active')); button.classList.add('active'); renderChart(dashboardView); }));
 let transactionFilterTimer;
-$('#subPageView').addEventListener('change', async event => { if (event.target.dataset.categorySpend) { const category = data.categories.find(item => item.id === event.target.dataset.categorySpend); if (!category) return; const response = await fetch(`/api/categories/${category.id}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ spendGroup:event.target.value }) }); if (!response.ok) { toast('Could not update spend group'); return; } await loadData(); navigate('settings', false); toast('Spend group updated'); return; } if (event.target.id === 'calendarMonthInput') { calendarFilter.month = normalizeMonthValue(event.target.value, event.target._flatpickr?.selectedDates?.[0]) || currentMonthKey(); calendarFilter.selectedDate = `${calendarFilter.month}-01`; $('#subPageView').innerHTML = renderCalendarPage(); return; } const form = event.target.closest('#transactionFilters'); if (!form || !event.target.closest('.transaction-table-tools')) return; applyTransactionFiltersFromForm(form); });
+$('#subPageView').addEventListener('change', async event => {
+  if (event.target.dataset.categorySpend) {
+    const category = data.categories.find(item => item.id === event.target.dataset.categorySpend);
+    if (!category) return;
+    const response = await fetch(`/api/categories/${category.id}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ spendGroup:event.target.value }) });
+    if (!response.ok) { toast('Could not update spend group'); return; }
+    await loadData();
+    navigate('settings', false);
+    toast('Spend group updated');
+    return;
+  }
+  if (event.target.id === 'calendarMonthInput') {
+    calendarFilter.month = normalizeMonthValue(event.target.value, event.target._flatpickr?.selectedDates?.[0]) || currentMonthKey();
+    calendarFilter.selectedDate = `${calendarFilter.month}-01`;
+    $('#subPageView').innerHTML = renderCalendarPage();
+    return;
+  }
+  const form = event.target.closest('#transactionFilters');
+  if (!form || !event.target.closest('.transaction-table-tools')) return;
+  if (event.target.matches('.multi-select-filter input[type="checkbox"]')) {
+    const group = event.target.closest('.multi-select-filter');
+    transactionOpenMultiFilter = event.target.name;
+    const boxes = [...group.querySelectorAll('input[type="checkbox"]')];
+    const allBox = boxes.find(box => box.value === 'all');
+    if (event.target.value === 'all' && event.target.checked) boxes.forEach(box => { if (box !== event.target) box.checked = false; });
+    if (event.target.value !== 'all' && event.target.checked && allBox) allBox.checked = false;
+    if (!boxes.some(box => box.checked) && allBox) allBox.checked = true;
+  }
+  else {
+    transactionOpenMultiFilter = '';
+  }
+  applyTransactionFiltersFromForm(form);
+});
 $('#subPageView').addEventListener('input', event => { const form = event.target.closest('#transactionFilters'); if (!form || event.target.name !== 'search') return; clearTimeout(transactionFilterTimer); transactionFilterTimer = setTimeout(() => applyTransactionFiltersFromForm(form), 250); });
 $('#habitCheckinForm').addEventListener('change', event => { if (event.target.name !== 'date') return; habitCheckinDate = event.target.value || today(); $('#habitCheckinList').innerHTML = renderHabitCheckinRows(habitCheckinDate, habitCheckinFocusId); initializeDatePickers($('#habitCheckinList')); });
+$('#subPageView').addEventListener('click', event => {
+  const target = event.target.closest('[data-transaction-preset]');
+  if (!target) return;
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  const form = $('#transactionFilters');
+  transactionFilter = {
+    ...transactionFilter,
+    mode:'thisMonth',
+    fromMonth:currentMonthKey(),
+    toMonth:currentMonthKey(),
+    fromYear:currentYear(),
+    toYear:currentYear(),
+    search:form?.search?.value || transactionFilter.search,
+    type:form?.type?.value || transactionFilter.type,
+    category:selectedTransactionFilterValues(form, 'category'),
+    spendGroup:selectedTransactionFilterValues(form, 'spendGroup'),
+    sort:form?.sort?.value || transactionFilter.sort
+  };
+  $('#subPageView').innerHTML = renderTransactionsPage();
+}, true);
 $('#subPageView').addEventListener('click', async event => { const target = event.target.closest('[data-action],[data-page],[data-range],[data-insight-preset],[data-transaction-preset],[data-investment-tab],[data-calendar-view],[data-calendar-type],[data-calendar-date],[data-calendar-nav]'); if (!target) return; if (target.dataset.calendarView) { calendarFilter.view = target.dataset.calendarView; calendarFilter.month = calendarFilter.month || currentMonthKey(); calendarFilter.selectedDate = calendarFilter.selectedDate || today(); $('#subPageView').innerHTML = renderCalendarPage(); return; } if (target.dataset.calendarType) { calendarFilter.type = target.dataset.calendarType; $('#subPageView').innerHTML = renderCalendarPage(); return; } if (target.dataset.calendarDate) { calendarFilter.selectedDate = target.dataset.calendarDate; calendarFilter.month = target.dataset.calendarDate.slice(0, 7); $('#subPageView').innerHTML = renderCalendarPage(); return; } if (target.dataset.calendarNav) { const current = new Date(`${calendarFilter.view === 'week' ? (calendarFilter.selectedDate || today()) : `${calendarFilter.month || currentMonthKey()}-01`}T00:00:00`); const direction = target.dataset.calendarNav === 'next' ? 1 : -1; const nextDate = calendarFilter.view === 'week' ? addDays(current, direction * 7) : addMonthsToDate(current, direction); calendarFilter.selectedDate = dateKey(nextDate); calendarFilter.month = monthInputKey(nextDate); $('#subPageView').innerHTML = renderCalendarPage(); return; } if (target.dataset.insightPreset === 'thisMonth') { insightFilter = { mode:'thisMonth' }; $('#subPageView').innerHTML = renderInsightsPage(); return; } if (target.dataset.investmentTab) { investmentTab = target.dataset.investmentTab; $('#subPageView').innerHTML = renderInvestmentsPage(); return; } if (target.dataset.transactionPreset === 'thisMonth') { const form = $('#transactionFilters'); transactionFilter = { ...transactionFilter, mode:'thisMonth', fromMonth:currentMonthKey(), toMonth:currentMonthKey(), fromYear:currentYear(), toYear:currentYear(), search:form?.search?.value || transactionFilter.search, type:form?.type?.value || transactionFilter.type, category:form?.category?.value || transactionFilter.category, sort:form?.sort?.value || transactionFilter.sort }; $('#subPageView').innerHTML = renderTransactionsPage(); return; } if (target.dataset.page) { navigate(target.dataset.page); if (target.dataset.page === 'dashboard') await refreshData(); return; } const action = target.dataset.action; if (!action) return; if (action === 'sleep-range') { habitSleepRange = target.dataset.range || 'daily'; $('#subPageView').innerHTML = renderHabitInsightsPage(); return; } if (action === 'open-habit-modal') { openHabitModal(); return; } if (action === 'open-habit-checkin') { openHabitCheckinModal(target.dataset.date || today(), target.dataset.id || ''); return; } if (action === 'edit-habit') { const habit = data.habits.find(item => item.id === target.dataset.id); if (habit) openHabitModal(habit); return; } if (action === 'toggle-habit-active') { const habit = data.habits.find(item => item.id === target.dataset.id); if (!habit) return; const response = await fetch(`/api/habits/${habit.id}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ active:habit.active === false }) }); if (!response.ok) { toast('Could not update habit'); return; } await loadData(); navigate('habitManage', false); toast(habit.active === false ? 'Habit activated' : 'Habit paused'); return; } if (action === 'confirm-delete-habit') { const habit = data.habits.find(item => item.id === target.dataset.id); if (habit) openConfirmDeleteHabit(habit); return; } if (action === 'delete-habit-log') { const response = await fetch(`/api/habit-logs/${target.dataset.id}/${target.dataset.date}`, { method:'DELETE' }); if (!response.ok) { toast('Could not delete check-in'); return; } await loadData(); navigate('habitCheckins', false); toast('Check-in deleted'); return; } if (action === 'toggle-habit') { const habit = data.habits.find(item => item.id === target.dataset.id); if (!habit) return; const done = habitCompleted(habit); await saveHabitLog(habit, done ? 0 : Number(habit.target || 1), !done); return; } if (action === 'log-habit') { const habit = data.habits.find(item => item.id === target.dataset.id); if (!habit) return; const current = habitLog(habit.id)?.value || ''; const value = window.prompt(`Enter ${habit.name} value (${habit.unit || 'value'})`, current); if (value === null) return; await saveHabitLog(habit, value); return; } if (action === 'open-stock-trade') { openStockTradeModal({ symbol:target.dataset.symbol || '', companyName:target.dataset.company || '', tradeType:target.dataset.tradeType || 'buy', currentPrice:target.dataset.currentPrice || '' }); return; } if (action === 'delete-stock-trade') { if (!window.confirm('Delete this stock trade?')) return; const response = await fetch(`/api/stock-trades/${target.dataset.id}`, { method:'DELETE' }); if (!response.ok) { toast('Could not delete stock trade'); return; } await loadData(); investmentTab='stocks'; navigate('investments', false); toast('Stock trade deleted'); return; } if (action === 'schedule-tab') { scheduleTab = target.dataset.tab || 'expense'; $('#subPageView').innerHTML = renderSubPage('schedule'); return; } if (action === 'logout') { await logout(); return; } if (action === 'refresh-profile') { await refreshData(); return; } if (action === 'open-add' || action === 'open-schedule') { openModal(activePage === 'investments' ? 'investment' : activePage === 'schedule' ? scheduleTab : 'expense'); if (activePage === 'investments' || action === 'open-schedule') { $('[name="recurring"]').checked = true; updateDetailSections(); } } if (action === 'export') exportData(); if (action === 'skip-schedule') toast('This schedule was skipped once'); if (action === 'edit') { const transaction = data.transactions.find(item => item.id === target.dataset.id); if (transaction) openModal(transaction.type, transaction); } if (action === 'delete') { const transaction = data.transactions.find(item => item.id === target.dataset.id); if (!transaction || !window.confirm(`Delete ${transaction.subcategory || transaction.category} for ${money(transaction.amount)}?`)) return; const response = await fetch(`/api/transactions/${transaction.id}`, { method:'DELETE' }); if (!response.ok) { toast('Could not delete transaction'); return; } data = await (await fetch('/api/data')).json(); navigate('transactions', false); toast('Transaction deleted'); } if (action === 'edit-schedule') { const response = await fetch(`/api/schedules/${target.dataset.id}`); if (!response.ok) { toast('Could not load the latest schedule'); return; } openScheduleModal(await response.json()); } if (action === 'open-category-modal') { openCategoryModal(); return; } if (action === 'edit-category') { const category = data.categories.find(item => item.id === target.dataset.id); if (category) openCategoryModal(category); return; } });
 $('#subPageView').addEventListener('submit', async event => {
   if (!['budgetSettingsForm','profileForm'].includes(event.target.id)) return;
