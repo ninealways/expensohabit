@@ -10,7 +10,7 @@
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="vendor/flatpickr/flatpickr.min.css" />
     <link rel="stylesheet" href="vendor/flatpickr/plugins/monthSelect/style.css" />
-    <link rel="stylesheet" href="styles.css?v=20260714-05" />
+    <link rel="stylesheet" href="styles.css?v=20260715-01" />
   </head>
   <body class="app-booting">
     <svg class="icon-sprite" aria-hidden="true">
@@ -91,7 +91,6 @@
           <button class="top-add-button" id="topAddButton" aria-label="Add transaction"><svg class="svg-icon"><use href="#icon-plus"></use></svg></button>
           <button class="nav-item" data-page="schedule"><span><svg class="svg-icon"><use href="#icon-calendar"></use></svg></span><small>Schedule</small></button>
           <button class="nav-item" data-page="insights"><span><svg class="svg-icon"><use href="#icon-insights"></use></svg></span><small>Insights</small></button>
-          <button class="nav-item" data-page="calendar"><span><svg class="svg-icon"><use href="#icon-calendar"></use></svg></span><small>Calendar</small></button>
         </nav>
         <div class="topbar-actions">
           <div class="app-switcher" aria-label="Workspace switcher">
@@ -194,7 +193,6 @@
         <button class="add-fab" id="fabButton" aria-label="Add transaction"><svg class="svg-icon"><use href="#icon-plus"></use></svg></button>
         <button class="nav-item" data-page="schedule"><span><svg class="svg-icon"><use href="#icon-calendar"></use></svg></span><small>Schedule</small></button>
         <button class="nav-item" data-page="insights"><span><svg class="svg-icon"><use href="#icon-insights"></use></svg></span><small>Insights</small></button>
-        <button class="nav-item" data-page="calendar"><span><svg class="svg-icon"><use href="#icon-calendar"></use></svg></span><small>Calendar</small></button>
       </nav>
     </div>
 
@@ -224,9 +222,9 @@
           <div class="schedule-detail-section" id="investmentDetails" hidden>
             <p class="form-section-title">Investment details</p>
             <div class="form-row"><label>Amount invested till now<input name="amountInvestedToDate" type="number" min="0" step="1" placeholder="Optional" /></label><label>Current value<input name="currentValue" type="number" min="0" step="1" placeholder="Optional" /></label></div>
-            <label>Amount withdrawn to date<input name="amountWithdrawn" type="number" min="0" step="1" placeholder="0" /></label>
-            <div class="form-row"><label>Expected annual return (%)<input name="expectedAnnualRate" type="number" step="0.01" placeholder="Optional" /></label><label>Projection period (months)<input name="projectionMonths" type="number" min="1" step="1" placeholder="Optional" /></label></div>
-            <small class="form-help">Leave expected return blank for stocks or gold. We will show current gain/loss without projecting returns.</small>
+            <div class="form-row"><label>Valuation date<input name="investmentValuationDate" type="text" data-picker="date" placeholder="Date of current value" /></label><label>Amount withdrawn to date<input name="amountWithdrawn" type="number" min="0" step="1" placeholder="0" /></label></div>
+            <div class="form-row"><label>Expected annual return (%)<input name="expectedAnnualRate" type="number" step="0.01" placeholder="Optional" /></label><label>Projection end date<input name="projectionEndDate" type="text" data-picker="date" placeholder="Select end date" /></label></div>
+            <small class="form-help">Projection starts from the current value on valuation date, then adds future recurring contributions until the projection end date.</small>
           </div>
           <div class="modal-actions"><button type="button" class="secondary-button" id="cancelModal">Cancel</button><button class="primary-button" type="submit">Save transaction</button></div>
         </form>
@@ -294,6 +292,20 @@
       </section>
     </div>
 
+    <div class="modal-backdrop" id="stockTradeModalBackdrop" hidden>
+      <section class="modal stock-trade-modal" role="dialog" aria-modal="true" aria-labelledby="stockTradeModalTitle">
+        <div class="modal-heading"><div><p class="panel-kicker">STOCK LEDGER</p><h3 id="stockTradeModalTitle">Add stock trade</h3></div><button class="close-button" id="closeStockTradeModal">×</button></div>
+        <form id="stockTradeForm" class="stock-trade-form">
+          <div class="form-row"><label>Symbol<input name="symbol" placeholder="TCS" required /></label><label>Company name<input name="companyName" placeholder="Tata Consultancy Services" /></label></div>
+          <div class="form-row"><label>Trade type<select name="tradeType"><option value="buy">Buy</option><option value="sell">Sell</option></select></label><label>Trade date<input name="tradeDate" type="text" data-picker="date" required /></label></div>
+          <div class="form-row"><label>Quantity<input name="quantity" type="number" min="0.0001" step="0.0001" required /></label><label>Price per share<input name="price" type="number" min="0" step="0.01" required /></label></div>
+          <div class="form-row"><label>Fees / charges<input name="fees" type="number" min="0" step="0.01" placeholder="0" /></label><label>Current price<input name="currentPrice" type="number" min="0" step="0.01" placeholder="Optional" /></label></div>
+          <label>Notes<textarea name="notes" rows="3" placeholder="Why bought/sold, broker note, target, etc."></textarea></label>
+          <div class="modal-actions"><button type="button" class="secondary-button" id="cancelStockTradeModal">Cancel</button><button class="primary-button" type="submit">Save trade</button></div>
+        </form>
+      </section>
+    </div>
+
     <div class="modal-backdrop" id="confirmModalBackdrop" hidden>
       <section class="modal confirm-modal" role="dialog" aria-modal="true" aria-labelledby="confirmModalTitle">
         <div class="modal-heading"><div><p class="panel-kicker">CONFIRMATION</p><h3 id="confirmModalTitle">Delete habit?</h3></div><button class="close-button" id="closeConfirmModal">×</button></div>
@@ -315,12 +327,12 @@
     <script src="js/api.js?v=20260712-31"></script>
     <script src="js/auth.js?v=20260712-31"></script>
     <script src="js/router.js?v=20260712-31"></script>
-    <script src="js/pages/basic.js?v=20260714-02"></script>
-    <script src="js/pages/transactions.js?v=20260712-33"></script>
+    <script src="js/pages/basic.js?v=20260716-01"></script>
+    <script src="js/pages/transactions.js?v=20260716-02"></script>
     <script src="js/pages/schedule.js?v=20260712-34"></script>
     <script src="js/pages/habits.js?v=20260714-04"></script>
     <script src="js/pages/insights.js?v=20260714-03"></script>
-    <script src="js/pages/calendar.js?v=20260713-02"></script>
-    <script src="app.js?v=20260714-06"></script>
+    <script src="js/pages/calendar.js?v=20260716-01"></script>
+    <script src="app.js?v=20260716-04"></script>
   </body>
 </html>

@@ -125,7 +125,7 @@ function renderCalendarPage() {
   const selectedDate = calendarFilter.selectedDate;
   const selectedRows = data.transactions.filter(item => item.date === selectedDate && (calendarFilter.type === 'all' || (calendarFilter.type === 'real' ? item.type === 'expense' && item.includeInReal !== false : item.type === calendarFilter.type)));
   return `<article class="calendar-shell">
-    <section class="panel calendar-hero"><div><p class="panel-kicker">SPEND CALENDAR</p><h3>Calendar</h3><p class="subtitle">See daily outflow by month or week.</p></div><button class="primary-button" data-action="open-add">＋ Add transaction</button></section>
+    <section class="panel calendar-hero"><div><p class="panel-kicker">SPEND CALENDAR</p><h3>Calendar</h3><p class="subtitle">See daily outflow by month or week.</p></div><div class="panel-actions"><button class="ghost-button" data-page="transactions">Back to transactions</button><button class="primary-button" data-action="open-add">＋ Add transaction</button></div></section>
     ${renderCalendarFilterBar()}
     <section class="calendar-layout">
       <div>${calendarFilter.view === 'week' ? renderCalendarWeek(range, rows) : renderCalendarMonth(range, rows)}</div>

@@ -1,10 +1,11 @@
-let data = { transactions: [], schedules: [], categories: [], habits: [], habitLogs: [], settings: { monthlyExpenseBudget: 60000, monthlyBudgetOverrides: {} } };
+let data = { transactions: [], schedules: [], categories: [], habits: [], habitLogs: [], stockTrades: [], settings: { monthlyExpenseBudget: 60000, monthlyBudgetOverrides: {} } };
 let activePage = 'dashboard';
 let activeType = 'expense';
 let authMode = 'login';
 let editingTransactionId = null;
 let editingScheduleId = null;
 let editingCategoryId = null;
+let stockTradeSeed = null;
 let dashboardView = 'all';
 let chartRange = 'last7';
 let currentUser = null;
@@ -12,7 +13,9 @@ let insightFilter = { mode:'thisMonth' };
 let calendarFilter = { view:'month', month:'', type:'all', selectedDate:'' };
 let privacyMode = localStorage.getItem('dailyExpensesPrivacy') !== 'shown';
 let scheduleTab = 'expense';
-let transactionFilter = { mode:'thisMonth', type:'all', category:'all', search:'', sort:'dateDesc' };
+let investmentTab = 'portfolio';
+let transactionFilter = { mode:'thisMonth', type:'all', category:[], spendGroup:[], search:'', sort:'dateDesc' };
+let transactionOpenMultiFilter = '';
 let activeWorkspace = 'expense';
 let editingHabitId = null;
 let pendingHabitDeleteId = null;
@@ -154,6 +157,7 @@ async function loadData() {
   data = await response.json();
   data.habits = data.habits || [];
   data.habitLogs = data.habitLogs || [];
+  data.stockTrades = data.stockTrades || [];
   data.settings = normalizeSettings(data.settings);
   $('#syncLabel').textContent = 'Synced';
 }
@@ -277,7 +281,7 @@ function displayName() { return currentUser?.name || currentUser?.email?.split('
 function dashboardGreeting() { return `Good morning, ${displayName()} <span class="title-icon">${svgIcon('insights')}</span>`; }
 function setAuthMode(mode) { authMode=mode; const isLogin=mode==='login'; $('#authTitle').textContent=isLogin?'Welcome back':'Create your account'; $('#authSubtitle').textContent=isLogin?'Sign in to access your money and habit dashboard.':'Create a secure account for your money and habit data.'; $('#authSubmit').textContent=isLogin?'Sign in':'Create account'; $('#authToggle').textContent=isLogin?'Create a new account':'I already have an account'; $('#authPassword').autocomplete=isLogin?'current-password':'new-password'; $('#authNameRow').hidden=isLogin; $('#authName').required=!isLogin; $('#inviteCodeRow').hidden=isLogin; $('#inviteCode').required=!isLogin; $('#authError').textContent=''; }
 async function submitAuth(event) { event.preventDefault(); const payload={ email:$('#authEmail').value, password:$('#authPassword').value }; if (authMode === 'register') { payload.name = $('#authName').value; payload.inviteCode = $('#inviteCode').value; } try { currentUser = authMode === 'login' ? await window.ExpensoAuth.login(payload) : await window.ExpensoAuth.register(payload); } catch (error) { $('#authError').textContent = error.message || 'Authentication failed'; return; } await loadData(); updateCategoryOptions(); renderDashboard(); navigate(window.ExpensoRouter.pageFromLocation(), false); showAppShell(); maybeOpenMobileStartupTransactionModal(); toast(authMode==='login'?'Signed in':'Account created'); }
-async function logout() { try { await window.ExpensoAuth.logout(); } catch (error) { toast(error.message || 'Could not log out'); return; } currentUser = null; data = { transactions: [], schedules: [], categories: [], habits: [], habitLogs: [], settings:defaultSettings }; $('#authForm').reset(); setAuthMode('login'); history.pushState({ page:'dashboard' }, '', '/dashboard'); showAuthGate(); toast('Logged out'); }
+async function logout() { try { await window.ExpensoAuth.logout(); } catch (error) { toast(error.message || 'Could not log out'); return; } currentUser = null; data = { transactions: [], schedules: [], categories: [], habits: [], habitLogs: [], stockTrades: [], settings:defaultSettings }; $('#authForm').reset(); setAuthMode('login'); history.pushState({ page:'dashboard' }, '', '/dashboard'); showAuthGate(); toast('Logged out'); }
 
 function totals() {
   const transactions = dashboardMonthTransactions();
@@ -306,8 +310,25 @@ function renderHomeVelocity(realSpend) {
   if (!target || typeof spendVelocity !== 'function') return;
   const range = insightRange({ mode:'thisMonth' });
   const velocity = spendVelocity(range, realSpend);
-  const targetPct = percent(realSpend, velocity.target);
-  target.innerHTML = `<div class="velocity-ring" style="--pace:${Math.min(100, targetPct) * 3.6}deg"><strong>${targetPct}%</strong><small>of target</small></div><div class="velocity-copy"><p class="velocity-status ${velocity.statusTone}">${velocity.status}</p><b>${money(realSpend)}</b><div class="velocity-detail-list"><span><i>${svgIcon('insights')}</i><span class="velocity-text">Projected month-end <b class="${velocity.statusTone}">${money(velocity.projected)}</b></span></span><span><i>${svgIcon('tag')}</i><span class="velocity-text">Target <b>${money(velocity.target)}</b></span></span><span><i>${svgIcon('bolt')}</i><span class="velocity-text">Daily budget <b>${money(velocity.dailyBudget)}</b><small>Actual <b>${money(velocity.daily)}</b> per active day</small></span></span></div></div>`;
+  const start = new Date(`${range.from}T00:00:00`);
+  const elapsedDays = Math.max(1, velocity.elapsedDays || 1);
+  const days = Array.from({ length:elapsedDays }, (_, index) => dateKey(addDays(start, index)));
+  const dailyTotals = days.map(day => data.transactions
+    .filter(transaction => transaction.date === day && transaction.type === 'expense' && transaction.includeInReal !== false)
+    .reduce((sum, transaction) => sum + Number(transaction.amount || 0), 0));
+  const width = 360, height = 150, left = 38, right = 14, top = 18, bottom = 30;
+  const max = Math.max(1, Math.ceil(Math.max(...dailyTotals, velocity.dailyBudget, velocity.daily) * 1.16));
+  const x = index => left + (days.length === 1 ? (width - left - right) / 2 : index * ((width - left - right) / (days.length - 1)));
+  const y = value => top + (max - value) / max * (height - top - bottom);
+  const points = dailyTotals.map((value, index) => `${x(index).toFixed(1)},${y(value).toFixed(1)}`).join(' ');
+  const budgetY = y(velocity.dailyBudget);
+  const projectedY = y(velocity.daily);
+  const labelEvery = Math.max(1, Math.ceil(days.length / 5));
+  const pointDots = dailyTotals.map((value, index) => {
+    const showLabel = value > 0 || index === days.length - 1;
+    return `<g><circle cx="${x(index).toFixed(1)}" cy="${y(value).toFixed(1)}" r="${showLabel ? 3.5 : 2}" class="pace-point"><title>${days[index]}: ${money(value)}</title></circle>${showLabel ? `<text class="pace-value-label" x="${x(index).toFixed(1)}" y="${Math.max(12, y(value) - 8).toFixed(1)}" text-anchor="middle">${compactMoney(value)}</text>` : ''}${index % labelEvery === 0 || index === days.length - 1 ? `<text class="pace-axis-label" x="${x(index).toFixed(1)}" y="${height - 8}" text-anchor="middle">${days[index].slice(-2)}</text>` : ''}</g>`;
+  }).join('');
+  target.innerHTML = `<div class="home-pace-chart"><svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Daily real spend versus daily budget"><line class="pace-grid-line" x1="${left}" x2="${width - right}" y1="${top}" y2="${top}" /><line class="pace-grid-line" x1="${left}" x2="${width - right}" y1="${height - bottom}" y2="${height - bottom}" /><text class="pace-axis-label" x="4" y="${top + 4}">${compactMoney(max)}</text><text class="pace-axis-label" x="4" y="${height - bottom + 4}">0</text><line class="pace-budget-line" x1="${left}" x2="${width - right}" y1="${budgetY.toFixed(1)}" y2="${budgetY.toFixed(1)}" /><line class="pace-projected-line" x1="${left}" x2="${width - right}" y1="${projectedY.toFixed(1)}" y2="${projectedY.toFixed(1)}" /><polyline class="pace-actual-line" points="${points}" />${pointDots}</svg></div><div class="home-pace-legend"><span><i class="actual"></i>Actual daily spend</span><span><i class="target"></i>Daily budget ${money(velocity.dailyBudget)}</span><span><i class="projected"></i>Actual avg ${money(velocity.daily)}</span></div><div class="home-pace-metrics"><span><small>Projected month-end</small><b class="${velocity.statusTone}">${money(velocity.projected)}</b></span><span><small>Monthly target</small><b>${money(velocity.target)}</b></span><span><small>Real spend so far</small><b>${money(realSpend)}</b></span></div>`;
 }
 
 function dashboardMonthTransactions() {
@@ -366,12 +387,72 @@ function renderChart(view = dashboardView) {
 function ordinal(n) { const s = ['th','st','nd','rd']; const v = n % 100; return s[(v - 20) % 10] || s[v] || s[0]; }
 function remainingMonths(endDate) { if (!endDate) return 0; const end = new Date(`${endDate}T00:00:00`); const now = new Date(); let months = (end.getFullYear() - now.getFullYear()) * 12 + end.getMonth() - now.getMonth(); if (end.getDate() >= now.getDate()) months += 1; return Math.max(0, months); }
 function loanProjection(schedule) { const principal = Number(schedule.remainingPrincipal); const annualRate = Number(schedule.annualRate); const months = remainingMonths(schedule.endDate); if (!principal || !months || !Number.isFinite(annualRate)) return null; const rate = annualRate / 1200; let balance = principal; const payment = Number(schedule.amount) || (rate ? principal * rate * Math.pow(1 + rate, months) / (Math.pow(1 + rate, months) - 1) : principal / months); let interest = 0; let principalPaid = 0; for (let i = 0; i < months && balance > 0; i += 1) { const monthInterest = rate ? balance * rate : 0; const monthPrincipal = Math.min(balance, Math.max(0, payment - monthInterest)); interest += monthInterest; principalPaid += monthPrincipal; balance -= monthPrincipal; if (monthPrincipal === 0) break; } return { months, payment, principalPaid, interest, balance }; }
-function investmentProjection(schedule) { const invested = Number(schedule.amountInvestedToDate) || 0; const currentValue = Number(schedule.currentValue) || invested; const withdrawn = Number(schedule.amountWithdrawn) || 0; const netValue = Math.max(0, currentValue - withdrawn); const months = Number(schedule.projectionMonths) || 0; const rate = Number(schedule.expectedAnnualRate); const monthlyContribution = scheduleMonthlyAmount(schedule); const gain = netValue - invested; if (!months || !Number.isFinite(rate)) return { invested, currentValue, withdrawn, netValue, gain, projected:false }; const monthlyRate = rate / 1200; const growth = Math.pow(1 + monthlyRate, months); const contributionsFuture = monthlyRate ? monthlyContribution * ((growth - 1) / monthlyRate) : monthlyContribution * months; return { invested, currentValue, withdrawn, netValue, gain, projected:true, months, futureValue:netValue * growth + contributionsFuture, futureContributions:monthlyContribution * months }; }
-function scheduleSummary(schedule) { if (schedule.type === 'expense') return ''; if (schedule.type === 'loan') { const projection = loanProjection(schedule); return projection ? `<div class="schedule-summary"><b>Estimated remaining · ${schedule.interestType === 'floating' ? 'Floating' : 'Fixed'}</b><br>${money(projection.principalPaid)} principal + <strong>${money(projection.interest)}</strong> interest<br><small>${projection.months} months · approx. EMI ${money(projection.payment)}${schedule.interestType === 'floating' ? ' · uses current rate' : ''}</small></div>` : ''; } const projection = investmentProjection(schedule); if (!projection) return ''; if (!projection.projected) return `<div class="schedule-summary"><b>Current position</b><br>Invested ${money(projection.invested)} · Gross ${money(projection.currentValue)} · Withdrawn ${money(projection.withdrawn)}<br>Net value <strong>${money(projection.netValue)}</strong><br><small class="${projection.gain >= 0 ? 'positive' : 'negative'}">${projection.gain >= 0 ? 'Gain' : 'Loss'} ${money(Math.abs(projection.gain))} · no return assumption</small></div>`; return `<div class="schedule-summary"><b>Net current value ${money(projection.netValue)}</b><br>Projected value <strong>${money(projection.futureValue)}</strong><br><small>${projection.months} months · withdrawn ${money(projection.withdrawn)} · contributions ${money(projection.futureContributions)} · expected return ${schedule.expectedAnnualRate}%</small></div>`; }
+function dateFromKey(value) { const date = new Date(`${value || today()}T00:00:00`); return Number.isNaN(date.getTime()) ? new Date(`${today()}T00:00:00`) : date; }
+function daysBetween(start, end) { return Math.max(0, Math.round((end - start) / 86400000)); }
+function monthsBetweenDates(start, end) { return Math.max(0, Math.round(daysBetween(start, end) / 30.4375)); }
+function contributionGrowth(value, fromDate, toDate, annualRate) { const years = daysBetween(fromDate, toDate) / 365; return value * Math.pow(1 + annualRate / 100, years); }
+function projectionEndFromSchedule(schedule, valuationDate) {
+  if (schedule.projectionEndDate) return dateFromKey(schedule.projectionEndDate);
+  const months = Number(schedule.projectionMonths) || 0;
+  return months ? addMonthsToDate(valuationDate, months) : null;
+}
+function projectedContributionDates(schedule, valuationDate, projectionEndDate) {
+  const amount = Number(schedule.amount) || 0;
+  if (!amount || projectionEndDate <= valuationDate) return [];
+  const dates = [];
+  const push = date => {
+    if (date > valuationDate && date <= projectionEndDate && (!schedule.endDate || dateKey(date) <= schedule.endDate)) dates.push(new Date(date));
+  };
+  const start = dateFromKey(schedule.startDate || today());
+  const frequency = schedule.frequency || 'Monthly';
+  if (frequency === 'Daily') {
+    for (let cursor = addDays(new Date(Math.max(start, valuationDate)), 1); cursor <= projectionEndDate && dates.length < 5000; cursor = addDays(cursor, 1)) push(cursor);
+  }
+  else if (frequency === 'Weekly') {
+    for (let cursor = new Date(start); cursor <= projectionEndDate && dates.length < 1000; cursor = addDays(cursor, 7)) push(cursor);
+  }
+  else if (frequency === 'Quarterly' || frequency === 'Yearly' || frequency === 'Monthly') {
+    const step = frequency === 'Quarterly' ? 3 : frequency === 'Yearly' ? 12 : 1;
+    const dueDay = Number(schedule.dueDay) || start.getDate();
+    for (let offset = 0; dates.length < 1000; offset += step) {
+      const monthBase = new Date(start.getFullYear(), start.getMonth() + offset, 1);
+      if (monthBase > projectionEndDate) break;
+      const lastDay = new Date(monthBase.getFullYear(), monthBase.getMonth() + 1, 0).getDate();
+      push(new Date(monthBase.getFullYear(), monthBase.getMonth(), Math.min(dueDay, lastDay)));
+    }
+  }
+  else if (frequency === 'BiMonthly') {
+    const days = dayList(schedule).length ? dayList(schedule) : [start.getDate(), 15];
+    let cursor = new Date(start.getFullYear(), start.getMonth(), 1);
+    while (cursor <= projectionEndDate && dates.length < 1000) {
+      days.forEach(day => push(new Date(cursor.getFullYear(), cursor.getMonth(), Math.min(day, new Date(cursor.getFullYear(), cursor.getMonth() + 1, 0).getDate()))));
+      cursor = addMonthsToDate(cursor, 1);
+    }
+  }
+  return dates.sort((a, b) => a - b);
+}
+function investmentProjection(schedule) {
+  const invested = Number(schedule.amountInvestedToDate) || 0;
+  const currentValue = Number(schedule.currentValue) || invested;
+  const withdrawn = Number(schedule.amountWithdrawn) || 0;
+  const netValue = Math.max(0, currentValue - withdrawn);
+  const valuationDate = dateFromKey(schedule.investmentValuationDate || schedule.startDate || today());
+  const projectionEndDate = projectionEndFromSchedule(schedule, valuationDate);
+  const rate = Number(schedule.expectedAnnualRate);
+  const gain = netValue - invested;
+  if (!projectionEndDate || projectionEndDate <= valuationDate || !Number.isFinite(rate)) return { invested, currentValue, withdrawn, netValue, gain, valuationDate:dateKey(valuationDate), projected:false };
+  const contributionDates = projectedContributionDates(schedule, valuationDate, projectionEndDate);
+  const futureContributions = contributionDates.length * (Number(schedule.amount) || 0);
+  const futureContributionValue = contributionDates.reduce((sum, date) => sum + contributionGrowth(Number(schedule.amount) || 0, date, projectionEndDate, rate), 0);
+  const currentValueFuture = contributionGrowth(netValue, valuationDate, projectionEndDate, rate);
+  const months = monthsBetweenDates(valuationDate, projectionEndDate);
+  return { invested, currentValue, withdrawn, netValue, gain, projected:true, months, valuationDate:dateKey(valuationDate), projectionEndDate:dateKey(projectionEndDate), contributionCount:contributionDates.length, futureValue:currentValueFuture + futureContributionValue, futureContributions, futureContributionValue };
+}
+function scheduleSummary(schedule) { if (schedule.type === 'expense') return ''; if (schedule.type === 'loan') { const projection = loanProjection(schedule); return projection ? `<div class="schedule-summary"><b>Estimated remaining · ${schedule.interestType === 'floating' ? 'Floating' : 'Fixed'}</b><br>${money(projection.principalPaid)} principal + <strong>${money(projection.interest)}</strong> interest<br><small>${projection.months} months · approx. EMI ${money(projection.payment)}${schedule.interestType === 'floating' ? ' · uses current rate' : ''}</small></div>` : ''; } const projection = investmentProjection(schedule); if (!projection) return ''; if (!projection.projected) return `<div class="schedule-summary"><b>Current position</b><br>Invested ${money(projection.invested)} · Gross ${money(projection.currentValue)} · Withdrawn ${money(projection.withdrawn)}<br>Net value <strong>${money(projection.netValue)}</strong><br><small class="${projection.gain >= 0 ? 'positive' : 'negative'}">${projection.gain >= 0 ? 'Gain' : 'Loss'} ${money(Math.abs(projection.gain))} · valuation ${projection.valuationDate}</small></div>`; return `<div class="schedule-summary"><b>Net current value ${money(projection.netValue)}</b><br>Projected value <strong>${money(projection.futureValue)}</strong><br><small>${projection.valuationDate} to ${projection.projectionEndDate} · ${projection.contributionCount} contributions ${money(projection.futureContributions)} · expected return ${schedule.expectedAnnualRate}%</small></div>`; }
 
 function openModal(type = 'expense', transaction = null) { editingTransactionId = transaction?.id || null; editingScheduleId = null; activeType = type; $('#modalBackdrop').hidden = false; $('#transactionForm').reset(); $('input[name="date"]').value = today(); setType(type); updateCategoryOptions(); $('#modalTitle').textContent = editingTransactionId ? 'Edit transaction' : 'Add transaction'; $('#transactionForm button[type="submit"]').textContent = editingTransactionId ? 'Save changes' : 'Save transaction'; updateDetailSections(); if (transaction) { $('input[name="amount"]').value=transaction.amount; $('input[name="subcategory"]').value=transaction.subcategory || ''; $('input[name="date"]').value=transaction.date; $('input[name="note"]').value=transaction.note || ''; $('input[name="includeInReal"]').checked=transaction.includeInReal !== false; $('#categoryInput').value=transaction.category; } initializeDatePickers($('#transactionForm')); }
 function setField(name, value) { const field = $(`[name="${name}"]`); if (field) field.value = value ?? ''; }
-function openScheduleModal(schedule) { const now = new Date(); const dueDate = schedule.startDate || `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(schedule.dueDay).padStart(2,'0')}`; const days = dayList(schedule); openModal(schedule.type); editingScheduleId = schedule.id; $('#modalTitle').textContent='Edit schedule'; $('#transactionForm button[type="submit"]').textContent='Save schedule'; setField('amount', schedule.amount); setField('subcategory', schedule.subcategory); setField('date', dueDate); setField('frequency', schedule.frequency || 'Monthly'); setField('biMonthlyDayOne', days[0] || schedule.dueDay); setField('biMonthlyDayTwo', days[1] || ''); setField('endDate', schedule.endDate); setField('originalAmount', schedule.originalAmount); setField('remainingPrincipal', schedule.remainingPrincipal); setField('annualRate', schedule.annualRate); setField('interestType', schedule.interestType || 'fixed'); setField('amountInvestedToDate', schedule.amountInvestedToDate); setField('currentValue', schedule.currentValue); setField('amountWithdrawn', schedule.amountWithdrawn); setField('expectedAnnualRate', schedule.expectedAnnualRate); setField('projectionMonths', schedule.projectionMonths); const recurring = $('[name="recurring"]'); if (recurring) recurring.checked = schedule.autoAdd !== false; if ($('#categoryInput')) $('#categoryInput').value=schedule.category; updateDetailSections(); initializeDatePickers($('#transactionForm')); }
+function openScheduleModal(schedule) { const now = new Date(); const dueDate = schedule.startDate || `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(schedule.dueDay).padStart(2,'0')}`; const days = dayList(schedule); openModal(schedule.type); editingScheduleId = schedule.id; $('#modalTitle').textContent='Edit schedule'; $('#transactionForm button[type="submit"]').textContent='Save schedule'; setField('amount', schedule.amount); setField('subcategory', schedule.subcategory); setField('date', dueDate); setField('frequency', schedule.frequency || 'Monthly'); setField('biMonthlyDayOne', days[0] || schedule.dueDay); setField('biMonthlyDayTwo', days[1] || ''); setField('endDate', schedule.endDate); setField('originalAmount', schedule.originalAmount); setField('remainingPrincipal', schedule.remainingPrincipal); setField('annualRate', schedule.annualRate); setField('interestType', schedule.interestType || 'fixed'); setField('amountInvestedToDate', schedule.amountInvestedToDate); setField('currentValue', schedule.currentValue); setField('investmentValuationDate', schedule.investmentValuationDate || schedule.startDate || today()); setField('amountWithdrawn', schedule.amountWithdrawn); setField('expectedAnnualRate', schedule.expectedAnnualRate); setField('projectionEndDate', schedule.projectionEndDate || (schedule.projectionMonths ? dateKey(addMonthsToDate(dateFromKey(schedule.investmentValuationDate || schedule.startDate || today()), Number(schedule.projectionMonths))) : '')); const recurring = $('[name="recurring"]'); if (recurring) recurring.checked = schedule.autoAdd !== false; if ($('#categoryInput')) $('#categoryInput').value=schedule.category; updateDetailSections(); initializeDatePickers($('#transactionForm')); }
 function closeModal() { $('#modalBackdrop').hidden = true; }
 function maybeOpenMobileStartupTransactionModal() {
   if (mobileStartupTransactionModalOpened || !isMobileViewport() || activeWorkspace !== 'expense') return;
@@ -389,8 +470,9 @@ async function addTransaction(event) {
   const frequency = form.get('frequency') || 'Monthly';
   const dueDays = frequency === 'BiMonthly' ? [Number(form.get('biMonthlyDayOne')), Number(form.get('biMonthlyDayTwo'))].filter(day => day >= 1 && day <= 31).sort((a,b) => a - b) : [Number(item.date.slice(-2))];
   if (frequency === 'BiMonthly' && dueDays.length < 2) { toast('Select two bi-monthly dates'); return; }
-  const scheduleFields = { amount, category:item.category, subcategory:item.subcategory, startDate:item.date, dueDay:dueDays[0], dueDays, frequency, autoAdd:form.get('recurring') === 'on', endDate:form.get('endDate') || null, originalAmount:form.get('originalAmount') || null, remainingPrincipal:form.get('remainingPrincipal') || null, annualRate:form.get('annualRate') || null, interestType:form.get('interestType') || 'fixed', amountInvestedToDate:form.get('amountInvestedToDate') || null, currentValue:form.get('currentValue') || null, amountWithdrawn:form.get('amountWithdrawn') || null, expectedAnnualRate:form.get('expectedAnnualRate') || null, projectionMonths:form.get('projectionMonths') || null };
-  const response = editingScheduleId ? await fetch(`/api/schedules/${editingScheduleId}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(scheduleFields) }) : editingTransactionId ? await fetch(`/api/transactions/${editingTransactionId}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(item) }) : await fetch('/api/transactions', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ transaction:item, recurring:form.get('recurring') === 'on', frequency, dueDays, endDate:form.get('endDate') || null, originalAmount:form.get('originalAmount') || null, remainingPrincipal:form.get('remainingPrincipal') || null, annualRate:form.get('annualRate') || null, interestType:form.get('interestType') || 'fixed', amountInvestedToDate:form.get('amountInvestedToDate') || null, currentValue:form.get('currentValue') || null, amountWithdrawn:form.get('amountWithdrawn') || null, expectedAnnualRate:form.get('expectedAnnualRate') || null, projectionMonths:form.get('projectionMonths') || null }) });
+  const investmentFields = { amountInvestedToDate:form.get('amountInvestedToDate') || null, currentValue:form.get('currentValue') || null, investmentValuationDate:form.get('investmentValuationDate') || null, amountWithdrawn:form.get('amountWithdrawn') || null, expectedAnnualRate:form.get('expectedAnnualRate') || null, projectionEndDate:form.get('projectionEndDate') || null };
+  const scheduleFields = { amount, category:item.category, subcategory:item.subcategory, startDate:item.date, dueDay:dueDays[0], dueDays, frequency, autoAdd:form.get('recurring') === 'on', endDate:form.get('endDate') || null, originalAmount:form.get('originalAmount') || null, remainingPrincipal:form.get('remainingPrincipal') || null, annualRate:form.get('annualRate') || null, interestType:form.get('interestType') || 'fixed', ...investmentFields };
+  const response = editingScheduleId ? await fetch(`/api/schedules/${editingScheduleId}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(scheduleFields) }) : editingTransactionId ? await fetch(`/api/transactions/${editingTransactionId}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(item) }) : await fetch('/api/transactions', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ transaction:item, recurring:form.get('recurring') === 'on', frequency, dueDays, endDate:form.get('endDate') || null, originalAmount:form.get('originalAmount') || null, remainingPrincipal:form.get('remainingPrincipal') || null, annualRate:form.get('annualRate') || null, interestType:form.get('interestType') || 'fixed', ...investmentFields }) });
   if (!response.ok) { toast('Could not save data'); return; }
   data = await (await fetch('/api/data')).json(); saveData(); closeModal(); if (activePage === 'dashboard') renderDashboard(); else navigate(activePage, false); toast(editingScheduleId ? 'Schedule updated' : editingTransactionId ? 'Transaction updated' : 'Transaction saved'); editingTransactionId = null; editingScheduleId = null;
 }
@@ -399,6 +481,7 @@ function toast(message) { const el = $('#toast'); el.textContent = message; el.c
 const pageTitles = { transactions:'Your transactions', calendar:'Spend calendar', schedule:'Plan your payments', outflow:'Outflow report', investments:'Investments', insights:'Spend insights', profile:'Profile', settings:'Keep your data yours', habits:'Habit tracker', habitInsights:'Habit insights', habitManage:'Manage habits', habitCheckins:'Habit check-ins' };
 
 function navigate(page, updateUrl = true) {
+  transactionOpenMultiFilter = '';
   activePage = page; activeWorkspace = ['habits','habitInsights','habitManage','habitCheckins'].includes(page) ? 'habits' : 'expense'; if (updateUrl) window.ExpensoRouter.push(page); document.body.classList.toggle('dashboard-mode', page === 'dashboard'); document.body.classList.toggle('habits-mode', activeWorkspace === 'habits'); $$('.nav-item').forEach(item => item.classList.toggle('active', item.dataset.page === page)); $$('[data-workspace]').forEach(item => item.classList.toggle('active', item.dataset.workspace === activeWorkspace));
   const dashboardSections = $$('.hero-row,.summary-grid,.view-switch-row,.content-grid,.bottom-grid'); const subPage = $('#subPageView');
   if (page === 'habits') { dashboardSections.forEach(section => section.hidden = true); subPage.hidden = false; subPage.innerHTML = renderHabitsMockPage(); initializeDatePickers(subPage); return; }
@@ -559,6 +642,37 @@ async function submitCategory(event) {
   navigate('settings', false);
   toast(wasEditing ? 'Category updated' : 'Category added');
 }
+function openStockTradeModal(seed = {}) {
+  stockTradeSeed = seed || {};
+  const form = $('#stockTradeForm');
+  form.reset();
+  form.symbol.value = stockTradeSeed.symbol || '';
+  form.companyName.value = stockTradeSeed.companyName || '';
+  form.tradeType.value = stockTradeSeed.tradeType || 'buy';
+  form.tradeDate.value = today();
+  form.currentPrice.value = stockTradeSeed.currentPrice || '';
+  $('#stockTradeModalTitle').textContent = stockTradeSeed.symbol ? `Add ${stockTradeSeed.symbol} trade` : 'Add stock trade';
+  $('#stockTradeModalBackdrop').hidden = false;
+  initializeDatePickers($('#stockTradeModalBackdrop'));
+}
+function closeStockTradeModal() {
+  stockTradeSeed = null;
+  $('#stockTradeModalBackdrop').hidden = true;
+  $('#stockTradeForm').reset();
+}
+async function submitStockTrade(event) {
+  event.preventDefault();
+  const form = new FormData(event.target);
+  const payload = Object.fromEntries(form.entries());
+  const response = await fetch('/api/stock-trades', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) });
+  const result = await response.json();
+  if (!response.ok) { toast(result.error || 'Could not save stock trade'); return; }
+  closeStockTradeModal();
+  await loadData();
+  investmentTab = 'stocks';
+  navigate('investments', false);
+  toast('Stock trade saved');
+}
 async function submitProfile(event) {
   event.preventDefault();
   const form = new FormData(event.target);
@@ -623,20 +737,79 @@ async function deleteHabit() {
   toast('Habit deleted');
 }
 
-$('#heroAddButton').addEventListener('click', () => openModal()); $('#fabButton').addEventListener('click', () => openModal()); $('#topAddButton').addEventListener('click', () => openModal()); $('#closeModal').addEventListener('click', closeModal); $('#cancelModal').addEventListener('click', closeModal); $('#modalBackdrop').addEventListener('click', event => { if (event.target.id === 'modalBackdrop') closeModal(); }); $('#transactionForm').addEventListener('submit', addTransaction); $('#closeHabitModal').addEventListener('click', closeHabitModal); $('#cancelHabitModal').addEventListener('click', closeHabitModal); $('#habitModalBackdrop').addEventListener('click', event => { if (event.target.id === 'habitModalBackdrop') closeHabitModal(); }); $('#habitForm').addEventListener('submit', submitHabit); $('#closeCategoryModal').addEventListener('click', closeCategoryModal); $('#cancelCategoryModal').addEventListener('click', closeCategoryModal); $('#categoryModalBackdrop').addEventListener('click', event => { if (event.target.id === 'categoryModalBackdrop') closeCategoryModal(); }); $('#categoryForm').addEventListener('submit', submitCategory); $('#categoryForm select[name="kind"]').addEventListener('change', updateCategoryModalSpendVisibility); $('#closeHabitCheckinModal').addEventListener('click', closeHabitCheckinModal); $('#cancelHabitCheckinModal').addEventListener('click', closeHabitCheckinModal); $('#habitCheckinModalBackdrop').addEventListener('click', event => { if (event.target.id === 'habitCheckinModalBackdrop') closeHabitCheckinModal(); }); $('#habitCheckinForm').addEventListener('submit', submitHabitCheckin); $('#closeConfirmModal').addEventListener('click', closeConfirmModal); $('#cancelConfirmModal').addEventListener('click', closeConfirmModal); $('#confirmModalBackdrop').addEventListener('click', event => { if (event.target.id === 'confirmModalBackdrop') closeConfirmModal(); }); $('#confirmDeleteButton').addEventListener('click', deleteHabit); $('#refreshButton').addEventListener('click', refreshData); $('#privacyButton').addEventListener('click', togglePrivacy);
+$('#heroAddButton').addEventListener('click', () => openModal()); $('#fabButton').addEventListener('click', () => openModal()); $('#topAddButton').addEventListener('click', () => openModal()); $('#closeModal').addEventListener('click', closeModal); $('#cancelModal').addEventListener('click', closeModal); $('#modalBackdrop').addEventListener('click', event => { if (event.target.id === 'modalBackdrop') closeModal(); }); $('#transactionForm').addEventListener('submit', addTransaction); $('#closeHabitModal').addEventListener('click', closeHabitModal); $('#cancelHabitModal').addEventListener('click', closeHabitModal); $('#habitModalBackdrop').addEventListener('click', event => { if (event.target.id === 'habitModalBackdrop') closeHabitModal(); }); $('#habitForm').addEventListener('submit', submitHabit); $('#closeCategoryModal').addEventListener('click', closeCategoryModal); $('#cancelCategoryModal').addEventListener('click', closeCategoryModal); $('#categoryModalBackdrop').addEventListener('click', event => { if (event.target.id === 'categoryModalBackdrop') closeCategoryModal(); }); $('#categoryForm').addEventListener('submit', submitCategory); $('#categoryForm select[name="kind"]').addEventListener('change', updateCategoryModalSpendVisibility); $('#closeStockTradeModal').addEventListener('click', closeStockTradeModal); $('#cancelStockTradeModal').addEventListener('click', closeStockTradeModal); $('#stockTradeModalBackdrop').addEventListener('click', event => { if (event.target.id === 'stockTradeModalBackdrop') closeStockTradeModal(); }); $('#stockTradeForm').addEventListener('submit', submitStockTrade); $('#closeHabitCheckinModal').addEventListener('click', closeHabitCheckinModal); $('#cancelHabitCheckinModal').addEventListener('click', closeHabitCheckinModal); $('#habitCheckinModalBackdrop').addEventListener('click', event => { if (event.target.id === 'habitCheckinModalBackdrop') closeHabitCheckinModal(); }); $('#habitCheckinForm').addEventListener('submit', submitHabitCheckin); $('#closeConfirmModal').addEventListener('click', closeConfirmModal); $('#cancelConfirmModal').addEventListener('click', closeConfirmModal); $('#confirmModalBackdrop').addEventListener('click', event => { if (event.target.id === 'confirmModalBackdrop') closeConfirmModal(); }); $('#confirmDeleteButton').addEventListener('click', deleteHabit); $('#refreshButton').addEventListener('click', refreshData); $('#privacyButton').addEventListener('click', togglePrivacy);
 $('#accountMenuButton').addEventListener('click', event => { event.stopPropagation(); $('#accountMenuPanel').hidden = !$('#accountMenuPanel').hidden; });
 $('#accountMenuPanel').addEventListener('click', async event => { const target = event.target.closest('[data-account-page],[data-account-action]'); if (!target) return; $('#accountMenuPanel').hidden = true; if (target.dataset.accountPage) { navigate(target.dataset.accountPage); return; } if (target.dataset.accountAction === 'logout') await logout(); });
-document.addEventListener('click', event => { if (!event.target.closest('.account-menu')) $('#accountMenuPanel').hidden = true; });
+document.addEventListener('click', event => {
+  if (!event.target.closest('.account-menu')) $('#accountMenuPanel').hidden = true;
+  if (!event.target.closest('.multi-select-filter')) {
+    transactionOpenMultiFilter = '';
+    $$('.multi-select-filter[open]').forEach(dropdown => { dropdown.open = false; });
+  }
+});
 $('#authForm').addEventListener('submit', submitAuth); $('#authToggle').addEventListener('click', () => setAuthMode(authMode === 'login' ? 'register' : 'login'));
 $('#transactionForm input[name="recurring"]').addEventListener('change', () => updateDetailSections());
 $('#transactionForm select[name="frequency"]').addEventListener('change', () => updateDetailSections());
 $$('.type-tabs button').forEach(button => button.addEventListener('click', () => { setType(button.dataset.type); updateCategoryOptions(); })); $$('[data-workspace]').forEach(button => button.addEventListener('click', () => navigate(button.dataset.workspace === 'habits' ? 'habits' : 'dashboard'))); $$('.nav-item,[data-page]').forEach(button => button.addEventListener('click', async event => { if (button.matches('a')) event.preventDefault(); navigate(button.dataset.page); if (button.dataset.page === 'dashboard') await refreshData(); })); $$('.segmented-control button').forEach(button => button.addEventListener('click', () => { dashboardView = button.dataset.view; $$('.segmented-control button').forEach(b => b.classList.remove('active')); button.classList.add('active'); renderDashboard(); toast(dashboardView === 'real' ? 'Showing real expenses only' : 'Showing all outflow'); }));
 $$('[data-chart-range]').forEach(button => button.addEventListener('click', () => { chartRange = button.dataset.chartRange; $$('[data-chart-range]').forEach(b => b.classList.remove('active')); button.classList.add('active'); renderChart(dashboardView); }));
 let transactionFilterTimer;
-$('#subPageView').addEventListener('change', async event => { if (event.target.dataset.categorySpend) { const category = data.categories.find(item => item.id === event.target.dataset.categorySpend); if (!category) return; const response = await fetch(`/api/categories/${category.id}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ spendGroup:event.target.value }) }); if (!response.ok) { toast('Could not update spend group'); return; } await loadData(); navigate('settings', false); toast('Spend group updated'); return; } if (event.target.id === 'calendarMonthInput') { calendarFilter.month = normalizeMonthValue(event.target.value, event.target._flatpickr?.selectedDates?.[0]) || currentMonthKey(); calendarFilter.selectedDate = `${calendarFilter.month}-01`; $('#subPageView').innerHTML = renderCalendarPage(); return; } const form = event.target.closest('#transactionFilters'); if (!form || !event.target.closest('.transaction-table-tools')) return; applyTransactionFiltersFromForm(form); });
+$('#subPageView').addEventListener('change', async event => {
+  if (event.target.dataset.categorySpend) {
+    const category = data.categories.find(item => item.id === event.target.dataset.categorySpend);
+    if (!category) return;
+    const response = await fetch(`/api/categories/${category.id}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ spendGroup:event.target.value }) });
+    if (!response.ok) { toast('Could not update spend group'); return; }
+    await loadData();
+    navigate('settings', false);
+    toast('Spend group updated');
+    return;
+  }
+  if (event.target.id === 'calendarMonthInput') {
+    calendarFilter.month = normalizeMonthValue(event.target.value, event.target._flatpickr?.selectedDates?.[0]) || currentMonthKey();
+    calendarFilter.selectedDate = `${calendarFilter.month}-01`;
+    $('#subPageView').innerHTML = renderCalendarPage();
+    return;
+  }
+  const form = event.target.closest('#transactionFilters');
+  if (!form || !event.target.closest('.transaction-table-tools')) return;
+  if (event.target.matches('.multi-select-filter input[type="checkbox"]')) {
+    const group = event.target.closest('.multi-select-filter');
+    transactionOpenMultiFilter = event.target.name;
+    const boxes = [...group.querySelectorAll('input[type="checkbox"]')];
+    const allBox = boxes.find(box => box.value === 'all');
+    if (event.target.value === 'all' && event.target.checked) boxes.forEach(box => { if (box !== event.target) box.checked = false; });
+    if (event.target.value !== 'all' && event.target.checked && allBox) allBox.checked = false;
+    if (!boxes.some(box => box.checked) && allBox) allBox.checked = true;
+  }
+  else {
+    transactionOpenMultiFilter = '';
+  }
+  applyTransactionFiltersFromForm(form);
+});
 $('#subPageView').addEventListener('input', event => { const form = event.target.closest('#transactionFilters'); if (!form || event.target.name !== 'search') return; clearTimeout(transactionFilterTimer); transactionFilterTimer = setTimeout(() => applyTransactionFiltersFromForm(form), 250); });
 $('#habitCheckinForm').addEventListener('change', event => { if (event.target.name !== 'date') return; habitCheckinDate = event.target.value || today(); $('#habitCheckinList').innerHTML = renderHabitCheckinRows(habitCheckinDate, habitCheckinFocusId); initializeDatePickers($('#habitCheckinList')); });
-$('#subPageView').addEventListener('click', async event => { const target = event.target.closest('[data-action],[data-page],[data-range],[data-insight-preset],[data-transaction-preset],[data-calendar-view],[data-calendar-type],[data-calendar-date],[data-calendar-nav]'); if (!target) return; if (target.dataset.calendarView) { calendarFilter.view = target.dataset.calendarView; calendarFilter.month = calendarFilter.month || currentMonthKey(); calendarFilter.selectedDate = calendarFilter.selectedDate || today(); $('#subPageView').innerHTML = renderCalendarPage(); return; } if (target.dataset.calendarType) { calendarFilter.type = target.dataset.calendarType; $('#subPageView').innerHTML = renderCalendarPage(); return; } if (target.dataset.calendarDate) { calendarFilter.selectedDate = target.dataset.calendarDate; calendarFilter.month = target.dataset.calendarDate.slice(0, 7); $('#subPageView').innerHTML = renderCalendarPage(); return; } if (target.dataset.calendarNav) { const current = new Date(`${calendarFilter.view === 'week' ? (calendarFilter.selectedDate || today()) : `${calendarFilter.month || currentMonthKey()}-01`}T00:00:00`); const direction = target.dataset.calendarNav === 'next' ? 1 : -1; const nextDate = calendarFilter.view === 'week' ? addDays(current, direction * 7) : addMonthsToDate(current, direction); calendarFilter.selectedDate = dateKey(nextDate); calendarFilter.month = monthInputKey(nextDate); $('#subPageView').innerHTML = renderCalendarPage(); return; } if (target.dataset.insightPreset === 'thisMonth') { insightFilter = { mode:'thisMonth' }; $('#subPageView').innerHTML = renderInsightsPage(); return; } if (target.dataset.transactionPreset === 'thisMonth') { const form = $('#transactionFilters'); transactionFilter = { ...transactionFilter, mode:'thisMonth', fromMonth:currentMonthKey(), toMonth:currentMonthKey(), fromYear:currentYear(), toYear:currentYear(), search:form?.search?.value || transactionFilter.search, type:form?.type?.value || transactionFilter.type, category:form?.category?.value || transactionFilter.category, sort:form?.sort?.value || transactionFilter.sort }; $('#subPageView').innerHTML = renderTransactionsPage(); return; } if (target.dataset.page) { navigate(target.dataset.page); if (target.dataset.page === 'dashboard') await refreshData(); return; } const action = target.dataset.action; if (!action) return; if (action === 'sleep-range') { habitSleepRange = target.dataset.range || 'daily'; $('#subPageView').innerHTML = renderHabitInsightsPage(); return; } if (action === 'open-habit-modal') { openHabitModal(); return; } if (action === 'open-habit-checkin') { openHabitCheckinModal(target.dataset.date || today(), target.dataset.id || ''); return; } if (action === 'edit-habit') { const habit = data.habits.find(item => item.id === target.dataset.id); if (habit) openHabitModal(habit); return; } if (action === 'toggle-habit-active') { const habit = data.habits.find(item => item.id === target.dataset.id); if (!habit) return; const response = await fetch(`/api/habits/${habit.id}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ active:habit.active === false }) }); if (!response.ok) { toast('Could not update habit'); return; } await loadData(); navigate('habitManage', false); toast(habit.active === false ? 'Habit activated' : 'Habit paused'); return; } if (action === 'confirm-delete-habit') { const habit = data.habits.find(item => item.id === target.dataset.id); if (habit) openConfirmDeleteHabit(habit); return; } if (action === 'delete-habit-log') { const response = await fetch(`/api/habit-logs/${target.dataset.id}/${target.dataset.date}`, { method:'DELETE' }); if (!response.ok) { toast('Could not delete check-in'); return; } await loadData(); navigate('habitCheckins', false); toast('Check-in deleted'); return; } if (action === 'toggle-habit') { const habit = data.habits.find(item => item.id === target.dataset.id); if (!habit) return; const done = habitCompleted(habit); await saveHabitLog(habit, done ? 0 : Number(habit.target || 1), !done); return; } if (action === 'log-habit') { const habit = data.habits.find(item => item.id === target.dataset.id); if (!habit) return; const current = habitLog(habit.id)?.value || ''; const value = window.prompt(`Enter ${habit.name} value (${habit.unit || 'value'})`, current); if (value === null) return; await saveHabitLog(habit, value); return; } if (action === 'schedule-tab') { scheduleTab = target.dataset.tab || 'expense'; $('#subPageView').innerHTML = renderSubPage('schedule'); return; } if (action === 'logout') { await logout(); return; } if (action === 'refresh-profile') { await refreshData(); return; } if (action === 'open-add' || action === 'open-schedule') { openModal(activePage === 'investments' ? 'investment' : activePage === 'schedule' ? scheduleTab : 'expense'); if (activePage === 'investments' || action === 'open-schedule') { $('[name="recurring"]').checked = true; updateDetailSections(); } } if (action === 'export') exportData(); if (action === 'skip-schedule') toast('This schedule was skipped once'); if (action === 'edit') { const transaction = data.transactions.find(item => item.id === target.dataset.id); if (transaction) openModal(transaction.type, transaction); } if (action === 'delete') { const transaction = data.transactions.find(item => item.id === target.dataset.id); if (!transaction || !window.confirm(`Delete ${transaction.subcategory || transaction.category} for ${money(transaction.amount)}?`)) return; const response = await fetch(`/api/transactions/${transaction.id}`, { method:'DELETE' }); if (!response.ok) { toast('Could not delete transaction'); return; } data = await (await fetch('/api/data')).json(); navigate('transactions', false); toast('Transaction deleted'); } if (action === 'edit-schedule') { const response = await fetch(`/api/schedules/${target.dataset.id}`); if (!response.ok) { toast('Could not load the latest schedule'); return; } openScheduleModal(await response.json()); } if (action === 'open-category-modal') { openCategoryModal(); return; } if (action === 'edit-category') { const category = data.categories.find(item => item.id === target.dataset.id); if (category) openCategoryModal(category); return; } });
+$('#subPageView').addEventListener('click', event => {
+  const target = event.target.closest('[data-transaction-preset]');
+  if (!target) return;
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  const form = $('#transactionFilters');
+  transactionFilter = {
+    ...transactionFilter,
+    mode:'thisMonth',
+    fromMonth:currentMonthKey(),
+    toMonth:currentMonthKey(),
+    fromYear:currentYear(),
+    toYear:currentYear(),
+    search:form?.search?.value || transactionFilter.search,
+    type:form?.type?.value || transactionFilter.type,
+    category:selectedTransactionFilterValues(form, 'category'),
+    spendGroup:selectedTransactionFilterValues(form, 'spendGroup'),
+    sort:form?.sort?.value || transactionFilter.sort
+  };
+  $('#subPageView').innerHTML = renderTransactionsPage();
+}, true);
+$('#subPageView').addEventListener('click', async event => { const target = event.target.closest('[data-action],[data-page],[data-range],[data-insight-preset],[data-transaction-preset],[data-investment-tab],[data-calendar-view],[data-calendar-type],[data-calendar-date],[data-calendar-nav]'); if (!target) return; if (target.dataset.calendarView) { calendarFilter.view = target.dataset.calendarView; calendarFilter.month = calendarFilter.month || currentMonthKey(); calendarFilter.selectedDate = calendarFilter.selectedDate || today(); $('#subPageView').innerHTML = renderCalendarPage(); return; } if (target.dataset.calendarType) { calendarFilter.type = target.dataset.calendarType; $('#subPageView').innerHTML = renderCalendarPage(); return; } if (target.dataset.calendarDate) { calendarFilter.selectedDate = target.dataset.calendarDate; calendarFilter.month = target.dataset.calendarDate.slice(0, 7); $('#subPageView').innerHTML = renderCalendarPage(); return; } if (target.dataset.calendarNav) { const current = new Date(`${calendarFilter.view === 'week' ? (calendarFilter.selectedDate || today()) : `${calendarFilter.month || currentMonthKey()}-01`}T00:00:00`); const direction = target.dataset.calendarNav === 'next' ? 1 : -1; const nextDate = calendarFilter.view === 'week' ? addDays(current, direction * 7) : addMonthsToDate(current, direction); calendarFilter.selectedDate = dateKey(nextDate); calendarFilter.month = monthInputKey(nextDate); $('#subPageView').innerHTML = renderCalendarPage(); return; } if (target.dataset.insightPreset === 'thisMonth') { insightFilter = { mode:'thisMonth' }; $('#subPageView').innerHTML = renderInsightsPage(); return; } if (target.dataset.investmentTab) { investmentTab = target.dataset.investmentTab; $('#subPageView').innerHTML = renderInvestmentsPage(); return; } if (target.dataset.transactionPreset === 'thisMonth') { const form = $('#transactionFilters'); transactionFilter = { ...transactionFilter, mode:'thisMonth', fromMonth:currentMonthKey(), toMonth:currentMonthKey(), fromYear:currentYear(), toYear:currentYear(), search:form?.search?.value || transactionFilter.search, type:form?.type?.value || transactionFilter.type, category:form?.category?.value || transactionFilter.category, sort:form?.sort?.value || transactionFilter.sort }; $('#subPageView').innerHTML = renderTransactionsPage(); return; } if (target.dataset.page) { navigate(target.dataset.page); if (target.dataset.page === 'dashboard') await refreshData(); return; } const action = target.dataset.action; if (!action) return; if (action === 'sleep-range') { habitSleepRange = target.dataset.range || 'daily'; $('#subPageView').innerHTML = renderHabitInsightsPage(); return; } if (action === 'open-habit-modal') { openHabitModal(); return; } if (action === 'open-habit-checkin') { openHabitCheckinModal(target.dataset.date || today(), target.dataset.id || ''); return; } if (action === 'edit-habit') { const habit = data.habits.find(item => item.id === target.dataset.id); if (habit) openHabitModal(habit); return; } if (action === 'toggle-habit-active') { const habit = data.habits.find(item => item.id === target.dataset.id); if (!habit) return; const response = await fetch(`/api/habits/${habit.id}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ active:habit.active === false }) }); if (!response.ok) { toast('Could not update habit'); return; } await loadData(); navigate('habitManage', false); toast(habit.active === false ? 'Habit activated' : 'Habit paused'); return; } if (action === 'confirm-delete-habit') { const habit = data.habits.find(item => item.id === target.dataset.id); if (habit) openConfirmDeleteHabit(habit); return; } if (action === 'delete-habit-log') { const response = await fetch(`/api/habit-logs/${target.dataset.id}/${target.dataset.date}`, { method:'DELETE' }); if (!response.ok) { toast('Could not delete check-in'); return; } await loadData(); navigate('habitCheckins', false); toast('Check-in deleted'); return; } if (action === 'toggle-habit') { const habit = data.habits.find(item => item.id === target.dataset.id); if (!habit) return; const done = habitCompleted(habit); await saveHabitLog(habit, done ? 0 : Number(habit.target || 1), !done); return; } if (action === 'log-habit') { const habit = data.habits.find(item => item.id === target.dataset.id); if (!habit) return; const current = habitLog(habit.id)?.value || ''; const value = window.prompt(`Enter ${habit.name} value (${habit.unit || 'value'})`, current); if (value === null) return; await saveHabitLog(habit, value); return; } if (action === 'open-stock-trade') { openStockTradeModal({ symbol:target.dataset.symbol || '', companyName:target.dataset.company || '', tradeType:target.dataset.tradeType || 'buy', currentPrice:target.dataset.currentPrice || '' }); return; } if (action === 'delete-stock-trade') { if (!window.confirm('Delete this stock trade?')) return; const response = await fetch(`/api/stock-trades/${target.dataset.id}`, { method:'DELETE' }); if (!response.ok) { toast('Could not delete stock trade'); return; } await loadData(); investmentTab='stocks'; navigate('investments', false); toast('Stock trade deleted'); return; } if (action === 'schedule-tab') { scheduleTab = target.dataset.tab || 'expense'; $('#subPageView').innerHTML = renderSubPage('schedule'); return; } if (action === 'logout') { await logout(); return; } if (action === 'refresh-profile') { await refreshData(); return; } if (action === 'open-add' || action === 'open-schedule') { openModal(activePage === 'investments' ? 'investment' : activePage === 'schedule' ? scheduleTab : 'expense'); if (activePage === 'investments' || action === 'open-schedule') { $('[name="recurring"]').checked = true; updateDetailSections(); } } if (action === 'export') exportData(); if (action === 'skip-schedule') toast('This schedule was skipped once'); if (action === 'edit') { const transaction = data.transactions.find(item => item.id === target.dataset.id); if (transaction) openModal(transaction.type, transaction); } if (action === 'delete') { const transaction = data.transactions.find(item => item.id === target.dataset.id); if (!transaction || !window.confirm(`Delete ${transaction.subcategory || transaction.category} for ${money(transaction.amount)}?`)) return; const response = await fetch(`/api/transactions/${transaction.id}`, { method:'DELETE' }); if (!response.ok) { toast('Could not delete transaction'); return; } data = await (await fetch('/api/data')).json(); navigate('transactions', false); toast('Transaction deleted'); } if (action === 'edit-schedule') { const response = await fetch(`/api/schedules/${target.dataset.id}`); if (!response.ok) { toast('Could not load the latest schedule'); return; } openScheduleModal(await response.json()); } if (action === 'open-category-modal') { openCategoryModal(); return; } if (action === 'edit-category') { const category = data.categories.find(item => item.id === target.dataset.id); if (category) openCategoryModal(category); return; } });
 $('#subPageView').addEventListener('submit', async event => {
   if (!['budgetSettingsForm','profileForm'].includes(event.target.id)) return;
   event.preventDefault();
