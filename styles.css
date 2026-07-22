@@ -227,3 +227,24 @@ h1,h2,h3,p { margin:0; } h1,h2,h3 { font-family:'Plus Jakarta Sans',sans-serif; 
   .modal-actions .secondary-button,.modal-actions .primary-button { flex:1;padding:13px 12px; }
   .flatpickr-calendar { max-width:calc(100vw - 24px); }
 }
+
+.home-velocity-panel.pace-over { border-color:#ffd7d7;background:linear-gradient(135deg,rgba(255,255,255,.98),rgba(255,246,246,.94)); }
+.home-velocity-panel.pace-under { border-color:#ccefe6;background:linear-gradient(135deg,rgba(255,255,255,.98),rgba(240,253,249,.9)); }
+.home-pace-state { display:block; }
+.home-pace-status { display:grid;grid-template-columns:28px minmax(0,1fr);gap:9px;align-items:center;margin:0 0 8px;padding:9px 10px;border:1px solid;border-radius:14px;background:#fff; }
+.home-pace-status span { width:28px;height:28px;border-radius:10px;display:grid;place-items:center;color:#fff;font:900 14px 'Plus Jakarta Sans';box-shadow:0 9px 18px rgba(31,36,64,.08); }
+.home-pace-status b,.home-pace-status small { display:block;min-width:0; }
+.home-pace-status b { font-size:12px;line-height:1.15; }
+.home-pace-status small { margin-top:2px;font-size:10px;font-weight:800;line-height:1.3;color:inherit;opacity:.78; }
+.home-pace-status.over { color:#d65353;border-color:#ffd2d2;background:#fff6f6; }
+.home-pace-status.over span { background:linear-gradient(135deg,#d65353,#ff8d6b); }
+.home-pace-status.under { color:#159d89;border-color:#ccefe6;background:#f1fcf8; }
+.home-pace-status.under span { background:linear-gradient(135deg,#159d89,#35bfa9); }
+.home-velocity-panel.pace-over .pace-actual-line { stroke:#d65353;filter:drop-shadow(0 7px 12px rgba(214,83,83,.15)); }
+.home-velocity-panel.pace-over .pace-point { stroke:#d65353; }
+.home-velocity-panel.pace-under .pace-actual-line { stroke:#159d89;filter:drop-shadow(0 7px 12px rgba(21,157,137,.15)); }
+.home-velocity-panel.pace-under .pace-point { stroke:#159d89; }
+.home-velocity-panel.pace-over .home-pace-legend .actual { background:#d65353; }
+.home-velocity-panel.pace-under .home-pace-legend .actual { background:#159d89; }
+.home-pace-metrics b.over { color:#d65353; }
+.home-pace-metrics b.under { color:#159d89; }
