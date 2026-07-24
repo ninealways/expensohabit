@@ -228,6 +228,12 @@ h1,h2,h3,p { margin:0; } h1,h2,h3 { font-family:'Plus Jakarta Sans',sans-serif; 
   .flatpickr-calendar { max-width:calc(100vw - 24px); }
 }
 
+.category-amount-pills { display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;padding-top:12px;border-top:1px solid #f0eef9; }
+.category-amount-pills span { display:inline-grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:7px;max-width:100%;padding:8px 10px;border:1px solid #ece9fb;border-radius:999px;background:linear-gradient(135deg,#fff,#fbfaff);box-shadow:0 8px 18px rgba(44,53,113,.04); }
+.category-amount-pills b { min-width:0;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink);font-size:10px; }
+.category-amount-pills strong { color:var(--ink);font:800 11px 'Plus Jakarta Sans';white-space:nowrap; }
+.category-amount-pills em { padding:4px 6px;border-radius:999px;background:#f2edff;color:var(--purple);font-size:9px;font-weight:900;font-style:normal;white-space:nowrap; }
+
 .home-velocity-panel.pace-over { border-color:#ffd7d7;background:linear-gradient(135deg,rgba(255,255,255,.98),rgba(255,246,246,.94)); }
 .home-velocity-panel.pace-under { border-color:#ccefe6;background:linear-gradient(135deg,rgba(255,255,255,.98),rgba(240,253,249,.9)); }
 .home-pace-state { display:block; }

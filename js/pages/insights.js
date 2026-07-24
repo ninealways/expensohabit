@@ -56,6 +56,10 @@ function categoryChartRows(entries, limit = 7) {
   const combinedOther = otherTotal + rolledOtherTotal;
   return combinedOther ? [...primaryEntries, ['Other', combinedOther]] : entries.filter(([category]) => category !== 'Other').slice(0, limit);
 }
+function renderCategoryAmountPills(entries, total) {
+  if (!entries.length || !total) return '';
+  return `<div class="category-amount-pills">${entries.map(([category, value]) => `<span title="${category}: ${money(value)}"><b>${category}</b><strong>${money(value)}</strong><em>${percent(value, total)}%</em></span>`).join('')}</div>`;
+}
 function renderSpendPriorityChart(items) {
   const totals = items.reduce((acc, item) => {
     const key = categorySpendGroup(item.category);
@@ -210,7 +214,7 @@ function renderInsightsPage(filter = insightFilter) {
     </section>
     <section class="insights-grid-main">
       <div class="panel money-flow-panel"><div class="panel-heading"><div><p class="panel-kicker">MONEY FLOW</p><h3>Money flow</h3><p class="subtitle">How your money is distributed</p></div><button class="ghost-button" data-page="outflow">View report</button></div><div class="flow-stage radial-split"><div class="flow-total"><small>Total outflow</small><strong>${money(sums.total)}</strong></div><div class="flow-lines">${moneyFlowRows.map((row, index) => `<div class="flow-row ${row.cls}"><span class="flow-row-icon">${svgIcon(['bag','receipt','pie','lock'][index])}</span><div class="flow-row-text"><b>${row.label}</b><small>${row.note}</small></div><strong>${money(row.value)}</strong><em>${percent(row.value, sums.total)}%</em></div>`).join('')}</div></div><p class="flow-note"><span>ⓘ</span> Loans and investments are shown in the flow but excluded from real-expense ranking.</p></div>
-      <div class="panel category-chart-panel"><div class="panel-heading"><div><p class="panel-kicker">SELECTED RANGE</p><h3>Category chart</h3><p class="subtitle">Real expense categories for ${range.label}</p></div></div>${renderCategoryDonut(categoryRows, categoryChartTotal)}</div>
+      <div class="panel category-chart-panel"><div class="panel-heading"><div><p class="panel-kicker">SELECTED RANGE</p><h3>Category chart</h3><p class="subtitle">Real expense categories for ${range.label}</p></div></div>${renderCategoryDonut(categoryRows, categoryChartTotal)}${renderCategoryAmountPills(categoryEntries, categoryChartTotal)}</div>
     </section>
     <section class="insights-lower-grid">
       <div class="panel heatmap-panel"><div class="panel-heading"><div><p class="panel-kicker">WEEKLY PATTERN</p><h3>Category heatmap</h3></div></div><div class="heatmap-head"><span></span><span>W1</span><span>W2</span><span>W3</span><span>W4</span><span>W5</span></div>${heatCategories.length ? heatCategories.map(category => `<div class="heatmap-row"><b>${category}</b>${[1,2,3,4,5].map(week => { const value = heatValues[`${category}-${week}`] || 0; return `<span title="${category} week ${week}: ${money(value)}" style="opacity:${value ? Math.max(.25, value / heatMax) : .12}"></span>`; }).join('')}</div>`).join('') : '<p class="empty-state">Add real expenses to populate the heatmap.</p>'}<div class="heatmap-scale"><small>Low</small><i></i><small>High</small></div></div>
