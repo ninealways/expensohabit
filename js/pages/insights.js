@@ -6,6 +6,7 @@ function renderCategoryDonut(rows, total) {
   if (!rows.length || !total) return '<p class="empty-state">No real expenses in this range.</p>';
   const palette = ['#3f64b7','#7857f4','#9a4fd1','#e84579','#ff715c','#f4b845','#35bfa9'];
   let angle = -18;
+  const chart = { width:420, height:270, cx:210, cy:132, ringRadius:68, calloutInner:92, calloutOuter:126, minY:30, maxY:240 };
   const segments = rows.map(([category, value], index) => {
     const span = Math.max(2, value / total * 360);
     const start = angle;
@@ -13,17 +14,47 @@ function renderCategoryDonut(rows, total) {
     angle = end;
     return { category, value, start, end, mid:start + span / 2, color:palette[index % palette.length] };
   });
-  const labels = segments.map((segment, index) => {
+  const labelSeed = segments.map(segment => {
     const side = Math.cos((segment.mid - 90) * Math.PI / 180) >= 0 ? 'right' : 'left';
-    const p1 = donutPoint(160, 124, 86, segment.mid);
-    const p2 = donutPoint(160, 124, 112, segment.mid);
-    const endX = side === 'right' ? 294 : 26;
-    const textX = side === 'right' ? 302 : 18;
+    const p2 = donutPoint(chart.cx, chart.cy, chart.calloutOuter, segment.mid);
+    return { segment, side, naturalY:Math.max(chart.minY, Math.min(chart.maxY, p2.y)) };
+  });
+  const spreadLabelYs = (items) => {
+    const ordered = items.slice().sort((a, b) => a.naturalY - b.naturalY);
+    const gap = 34;
+    ordered.forEach((item, index) => {
+      item.y = index ? Math.max(item.naturalY, ordered[index - 1].y + gap) : item.naturalY;
+    });
+    const overflow = ordered.length ? ordered[ordered.length - 1].y - chart.maxY : 0;
+    if (overflow > 0) ordered.forEach(item => { item.y -= overflow; });
+    for (let index = ordered.length - 2; index >= 0; index -= 1) {
+      ordered[index].y = Math.min(ordered[index].y, ordered[index + 1].y - gap);
+    }
+    ordered.forEach(item => { item.y = Math.max(chart.minY, Math.min(chart.maxY, item.y)); });
+    return ordered;
+  };
+  const labelLayouts = [...spreadLabelYs(labelSeed.filter(label => label.side === 'left')), ...spreadLabelYs(labelSeed.filter(label => label.side === 'right'))];
+  const labels = labelLayouts.map(({ segment, side, y }) => {
+    const p1 = donutPoint(chart.cx, chart.cy, chart.calloutInner, segment.mid);
+    const p2 = donutPoint(chart.cx, chart.cy, chart.calloutOuter, segment.mid);
+    const endX = side === 'right' ? 366 : 54;
+    const textX = side === 'right' ? 376 : 44;
     const anchor = side === 'right' ? 'start' : 'end';
-    const y = Math.max(24, Math.min(224, p2.y));
     return `<g class="donut-callout ${side}"><path d="M ${p1.x.toFixed(1)} ${p1.y.toFixed(1)} L ${p2.x.toFixed(1)} ${y.toFixed(1)} L ${endX} ${y.toFixed(1)}" stroke="${segment.color}" /><text x="${textX}" y="${(y - 6).toFixed(1)}" text-anchor="${anchor}" class="callout-amount">${money(segment.value)}</text><text x="${textX}" y="${(y + 11).toFixed(1)}" text-anchor="${anchor}" class="callout-name">${segment.category}</text></g>`;
   }).join('');
-  return `<div class="category-donut-wrap"><svg class="category-donut-svg" viewBox="0 0 320 248" role="img" aria-label="Category-wise expense donut chart">${segments.map(segment => `<path d="${donutArc(160, 124, 64, segment.start, segment.end)}" stroke="${segment.color}" />`).join('')}<circle cx="160" cy="124" r="39" class="donut-hole" /><text x="160" y="118" text-anchor="middle" class="donut-center-label">Real spend</text><text x="160" y="140" text-anchor="middle" class="donut-center-value">${money(total)}</text>${labels}</svg></div>`;
+  return `<div class="category-donut-wrap"><svg class="category-donut-svg" viewBox="0 0 ${chart.width} ${chart.height}" role="img" aria-label="Category-wise expense donut chart">${segments.map(segment => `<path d="${donutArc(chart.cx, chart.cy, chart.ringRadius, segment.start, segment.end)}" stroke="${segment.color}" />`).join('')}<circle cx="${chart.cx}" cy="${chart.cy}" r="41" class="donut-hole" /><text x="${chart.cx}" y="${chart.cy - 6}" text-anchor="middle" class="donut-center-label">Real spend</text><text x="${chart.cx}" y="${chart.cy + 17}" text-anchor="middle" class="donut-center-value">${money(total)}</text>${labels}</svg></div>`;
+}
+function categoryChartRows(entries, limit = 7) {
+  const otherTotal = entries
+    .filter(([category]) => category === 'Other')
+    .reduce((sum, [, value]) => sum + value, 0);
+  const primaryEntries = entries.filter(([category]) => category !== 'Other').slice(0, limit - 1);
+  const rolledOtherTotal = entries
+    .filter(([category]) => category !== 'Other')
+    .slice(limit - 1)
+    .reduce((sum, [, value]) => sum + value, 0);
+  const combinedOther = otherTotal + rolledOtherTotal;
+  return combinedOther ? [...primaryEntries, ['Other', combinedOther]] : entries.filter(([category]) => category !== 'Other').slice(0, limit);
 }
 function renderSpendPriorityChart(items) {
   const totals = items.reduce((acc, item) => {
@@ -126,8 +157,7 @@ function renderInsightsPage(filter = insightFilter) {
   const currentCats = categoryTotals(groups.expense.filter(t => t.includeInReal !== false));
   const categoryEntries = Object.entries(currentCats).sort((a,b) => b[1] - a[1]);
   const categoryChartTotal = categoryEntries.reduce((sum, [, value]) => sum + value, 0);
-  const otherCategoryTotal = categoryEntries.slice(6).reduce((sum, [, value]) => sum + value, 0);
-  const categoryChartRows = otherCategoryTotal ? [...categoryEntries.slice(0, 6), ['Other', otherCategoryTotal]] : categoryEntries.slice(0, 7);
+  const categoryRows = categoryChartRows(categoryEntries);
   const previousCats = categoryTotals(previous.filter(t => t.type === 'expense' && t.includeInReal !== false));
   const topMovers = Object.keys({ ...currentCats, ...previousCats }).map(category => ({ category, current:currentCats[category] || 0, previous:previousCats[category] || 0, change:(currentCats[category] || 0) - (previousCats[category] || 0) })).sort((a,b) => Math.abs(b.change) - Math.abs(a.change)).slice(0, 5);
   const velocity = spendVelocity(range, sums.real);
@@ -180,7 +210,7 @@ function renderInsightsPage(filter = insightFilter) {
     </section>
     <section class="insights-grid-main">
       <div class="panel money-flow-panel"><div class="panel-heading"><div><p class="panel-kicker">MONEY FLOW</p><h3>Money flow</h3><p class="subtitle">How your money is distributed</p></div><button class="ghost-button" data-page="outflow">View report</button></div><div class="flow-stage radial-split"><div class="flow-total"><small>Total outflow</small><strong>${money(sums.total)}</strong></div><div class="flow-lines">${moneyFlowRows.map((row, index) => `<div class="flow-row ${row.cls}"><span class="flow-row-icon">${svgIcon(['bag','receipt','pie','lock'][index])}</span><div class="flow-row-text"><b>${row.label}</b><small>${row.note}</small></div><strong>${money(row.value)}</strong><em>${percent(row.value, sums.total)}%</em></div>`).join('')}</div></div><p class="flow-note"><span>ⓘ</span> Loans and investments are shown in the flow but excluded from real-expense ranking.</p></div>
-      <div class="panel category-chart-panel"><div class="panel-heading"><div><p class="panel-kicker">SELECTED RANGE</p><h3>Category chart</h3><p class="subtitle">Real expense categories for ${range.label}</p></div></div>${renderCategoryDonut(categoryChartRows, categoryChartTotal)}</div>
+      <div class="panel category-chart-panel"><div class="panel-heading"><div><p class="panel-kicker">SELECTED RANGE</p><h3>Category chart</h3><p class="subtitle">Real expense categories for ${range.label}</p></div></div>${renderCategoryDonut(categoryRows, categoryChartTotal)}</div>
     </section>
     <section class="insights-lower-grid">
       <div class="panel heatmap-panel"><div class="panel-heading"><div><p class="panel-kicker">WEEKLY PATTERN</p><h3>Category heatmap</h3></div></div><div class="heatmap-head"><span></span><span>W1</span><span>W2</span><span>W3</span><span>W4</span><span>W5</span></div>${heatCategories.length ? heatCategories.map(category => `<div class="heatmap-row"><b>${category}</b>${[1,2,3,4,5].map(week => { const value = heatValues[`${category}-${week}`] || 0; return `<span title="${category} week ${week}: ${money(value)}" style="opacity:${value ? Math.max(.25, value / heatMax) : .12}"></span>`; }).join('')}</div>`).join('') : '<p class="empty-state">Add real expenses to populate the heatmap.</p>'}<div class="heatmap-scale"><small>Low</small><i></i><small>High</small></div></div>
