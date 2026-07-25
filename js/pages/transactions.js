@@ -45,7 +45,7 @@ function filteredTransactions(filter = transactionFilter) {
     const matchesType = !filter.type || filter.type === 'all' || transaction.type === filter.type;
     const matchesCategory = !selectedCategories.length || selectedCategories.includes(transaction.category);
     const matchesSpendGroup = !selectedSpendGroups.length || (transaction.type === 'expense' && selectedSpendGroups.includes(categorySpendGroup(transaction.category)));
-    const text = `${transaction.subcategory || ''} ${transaction.category || ''} ${transaction.note || ''} ${transaction.type || ''}`.toLowerCase();
+    const text = `${transaction.subcategory || ''} ${transaction.note || ''}`.toLowerCase();
     return matchesRange && matchesType && matchesCategory && matchesSpendGroup && (!query || text.includes(query));
   });
   const sorters = {
@@ -74,7 +74,7 @@ function renderTransactionFilters(filter = transactionFilter) {
       <label class="${filter.mode === 'yearRange' ? 'active' : ''}">Year range<select name="fromYear">${insightYearOptions(fromYear)}</select><span>to</span><select name="toYear">${insightYearOptions(toYear)}</select><button type="submit" data-transaction-mode="yearRange">Apply</button></label>
     </div>
     <div class="transaction-table-tools">
-      <label>Search<input name="search" type="search" value="${filter.search || ''}" placeholder="Name, note, category..." /></label>
+      <label>Search<input name="search" type="search" value="${filter.search || ''}" placeholder="Subcategory or note..." /></label>
       <label>Type<select name="type">${typeOptions}</select></label>
       ${renderMultiSelectFilter('category', 'Category', 'All categories', categoryOptions, filter.category)}
       ${renderMultiSelectFilter('spendGroup', 'Spend group', 'All spend groups', spendGroupOptions, filter.spendGroup)}
