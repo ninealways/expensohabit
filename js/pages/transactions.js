@@ -45,7 +45,7 @@ function filteredTransactions(filter = transactionFilter) {
     const matchesType = !filter.type || filter.type === 'all' || transaction.type === filter.type;
     const matchesCategory = !selectedCategories.length || selectedCategories.includes(transaction.category);
     const matchesSpendGroup = !selectedSpendGroups.length || (transaction.type === 'expense' && selectedSpendGroups.includes(categorySpendGroup(transaction.category)));
-    const text = `${transaction.subcategory || ''} ${transaction.category || ''} ${transaction.note || ''} ${transaction.type || ''}`.toLowerCase();
+    const text = `${transaction.subcategory || ''} ${transaction.note || ''}`.toLowerCase();
     return matchesRange && matchesType && matchesCategory && matchesSpendGroup && (!query || text.includes(query));
   });
   const sorters = {
@@ -74,7 +74,7 @@ function renderTransactionFilters(filter = transactionFilter) {
       <label class="${filter.mode === 'yearRange' ? 'active' : ''}">Year range<select name="fromYear">${insightYearOptions(fromYear)}</select><span>to</span><select name="toYear">${insightYearOptions(toYear)}</select><button type="submit" data-transaction-mode="yearRange">Apply</button></label>
     </div>
     <div class="transaction-table-tools">
-      <label>Search<input name="search" type="search" value="${filter.search || ''}" placeholder="Name, note, category..." /></label>
+      <label>Search<input name="search" type="search" value="${filter.search || ''}" placeholder="Subcategory or note..." /></label>
       <label>Type<select name="type">${typeOptions}</select></label>
       ${renderMultiSelectFilter('category', 'Category', 'All categories', categoryOptions, filter.category)}
       ${renderMultiSelectFilter('spendGroup', 'Spend group', 'All spend groups', spendGroupOptions, filter.spendGroup)}
@@ -87,11 +87,32 @@ function renderTransactionsPage() {
   const range = transactionRange();
   const rows = filteredTransactions();
   const total = sumAmount(rows);
-  return `<article class="panel"><div class="panel-heading"><div><p class="panel-kicker">${range.label}</p><h3>Transactions</h3><p class="subtitle">${rows.length} entries · ${money(total)} in selected results</p></div><div class="panel-actions"><button class="ghost-button" data-page="calendar">Calendar view</button><button class="primary-button" data-action="open-add">＋ Add transaction</button></div></div>${renderTransactionFilters()}<div class="table-scroll"><table class="data-table"><thead><tr><th>Date</th><th>Description</th><th>Type</th><th>Category</th><th>Amount</th><th></th></tr></thead><tbody>${rows.length ? rows.map(t => `<tr><td>${t.date}</td><td><b>${t.subcategory || t.category}</b><br><small>${t.note || 'No note'}</small></td><td><span class="type-badge ${t.type}">${t.type}</span></td><td>${t.category}</td><td>${money(t.amount)}</td><td><div class="row-actions"><button class="table-actions" data-action="edit" data-id="${t.id}">Edit</button><button class="table-actions delete-action" data-action="delete" data-id="${t.id}">Delete</button></div></td></tr>`).join('') : '<tr><td colspan="6"><p class="empty-state">No transactions match the selected range and filters.</p></td></tr>'}</tbody></table></div></article>`;
+  return `<article class="panel"><div class="panel-heading"><div><p class="panel-kicker">${range.label}</p><h3>Transactions</h3><p class="subtitle" id="transactionResultsMeta">${transactionResultsMeta(rows, total)}</p></div><div class="panel-actions"><button class="ghost-button" data-page="calendar">Calendar view</button><button class="primary-button" data-action="open-add">＋ Add transaction</button></div></div>${renderTransactionFilters()}<div id="transactionResultsTable">${renderTransactionResultsTable(rows)}</div></article>`;
 }
 
-function applyTransactionFiltersFromForm(form, mode = transactionFilter.mode || 'thisMonth') {
+function transactionResultsMeta(rows = filteredTransactions(), total = sumAmount(rows)) {
+  return `${rows.length} entries · ${money(total)} in selected results`;
+}
+
+function renderTransactionResultsTable(rows = filteredTransactions()) {
+  return `<div class="table-scroll"><table class="data-table"><thead><tr><th>Date</th><th>Description</th><th>Type</th><th>Category</th><th>Amount</th><th></th></tr></thead><tbody>${rows.length ? rows.map(t => `<tr><td>${t.date}</td><td><b>${t.subcategory || t.category}</b><br><small>${t.note || 'No note'}</small></td><td><span class="type-badge ${t.type}">${t.type}</span></td><td>${t.category}</td><td>${money(t.amount)}</td><td><div class="row-actions"><button class="table-actions" data-action="edit" data-id="${t.id}">Edit</button><button class="table-actions delete-action" data-action="delete" data-id="${t.id}">Delete</button></div></td></tr>`).join('') : '<tr><td colspan="6"><p class="empty-state">No transactions match the selected range and filters.</p></td></tr>'}</tbody></table></div>`;
+}
+
+function refreshTransactionResultsOnly() {
+  const rows = filteredTransactions();
+  const total = sumAmount(rows);
+  const meta = document.getElementById('transactionResultsMeta');
+  const table = document.getElementById('transactionResultsTable');
+  if (meta) meta.textContent = transactionResultsMeta(rows, total);
+  if (table) table.innerHTML = renderTransactionResultsTable(rows);
+}
+
+function applyTransactionFiltersFromForm(form, mode = transactionFilter.mode || 'thisMonth', options = {}) {
   const data = new FormData(form);
   transactionFilter = { mode, fromMonth:data.get('fromMonth'), toMonth:data.get('toMonth'), fromYear:data.get('fromYear'), toYear:data.get('toYear'), search:data.get('search') || '', type:data.get('type') || 'all', category:selectedTransactionFilterValues(form, 'category'), spendGroup:selectedTransactionFilterValues(form, 'spendGroup'), sort:data.get('sort') || 'dateDesc' };
+  if (options.resultsOnly) {
+    refreshTransactionResultsOnly();
+    return;
+  }
   $('#subPageView').innerHTML = renderTransactionsPage();
 }
