@@ -2,7 +2,8 @@
 
 function donutPoint(cx, cy, radius, angle) { const radians = (angle - 90) * Math.PI / 180; return { x:cx + radius * Math.cos(radians), y:cy + radius * Math.sin(radians) }; }
 function donutArc(cx, cy, radius, startAngle, endAngle) { const start = donutPoint(cx, cy, radius, endAngle); const end = donutPoint(cx, cy, radius, startAngle); const largeArc = endAngle - startAngle <= 180 ? 0 : 1; return `M ${start.x.toFixed(2)} ${start.y.toFixed(2)} A ${radius} ${radius} 0 ${largeArc} 0 ${end.x.toFixed(2)} ${end.y.toFixed(2)}`; }
-function renderCategoryDonut(rows, total) {
+function htmlAttr(value) { return String(value ?? '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+function renderCategoryDonut(rows, total, options = {}) {
   if (!rows.length || !total) return '<p class="empty-state">No real expenses in this range.</p>';
   const palette = ['#3f64b7','#7857f4','#9a4fd1','#e84579','#ff715c','#f4b845','#35bfa9'];
   let angle = -18;
@@ -40,9 +41,13 @@ function renderCategoryDonut(rows, total) {
     const endX = side === 'right' ? 366 : 54;
     const textX = side === 'right' ? 376 : 44;
     const anchor = side === 'right' ? 'start' : 'end';
-    return `<g class="donut-callout ${side}"><path d="M ${p1.x.toFixed(1)} ${p1.y.toFixed(1)} L ${p2.x.toFixed(1)} ${y.toFixed(1)} L ${endX} ${y.toFixed(1)}" stroke="${segment.color}" /><text x="${textX}" y="${(y - 6).toFixed(1)}" text-anchor="${anchor}" class="callout-amount">${money(segment.value)}</text><text x="${textX}" y="${(y + 11).toFixed(1)}" text-anchor="${anchor}" class="callout-name">${segment.category}</text></g>`;
+    const drillAttr = options.clickable ? ` data-insight-category="${htmlAttr(segment.category)}"` : '';
+    return `<g class="donut-callout ${side}${options.clickable ? ' clickable' : ''}"${drillAttr}><path d="M ${p1.x.toFixed(1)} ${p1.y.toFixed(1)} L ${p2.x.toFixed(1)} ${y.toFixed(1)} L ${endX} ${y.toFixed(1)}" stroke="${segment.color}" /><text x="${textX}" y="${(y - 6).toFixed(1)}" text-anchor="${anchor}" class="callout-amount">${money(segment.value)}</text><text x="${textX}" y="${(y + 11).toFixed(1)}" text-anchor="${anchor}" class="callout-name">${segment.category}</text></g>`;
   }).join('');
-  return `<div class="category-donut-wrap"><svg class="category-donut-svg" viewBox="0 0 ${chart.width} ${chart.height}" role="img" aria-label="Category-wise expense donut chart">${segments.map(segment => `<path d="${donutArc(chart.cx, chart.cy, chart.ringRadius, segment.start, segment.end)}" stroke="${segment.color}" />`).join('')}<circle cx="${chart.cx}" cy="${chart.cy}" r="41" class="donut-hole" /><text x="${chart.cx}" y="${chart.cy - 6}" text-anchor="middle" class="donut-center-label">Real spend</text><text x="${chart.cx}" y="${chart.cy + 17}" text-anchor="middle" class="donut-center-value">${money(total)}</text>${labels}</svg></div>`;
+  return `<div class="category-donut-wrap"><svg class="category-donut-svg" viewBox="0 0 ${chart.width} ${chart.height}" role="img" aria-label="${options.label || 'Category-wise expense donut chart'}">${segments.map(segment => {
+    const drillAttr = options.clickable ? ` data-insight-category="${htmlAttr(segment.category)}"` : '';
+    return `<path class="${options.clickable ? 'category-donut-segment clickable' : ''}"${drillAttr} d="${donutArc(chart.cx, chart.cy, chart.ringRadius, segment.start, segment.end)}" stroke="${segment.color}" />`;
+  }).join('')}<circle cx="${chart.cx}" cy="${chart.cy}" r="41" class="donut-hole" /><text x="${chart.cx}" y="${chart.cy - 6}" text-anchor="middle" class="donut-center-label">${options.centerLabel || 'Real spend'}</text><text x="${chart.cx}" y="${chart.cy + 17}" text-anchor="middle" class="donut-center-value">${money(total)}</text>${labels}</svg></div>`;
 }
 function categoryChartRows(entries, limit = 7) {
   const otherTotal = entries
@@ -58,7 +63,22 @@ function categoryChartRows(entries, limit = 7) {
 }
 function renderCategoryAmountPills(entries, total) {
   if (!entries.length || !total) return '';
-  return `<div class="category-amount-pills">${entries.map(([category, value]) => `<span title="${category}: ${money(value)}"><b>${category}</b><strong>${money(value)}</strong><em>${percent(value, total)}%</em></span>`).join('')}</div>`;
+  return `<div class="category-amount-pills">${entries.map(([category, value]) => `<button type="button" data-insight-category="${htmlAttr(category)}" title="${category}: ${money(value)}"><b>${category}</b><strong>${money(value)}</strong><em>${percent(value, total)}%</em></button>`).join('')}</div>`;
+}
+function renderSubcategoryAmountPills(entries, total) {
+  if (!entries.length || !total) return '';
+  return `<div class="category-amount-pills subcategory-pills">${entries.map(([subcategory, value]) => `<span title="${subcategory}: ${money(value)}"><b>${subcategory}</b><strong>${money(value)}</strong><em>${percent(value, total)}%</em></span>`).join('')}</div>`;
+}
+function renderInsightsCategoryPanel(range, expenseItems, categoryEntries, categoryChartTotal, categoryRows) {
+  if (insightCategoryDrill && !categoryEntries.some(([category]) => category === insightCategoryDrill)) insightCategoryDrill = '';
+  if (insightCategoryDrill) {
+    const selectedItems = expenseItems.filter(item => item.category === insightCategoryDrill);
+    const subcategoryEntries = Object.entries(subcategoryTotals(selectedItems)).sort((a, b) => b[1] - a[1]);
+    const subcategoryTotal = subcategoryEntries.reduce((sum, [, value]) => sum + value, 0);
+    const subcategoryRows = categoryChartRows(subcategoryEntries);
+    return `<div class="panel category-chart-panel"><div class="panel-heading drill-heading"><div><p class="panel-kicker">SUBCATEGORY BREAKDOWN</p><h3>${insightCategoryDrill}</h3><p class="subtitle">Subcategory spend for ${range.label}</p></div><button type="button" class="ghost-button" data-insight-back="categories">Back to categories</button></div>${renderCategoryDonut(subcategoryRows, subcategoryTotal, { centerLabel:'Category', label:`Subcategory spend for ${insightCategoryDrill}` })}${renderSubcategoryAmountPills(subcategoryEntries, subcategoryTotal)}</div>`;
+  }
+  return `<div class="panel category-chart-panel"><div class="panel-heading"><div><p class="panel-kicker">SELECTED RANGE</p><h3>Category chart</h3><p class="subtitle">Real expense categories for ${range.label}</p></div></div>${renderCategoryDonut(categoryRows, categoryChartTotal, { clickable:true })}${renderCategoryAmountPills(categoryEntries, categoryChartTotal)}</div>`;
 }
 function renderSpendPriorityChart(items) {
   const totals = items.reduce((acc, item) => {
@@ -214,7 +234,7 @@ function renderInsightsPage(filter = insightFilter) {
     </section>
     <section class="insights-grid-main">
       <div class="panel money-flow-panel"><div class="panel-heading"><div><p class="panel-kicker">MONEY FLOW</p><h3>Money flow</h3><p class="subtitle">How your money is distributed</p></div><button class="ghost-button" data-page="outflow">View report</button></div><div class="flow-stage radial-split"><div class="flow-total"><small>Total outflow</small><strong>${money(sums.total)}</strong></div><div class="flow-lines">${moneyFlowRows.map((row, index) => `<div class="flow-row ${row.cls}"><span class="flow-row-icon">${svgIcon(['bag','receipt','pie','lock'][index])}</span><div class="flow-row-text"><b>${row.label}</b><small>${row.note}</small></div><strong>${money(row.value)}</strong><em>${percent(row.value, sums.total)}%</em></div>`).join('')}</div></div><p class="flow-note"><span>ⓘ</span> Loans and investments are shown in the flow but excluded from real-expense ranking.</p></div>
-      <div class="panel category-chart-panel"><div class="panel-heading"><div><p class="panel-kicker">SELECTED RANGE</p><h3>Category chart</h3><p class="subtitle">Real expense categories for ${range.label}</p></div></div>${renderCategoryDonut(categoryRows, categoryChartTotal)}${renderCategoryAmountPills(categoryEntries, categoryChartTotal)}</div>
+      ${renderInsightsCategoryPanel(range, expenseItems, categoryEntries, categoryChartTotal, categoryRows)}
     </section>
     <section class="insights-lower-grid">
       <div class="panel heatmap-panel"><div class="panel-heading"><div><p class="panel-kicker">WEEKLY PATTERN</p><h3>Category heatmap</h3></div></div><div class="heatmap-head"><span></span><span>W1</span><span>W2</span><span>W3</span><span>W4</span><span>W5</span></div>${heatCategories.length ? heatCategories.map(category => `<div class="heatmap-row"><b>${category}</b>${[1,2,3,4,5].map(week => { const value = heatValues[`${category}-${week}`] || 0; return `<span title="${category} week ${week}: ${money(value)}" style="opacity:${value ? Math.max(.25, value / heatMax) : .12}"></span>`; }).join('')}</div>`).join('') : '<p class="empty-state">Add real expenses to populate the heatmap.</p>'}<div class="heatmap-scale"><small>Low</small><i></i><small>High</small></div></div>
