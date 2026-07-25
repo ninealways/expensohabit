@@ -831,7 +831,7 @@ $('#subPageView').addEventListener('change', async event => {
   }
   applyTransactionFiltersFromForm(form);
 });
-$('#subPageView').addEventListener('input', event => { const form = event.target.closest('#transactionFilters'); if (!form || event.target.name !== 'search') return; clearTimeout(transactionFilterTimer); transactionFilterTimer = setTimeout(() => applyTransactionFiltersFromForm(form), 250); });
+$('#subPageView').addEventListener('input', event => { const form = event.target.closest('#transactionFilters'); if (!form || event.target.name !== 'search') return; clearTimeout(transactionFilterTimer); transactionFilterTimer = setTimeout(() => applyTransactionFiltersFromForm(form, transactionFilter.mode || 'thisMonth', { resultsOnly:true }), 250); });
 $('#habitCheckinForm').addEventListener('change', event => { if (event.target.name !== 'date') return; habitCheckinDate = event.target.value || today(); $('#habitCheckinList').innerHTML = renderHabitCheckinRows(habitCheckinDate, habitCheckinFocusId); initializeDatePickers($('#habitCheckinList')); });
 $('#subPageView').addEventListener('click', event => {
   const target = event.target.closest('[data-transaction-preset]');
