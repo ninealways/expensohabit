@@ -3,17 +3,18 @@
 function donutPoint(cx, cy, radius, angle) { const radians = (angle - 90) * Math.PI / 180; return { x:cx + radius * Math.cos(radians), y:cy + radius * Math.sin(radians) }; }
 function donutArc(cx, cy, radius, startAngle, endAngle) { const start = donutPoint(cx, cy, radius, endAngle); const end = donutPoint(cx, cy, radius, startAngle); const largeArc = endAngle - startAngle <= 180 ? 0 : 1; return `M ${start.x.toFixed(2)} ${start.y.toFixed(2)} A ${radius} ${radius} 0 ${largeArc} 0 ${end.x.toFixed(2)} ${end.y.toFixed(2)}`; }
 function htmlAttr(value) { return String(value ?? '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+const OTHER_ROLLUP_KEY = '__other_rollup__';
 function renderCategoryDonut(rows, total, options = {}) {
   if (!rows.length || !total) return '<p class="empty-state">No real expenses in this range.</p>';
   const palette = ['#3f64b7','#7857f4','#9a4fd1','#e84579','#ff715c','#f4b845','#35bfa9'];
   let angle = -18;
   const chart = { width:420, height:270, cx:210, cy:132, ringRadius:68, calloutInner:92, calloutOuter:126, minY:30, maxY:240 };
-  const segments = rows.map(([category, value], index) => {
+  const segments = rows.map(([category, value, drillKey], index) => {
     const span = Math.max(2, value / total * 360);
     const start = angle;
     const end = angle + span;
     angle = end;
-    return { category, value, start, end, mid:start + span / 2, color:palette[index % palette.length] };
+    return { category, value, drillKey:drillKey || category, start, end, mid:start + span / 2, color:palette[index % palette.length] };
   });
   const labelSeed = segments.map(segment => {
     const side = Math.cos((segment.mid - 90) * Math.PI / 180) >= 0 ? 'right' : 'left';
@@ -41,11 +42,11 @@ function renderCategoryDonut(rows, total, options = {}) {
     const endX = side === 'right' ? 366 : 54;
     const textX = side === 'right' ? 376 : 44;
     const anchor = side === 'right' ? 'start' : 'end';
-    const drillAttr = options.clickable ? ` data-insight-category="${htmlAttr(segment.category)}"` : '';
+    const drillAttr = options.clickable ? ` data-insight-category="${htmlAttr(segment.drillKey)}"` : '';
     return `<g class="donut-callout ${side}${options.clickable ? ' clickable' : ''}"${drillAttr}><path d="M ${p1.x.toFixed(1)} ${p1.y.toFixed(1)} L ${p2.x.toFixed(1)} ${y.toFixed(1)} L ${endX} ${y.toFixed(1)}" stroke="${segment.color}" /><text x="${textX}" y="${(y - 6).toFixed(1)}" text-anchor="${anchor}" class="callout-amount">${money(segment.value)}</text><text x="${textX}" y="${(y + 11).toFixed(1)}" text-anchor="${anchor}" class="callout-name">${segment.category}</text></g>`;
   }).join('');
   return `<div class="category-donut-wrap"><svg class="category-donut-svg" viewBox="0 0 ${chart.width} ${chart.height}" role="img" aria-label="${options.label || 'Category-wise expense donut chart'}">${segments.map(segment => {
-    const drillAttr = options.clickable ? ` data-insight-category="${htmlAttr(segment.category)}"` : '';
+    const drillAttr = options.clickable ? ` data-insight-category="${htmlAttr(segment.drillKey)}"` : '';
     return `<path class="${options.clickable ? 'category-donut-segment clickable' : ''}"${drillAttr} d="${donutArc(chart.cx, chart.cy, chart.ringRadius, segment.start, segment.end)}" stroke="${segment.color}" />`;
   }).join('')}<circle cx="${chart.cx}" cy="${chart.cy}" r="41" class="donut-hole" /><text x="${chart.cx}" y="${chart.cy - 6}" text-anchor="middle" class="donut-center-label">${options.centerLabel || 'Real spend'}</text><text x="${chart.cx}" y="${chart.cy + 17}" text-anchor="middle" class="donut-center-value">${money(total)}</text>${labels}</svg></div>`;
 }
@@ -59,7 +60,7 @@ function categoryChartRows(entries, limit = 7) {
     .slice(limit - 1)
     .reduce((sum, [, value]) => sum + value, 0);
   const combinedOther = otherTotal + rolledOtherTotal;
-  return combinedOther ? [...primaryEntries, ['Other', combinedOther]] : entries.filter(([category]) => category !== 'Other').slice(0, limit);
+  return combinedOther ? [...primaryEntries, ['Other', combinedOther, OTHER_ROLLUP_KEY]] : entries.filter(([category]) => category !== 'Other').slice(0, limit);
 }
 function renderCategoryAmountPills(entries, total) {
   if (!entries.length || !total) return '';
@@ -70,13 +71,16 @@ function renderSubcategoryAmountPills(entries, total) {
   return `<div class="category-amount-pills subcategory-pills">${entries.map(([subcategory, value]) => `<span title="${subcategory}: ${money(value)}"><b>${subcategory}</b><strong>${money(value)}</strong><em>${percent(value, total)}%</em></span>`).join('')}</div>`;
 }
 function renderInsightsCategoryPanel(range, expenseItems, categoryEntries, categoryChartTotal, categoryRows) {
-  if (insightCategoryDrill && !categoryEntries.some(([category]) => category === insightCategoryDrill)) insightCategoryDrill = '';
+  const primaryCategoryNames = categoryRows.filter(([, , drillKey]) => drillKey !== OTHER_ROLLUP_KEY).map(([category]) => category);
+  const isOtherRollup = insightCategoryDrill === OTHER_ROLLUP_KEY;
+  if (insightCategoryDrill && !isOtherRollup && !categoryEntries.some(([category]) => category === insightCategoryDrill)) insightCategoryDrill = '';
   if (insightCategoryDrill) {
-    const selectedItems = expenseItems.filter(item => item.category === insightCategoryDrill);
+    const selectedItems = isOtherRollup ? expenseItems.filter(item => !primaryCategoryNames.includes(item.category)) : expenseItems.filter(item => item.category === insightCategoryDrill);
+    const drillLabel = isOtherRollup ? 'Other' : insightCategoryDrill;
     const subcategoryEntries = Object.entries(subcategoryTotals(selectedItems)).sort((a, b) => b[1] - a[1]);
     const subcategoryTotal = subcategoryEntries.reduce((sum, [, value]) => sum + value, 0);
     const subcategoryRows = categoryChartRows(subcategoryEntries);
-    return `<div class="panel category-chart-panel"><div class="panel-heading drill-heading"><div><p class="panel-kicker">SUBCATEGORY BREAKDOWN</p><h3>${insightCategoryDrill}</h3><p class="subtitle">Subcategory spend for ${range.label}</p></div><button type="button" class="ghost-button" data-insight-back="categories">Back to categories</button></div>${renderCategoryDonut(subcategoryRows, subcategoryTotal, { centerLabel:'Category', label:`Subcategory spend for ${insightCategoryDrill}` })}${renderSubcategoryAmountPills(subcategoryEntries, subcategoryTotal)}</div>`;
+    return `<div class="panel category-chart-panel"><div class="panel-heading drill-heading"><div><p class="panel-kicker">SUBCATEGORY BREAKDOWN</p><h3>${drillLabel}</h3><p class="subtitle">Subcategory spend for ${range.label}</p></div><button type="button" class="ghost-button" data-insight-back="categories">Back to categories</button></div>${renderCategoryDonut(subcategoryRows, subcategoryTotal, { centerLabel:'Category', label:`Subcategory spend for ${drillLabel}` })}${renderSubcategoryAmountPills(subcategoryEntries, subcategoryTotal)}</div>`;
   }
   return `<div class="panel category-chart-panel"><div class="panel-heading"><div><p class="panel-kicker">SELECTED RANGE</p><h3>Category chart</h3><p class="subtitle">Real expense categories for ${range.label}</p></div></div>${renderCategoryDonut(categoryRows, categoryChartTotal, { clickable:true })}${renderCategoryAmountPills(categoryEntries, categoryChartTotal)}</div>`;
 }
