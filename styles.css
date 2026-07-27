@@ -248,6 +248,12 @@ h1,h2,h3,p { margin:0; } h1,h2,h3 { font-family:'Inter',sans-serif; } h1 { font-
 .credit-main-grid { display:grid;grid-template-columns:1fr 1fr;gap:14px; }
 .credit-bottom-grid { display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px; }
 .credit-card-list { display:grid;gap:10px; }
+.credit-empty-state { min-height:184px;display:grid;place-items:center;text-align:center;gap:8px;padding:24px;border:1px dashed #ddd7f4;border-radius:18px;background:linear-gradient(135deg,#fff,#fbfaff);color:var(--muted); }
+.credit-empty-state.compact { min-height:158px; }
+.credit-empty-state span { width:44px;height:44px;border-radius:16px;display:grid;place-items:center;background:#f3f0ff;color:var(--purple);font-size:20px; }
+.credit-empty-state b { color:var(--ink);font-size:15px; }
+.credit-empty-state p { max-width:360px;margin:0;font-size:12px;line-height:1.5; }
+.credit-empty-state .primary-button { margin-top:4px; }
 .credit-card-row { display:grid;grid-template-columns:38px minmax(0,1fr) auto auto 74px auto;gap:12px;align-items:center;padding:12px;border:1px solid #f0eef9;border-radius:16px;background:#fff; }
 .credit-card-row b,.credit-card-row small,.credit-card-row strong { display:block; }
 .credit-card-row b { font-size:13px; }
