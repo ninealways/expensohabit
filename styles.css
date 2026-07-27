@@ -248,7 +248,7 @@ h1,h2,h3,p { margin:0; } h1,h2,h3 { font-family:'Inter',sans-serif; } h1 { font-
 .credit-main-grid { display:grid;grid-template-columns:1fr 1fr;gap:14px; }
 .credit-bottom-grid { display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px; }
 .credit-card-list { display:grid;gap:10px; }
-.credit-card-row { display:grid;grid-template-columns:38px minmax(0,1fr) auto auto 74px;gap:12px;align-items:center;padding:12px;border:1px solid #f0eef9;border-radius:16px;background:#fff; }
+.credit-card-row { display:grid;grid-template-columns:38px minmax(0,1fr) auto auto 74px auto;gap:12px;align-items:center;padding:12px;border:1px solid #f0eef9;border-radius:16px;background:#fff; }
 .credit-card-row b,.credit-card-row small,.credit-card-row strong { display:block; }
 .credit-card-row b { font-size:13px; }
 .credit-card-row small { color:var(--muted);font-size:10px;margin-top:3px; }
@@ -256,10 +256,15 @@ h1,h2,h3,p { margin:0; } h1,h2,h3 { font-family:'Inter',sans-serif; } h1 { font-
 .credit-card-row em { justify-self:end;padding:6px 8px;border-radius:999px;font-size:10px;font-style:normal;font-weight:900;background:#f3f0ff;color:var(--purple); }
 .credit-card-row em.red { color:#d65353;background:#fff0f0; }
 .credit-card-row em.green { color:#159d89;background:#e1faf4; }
+.credit-card-row em.inactive { color:#77809f;background:#eef0f7; }
+.credit-card-row.inactive { background:linear-gradient(135deg,#fafbff,#f2f4fa);opacity:.72; }
 .credit-card-icon { width:36px;height:36px;border-radius:13px;display:grid;place-items:center;background:#f3f0ff;color:var(--purple); }
 .credit-card-icon.red { background:#fff0f0;color:#d65353; }
 .credit-card-icon.green { background:#e1faf4;color:#159d89; }
 .credit-card-icon.purple { background:#f3f0ff;color:var(--purple); }
+.credit-card-icon.inactive { background:#eef0f7;color:#77809f; }
+.mini-action { border:0;border-radius:999px;background:#fff1f1;color:#d65353;padding:7px 9px;font-size:10px;font-weight:900;cursor:pointer;white-space:nowrap; }
+.mini-action.activate { background:#e4faf5;color:#159d89; }
 .credit-timeline-panel { overflow:hidden; }
 .credit-due-timeline { position:relative;min-height:158px;margin-top:6px; }
 .credit-due-timeline:before { content:'';position:absolute;left:8%;right:8%;top:62px;height:8px;border-radius:999px;background:#edeaf8; }
@@ -305,7 +310,7 @@ h1,h2,h3,p { margin:0; } h1,h2,h3 { font-family:'Inter',sans-serif; } h1 { font-
   .credit-card-hero { align-items:flex-start;flex-direction:column; }
   .credit-card-hero .primary-button { width:100%; }
   .credit-card-row { grid-template-columns:38px minmax(0,1fr) auto;gap:8px; }
-  .credit-card-row > div:nth-of-type(2),.credit-card-row > div:nth-of-type(3),.credit-card-row em { grid-column:2;justify-self:start; }
+  .credit-card-row > div:nth-of-type(2),.credit-card-row > div:nth-of-type(3),.credit-card-row em,.credit-card-row .mini-action { grid-column:2;justify-self:start; }
   .credit-due-timeline { min-height:auto;display:grid;gap:10px;margin-top:0; }
   .credit-due-timeline:before { display:none; }
   .credit-due-node { position:relative;left:auto!important;top:auto;transform:none;width:100%;display:grid;grid-template-columns:42px minmax(0,1fr) auto;gap:8px;align-items:center;text-align:left;padding:11px; }
@@ -317,6 +322,6 @@ h1,h2,h3,p { margin:0; } h1,h2,h3 { font-family:'Inter',sans-serif; } h1 { font-
   .hero-actions { width:100%;display:grid;grid-template-columns:1fr; }
   .hero-actions .primary-button,.hero-actions .secondary-button { width:100%; }
   .credit-card-row { grid-template-columns:34px minmax(0,1fr); }
-  .credit-card-row > div:nth-of-type(2),.credit-card-row > div:nth-of-type(3),.credit-card-row em { grid-column:2; }
+  .credit-card-row > div:nth-of-type(2),.credit-card-row > div:nth-of-type(3),.credit-card-row em,.credit-card-row .mini-action { grid-column:2; }
   .credit-card-row strong { white-space:normal; }
 }

@@ -267,6 +267,22 @@ app.post('/api/credit-cards', requireAuth, async (req, res) => {
   } catch (error) { res.status(500).json({ error:error.message }); }
 });
 
+app.put('/api/credit-cards/:id', requireAuth, async (req, res) => {
+  try {
+    const database = await ensureDatabase();
+    const updates = {};
+    if (typeof req.body.active === 'boolean') updates.active = req.body.active;
+    if (!Object.keys(updates).length) return res.status(400).json({ error:'No credit card updates provided.' });
+    const result = await database.collection('creditCards').findOneAndUpdate(
+      { id:req.params.id, ownerId:req.user.id },
+      { $set:updates },
+      { returnDocument:'after', projection:{ _id:0, ownerId:0 } }
+    );
+    if (!result || (!result.value && !result.id)) return res.status(404).json({ error:'Credit card not found.' });
+    res.json(result.value || result);
+  } catch (error) { res.status(500).json({ error:error.message }); }
+});
+
 app.post('/api/stock-trades', requireAuth, async (req, res) => {
   try {
     const database = await ensureDatabase();
