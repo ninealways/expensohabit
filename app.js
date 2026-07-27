@@ -492,7 +492,7 @@ async function addTransaction(event) {
 }
 
 function toast(message) { const el = $('#toast'); el.textContent = message; el.classList.add('show'); setTimeout(() => el.classList.remove('show'), 2400); }
-const pageTitles = { transactions:'Your transactions', calendar:'Spend calendar', schedule:'Plan your payments', outflow:'Outflow report', investments:'Investments', insights:'Spend insights', profile:'Profile', settings:'Keep your data yours', habits:'Habit tracker', habitInsights:'Habit insights', habitManage:'Manage habits', habitCheckins:'Habit check-ins' };
+const pageTitles = { transactions:'Your transactions', creditCard:'Credit cards', calendar:'Spend calendar', schedule:'Plan your payments', outflow:'Outflow report', investments:'Investments', insights:'Spend insights', profile:'Profile', settings:'Keep your data yours', habits:'Habit tracker', habitInsights:'Habit insights', habitManage:'Manage habits', habitCheckins:'Habit check-ins' };
 
 function navigate(page, updateUrl = true) {
   transactionOpenMultiFilter = '';
@@ -508,6 +508,7 @@ function navigate(page, updateUrl = true) {
 
 function renderSubPage(page) {
   if (page === 'transactions') return renderTransactionsPage();
+  if (page === 'creditCard') return renderCreditCardPage();
   if (page === 'calendar') return renderCalendarPage();
   if (page === 'schedule') return renderSchedulePage();
   if (page === 'outflow') return renderOutflowReport();

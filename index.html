@@ -10,7 +10,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="vendor/flatpickr/flatpickr.min.css" />
     <link rel="stylesheet" href="vendor/flatpickr/plugins/monthSelect/style.css" />
-    <link rel="stylesheet" href="styles.css?v=20260725-02" />
+    <link rel="stylesheet" href="styles.css?v=20260728-01" />
   </head>
   <body class="app-booting">
     <svg class="icon-sprite" aria-hidden="true">
@@ -118,7 +118,10 @@
             <h2 id="pageTitle">Good morning, Navnit <span class="title-icon"><svg class="svg-icon"><use href="#icon-insights"></use></svg></span></h2>
             <p class="subtitle">Here’s how your money is moving this month.</p>
           </div>
-          <button class="primary-button" id="heroAddButton"><span>＋</span> Add transaction</button>
+          <div class="hero-actions">
+            <button class="secondary-button" type="button" data-page="creditCard">Credit Card</button>
+            <button class="primary-button" id="heroAddButton"><span>＋</span> Add transaction</button>
+          </div>
         </section>
 
         <section class="summary-grid" aria-label="Monthly summary">
@@ -329,10 +332,11 @@
     <script src="js/router.js?v=20260712-31"></script>
     <script src="js/pages/basic.js?v=20260716-01"></script>
     <script src="js/pages/transactions.js?v=20260725-02"></script>
+    <script src="js/pages/credit-card.js?v=20260728-01"></script>
     <script src="js/pages/schedule.js?v=20260719-01"></script>
     <script src="js/pages/habits.js?v=20260714-04"></script>
     <script src="js/pages/insights.js?v=20260725-02"></script>
     <script src="js/pages/calendar.js?v=20260716-01"></script>
-    <script src="app.js?v=20260725-02"></script>
+    <script src="app.js?v=20260728-01"></script>
   </body>
 </html>
