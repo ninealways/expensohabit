@@ -10,7 +10,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="vendor/flatpickr/flatpickr.min.css" />
     <link rel="stylesheet" href="vendor/flatpickr/plugins/monthSelect/style.css" />
-    <link rel="stylesheet" href="styles.css?v=20260728-03" />
+    <link rel="stylesheet" href="styles.css?v=20260728-04" />
   </head>
   <body class="app-booting">
     <svg class="icon-sprite" aria-hidden="true">
@@ -313,11 +313,14 @@
       <section class="modal credit-card-modal" role="dialog" aria-modal="true" aria-labelledby="creditCardModalTitle">
         <div class="modal-heading"><div><p class="panel-kicker">CARD TRACKER</p><h3 id="creditCardModalTitle">Add credit card</h3></div><button class="close-button" id="closeCreditCardModal">×</button></div>
         <form id="creditCardForm" class="credit-card-form">
+          <input name="cardId" type="hidden" />
           <div class="form-row"><label>Card name<input name="name" placeholder="HDFC Regalia, Axis Magnus..." required /></label><label>Issuer / bank<input name="issuer" placeholder="HDFC, ICICI, Axis..." required /></label></div>
+          <div class="form-row"><label>Credit limit (optional)<input name="creditLimit" type="number" min="0" step="1" placeholder="Used for utilization alerts" /></label><label>Fee type<select name="feeFrequency"><option value="free">Free / lifetime free</option><option value="yearly">Yearly charge</option></select></label></div>
+          <div class="form-row"><label>Yearly charge<input name="annualFee" type="number" min="0" step="1" placeholder="0 if free" /></label><label>Waiver spend limit<input name="waiverSpendLimit" type="number" min="0" step="1" placeholder="Annual spend needed for waiver" /></label></div>
           <div class="form-row"><label>Cycle month<input name="currentCycleMonth" type="text" data-picker="month" placeholder="Select month" required /></label><label>Status<select name="status"><option value="Upcoming">Upcoming</option><option value="Partial">Partial</option><option value="Paid">Paid</option></select></label></div>
           <div class="form-row"><label>Cycle start day<input name="cycleStartDay" type="number" min="1" max="31" step="1" placeholder="1" required /></label><label>Cycle end day<input name="cycleEndDay" type="number" min="1" max="31" step="1" placeholder="31" required /></label><label>Due day<input name="dueDay" type="number" min="1" max="31" step="1" placeholder="15" required /></label></div>
-          <div class="form-row"><label>Outstanding amount<input name="outstanding" type="number" min="0" step="1" placeholder="0" required /></label><label>Paid this cycle<input name="paid" type="number" min="0" step="1" placeholder="0" /></label></div>
-          <label>Credit limit (optional)<input name="creditLimit" type="number" min="0" step="1" placeholder="Used later for utilization alerts" /></label>
+          <div class="form-row"><label>Monthly bill / outstanding<input name="outstanding" type="number" min="0" step="1" placeholder="0" required /></label><label>Paid this cycle<input name="paid" type="number" min="0" step="1" placeholder="0" /></label></div>
+          <label>Privileges / benefits<textarea name="privileges" rows="3" placeholder="One per line, e.g. lounge access, fuel surcharge waiver, cashback, reward points..."></textarea></label>
           <label>Notes<textarea name="notes" rows="3" placeholder="Rewards, annual fee, autopay note, billing remarks..."></textarea></label>
           <div class="modal-actions"><button type="button" class="secondary-button" id="cancelCreditCardModal">Cancel</button><button class="primary-button" type="submit">Save card</button></div>
         </form>
@@ -347,11 +350,11 @@
     <script src="js/router.js?v=20260728-01"></script>
     <script src="js/pages/basic.js?v=20260716-01"></script>
     <script src="js/pages/transactions.js?v=20260725-02"></script>
-    <script src="js/pages/credit-card.js?v=20260728-05"></script>
+    <script src="js/pages/credit-card.js?v=20260728-06"></script>
     <script src="js/pages/schedule.js?v=20260719-01"></script>
     <script src="js/pages/habits.js?v=20260714-04"></script>
     <script src="js/pages/insights.js?v=20260725-02"></script>
     <script src="js/pages/calendar.js?v=20260716-01"></script>
-    <script src="app.js?v=20260728-04"></script>
+    <script src="app.js?v=20260728-05"></script>
   </body>
 </html>
