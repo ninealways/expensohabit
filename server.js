@@ -167,7 +167,7 @@ async function ensureDatabase() {
   const client = new MongoClient(mongoUri);
   await client.connect();
   db = client.db(dbName);
-  const transactions = db.collection('transactions'); const schedules = db.collection('schedules'); const habits = db.collection('habits'); const habitLogs = db.collection('habitLogs'); const stockTrades = db.collection('stockTrades');
+  const transactions = db.collection('transactions'); const schedules = db.collection('schedules'); const habits = db.collection('habits'); const habitLogs = db.collection('habitLogs'); const stockTrades = db.collection('stockTrades'); const creditCards = db.collection('creditCards');
   await transactions.dropIndex('id_1').catch(error => { if (error.codeName !== 'IndexNotFound') throw error; });
   await schedules.dropIndex('id_1').catch(error => { if (error.codeName !== 'IndexNotFound') throw error; });
   await transactions.createIndex({ ownerId: 1, id: 1 }, { unique: true });
@@ -175,6 +175,7 @@ async function ensureDatabase() {
   await habits.createIndex({ ownerId: 1, id: 1 }, { unique: true });
   await habitLogs.createIndex({ ownerId: 1, habitId: 1, date: 1 }, { unique: true });
   await stockTrades.createIndex({ ownerId: 1, id: 1 }, { unique: true });
+  await creditCards.createIndex({ ownerId: 1, id: 1 }, { unique: true });
   await db.collection('sessions').createIndex({ expiresAt:1 }, { expireAfterSeconds:0 });
   return db;
 }
@@ -218,7 +219,7 @@ async function processSchedules(userId) {
 }
 
 app.get('/api/data', requireAuth, async (req, res) => {
-  try { const database = await ensureDatabase(); await ensureUserData(req.user.id); await processSchedules(req.user.id); const [transactions, schedules, categories, settings, habits, habitLogs, stockTrades] = await Promise.all([database.collection('transactions').find({ ownerId:req.user.id }, { projection:{ _id:0, ownerId:0 } }).toArray(), database.collection('schedules').find({ ownerId:req.user.id }, { projection:{ _id:0, ownerId:0 } }).toArray(), database.collection('categories').find({ ownerId:req.user.id }, { projection:{ _id:0, ownerId:0 } }).toArray(), database.collection('settings').findOne({ ownerId:req.user.id }, { projection:{ _id:0, ownerId:0 } }), database.collection('habits').find({ ownerId:req.user.id }, { projection:{ _id:0, ownerId:0 } }).toArray(), database.collection('habitLogs').find({ ownerId:req.user.id }, { projection:{ _id:0, ownerId:0 } }).toArray(), database.collection('stockTrades').find({ ownerId:req.user.id }, { projection:{ _id:0, ownerId:0 } }).toArray()]); res.json({ transactions, schedules, categories, settings:settings || defaultSettings, habits, habitLogs, stockTrades }); }
+  try { const database = await ensureDatabase(); await ensureUserData(req.user.id); await processSchedules(req.user.id); const [transactions, schedules, categories, settings, habits, habitLogs, stockTrades, creditCards] = await Promise.all([database.collection('transactions').find({ ownerId:req.user.id }, { projection:{ _id:0, ownerId:0 } }).toArray(), database.collection('schedules').find({ ownerId:req.user.id }, { projection:{ _id:0, ownerId:0 } }).toArray(), database.collection('categories').find({ ownerId:req.user.id }, { projection:{ _id:0, ownerId:0 } }).toArray(), database.collection('settings').findOne({ ownerId:req.user.id }, { projection:{ _id:0, ownerId:0 } }), database.collection('habits').find({ ownerId:req.user.id }, { projection:{ _id:0, ownerId:0 } }).toArray(), database.collection('habitLogs').find({ ownerId:req.user.id }, { projection:{ _id:0, ownerId:0 } }).toArray(), database.collection('stockTrades').find({ ownerId:req.user.id }, { projection:{ _id:0, ownerId:0 } }).toArray(), database.collection('creditCards').find({ ownerId:req.user.id }, { projection:{ _id:0, ownerId:0 } }).toArray()]); res.json({ transactions, schedules, categories, settings:settings || defaultSettings, habits, habitLogs, stockTrades, creditCards }); }
   catch (error) { res.status(500).json({ error:error.message }); }
 });
 
@@ -242,6 +243,29 @@ app.post('/api/transactions', requireAuth, async (req, res) => {
 
 app.post('/api/categories', requireAuth, async (req, res) => { try { const database = await ensureDatabase(); const { name, kind, spendGroup } = req.body; if (!name?.trim() || !['expense','loan','investment'].includes(kind)) return res.status(400).json({ error:'Category name and type are required.' }); const cleanName = name.trim(); const category = { id:`c-${Date.now()}`, ownerId:req.user.id, name:cleanName, kind, ...(kind === 'expense' ? { spendGroup:cleanSpendGroup(spendGroup, cleanName) } : {}), active:true }; await database.collection('categories').insertOne(category); const { ownerId, _id, ...publicCategory } = category; res.status(201).json(publicCategory); } catch (error) { res.status(500).json({ error:error.message }); } });
 app.put('/api/categories/:id', requireAuth, async (req, res) => { try { const database = await ensureDatabase(); const existing = await database.collection('categories').findOne({ id:req.params.id, ownerId:req.user.id }); if (!existing) return res.status(404).json({ error:'Category not found' }); const updates = {}; if (req.body.name?.trim()) updates.name=req.body.name.trim(); if (['expense','loan','investment'].includes(req.body.kind)) updates.kind=req.body.kind; const finalKind = updates.kind || existing.kind; const finalName = updates.name || existing.name; if (finalKind === 'expense') updates.spendGroup = cleanSpendGroup(req.body.spendGroup ?? existing.spendGroup, finalName); else updates.spendGroup = null; if (typeof req.body.active === 'boolean') updates.active=req.body.active; const result = await database.collection('categories').findOneAndUpdate({ id:req.params.id, ownerId:req.user.id }, { $set:updates }, { returnDocument:'after', projection:{ _id:0, ownerId:0 } }); res.json(result.value || result); } catch (error) { res.status(500).json({ error:error.message }); } });
+
+app.post('/api/credit-cards', requireAuth, async (req, res) => {
+  try {
+    const database = await ensureDatabase();
+    const name = String(req.body.name || '').trim();
+    const issuer = String(req.body.issuer || '').trim();
+    const currentCycleMonth = normalizeMonthKey(req.body.currentCycleMonth) || localDate().slice(0, 7);
+    const cycleStartDay = Number(req.body.cycleStartDay);
+    const cycleEndDay = Number(req.body.cycleEndDay);
+    const dueDay = Number(req.body.dueDay);
+    const outstanding = Number(req.body.outstanding || 0);
+    const paid = Number(req.body.paid || 0);
+    const creditLimit = req.body.creditLimit === '' || req.body.creditLimit === null || req.body.creditLimit === undefined ? null : Number(req.body.creditLimit);
+    const status = ['Upcoming','Partial','Paid'].includes(req.body.status) ? req.body.status : paid >= outstanding && outstanding > 0 ? 'Paid' : paid > 0 ? 'Partial' : 'Upcoming';
+    if (!name || !issuer) return res.status(400).json({ error:'Card name and issuer are required.' });
+    if (![cycleStartDay, cycleEndDay, dueDay].every(day => Number.isInteger(day) && day >= 1 && day <= 31)) return res.status(400).json({ error:'Cycle and due days must be between 1 and 31.' });
+    if (outstanding < 0 || paid < 0 || (creditLimit !== null && creditLimit < 0)) return res.status(400).json({ error:'Amounts cannot be negative.' });
+    const card = { id:`cc-${Date.now()}`, ownerId:req.user.id, name, issuer, currentCycleMonth, cycleStartDay, cycleEndDay, dueDay, outstanding, paid, creditLimit:Number.isFinite(creditLimit) ? creditLimit : null, status, notes:String(req.body.notes || '').trim(), active:req.body.active !== false, createdAt:new Date() };
+    await database.collection('creditCards').insertOne(card);
+    const { ownerId, _id, ...publicCard } = card;
+    res.status(201).json(publicCard);
+  } catch (error) { res.status(500).json({ error:error.message }); }
+});
 
 app.post('/api/stock-trades', requireAuth, async (req, res) => {
   try {
@@ -381,7 +405,7 @@ app.put('/api/schedules/:id', requireAuth, async (req, res) => { try { const dat
 app.get('/api/schedules/:id', requireAuth, async (req, res) => { try { const database = await ensureDatabase(); const schedule = await database.collection('schedules').findOne({ id:req.params.id, ownerId:req.user.id }, { projection:{ _id:0, ownerId:0 } }); if (!schedule) return res.status(404).json({ error:'Schedule not found' }); res.json(schedule); } catch (error) { res.status(500).json({ error:error.message }); } });
 app.delete('/api/schedules/:id', requireAuth, async (req, res) => { try { const database = await ensureDatabase(); const result = await database.collection('schedules').deleteOne({ id:req.params.id, ownerId:req.user.id }); if (!result.deletedCount) return res.status(404).json({ error:'Schedule not found' }); res.json({ ok:true }); } catch (error) { res.status(500).json({ error:error.message }); } });
 
-app.get(['/dashboard', '/transactions', '/calendar', '/schedule', '/settings', '/outflow', '/investments', '/insights', '/profile', '/habits', '/habit-insights', '/habit-manage', '/habit-checkins'], (_req, res) => {
+app.get(['/dashboard', '/transactions', '/credit-card', '/calendar', '/schedule', '/settings', '/outflow', '/investments', '/insights', '/profile', '/habits', '/habit-insights', '/habit-manage', '/habit-checkins'], (_req, res) => {
   res.setHeader('Cache-Control', 'no-store');
   res.sendFile(path.join(__dirname, 'index.html'));
 });

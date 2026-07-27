@@ -4,6 +4,24 @@ const creditCardPreview = [
   { name:'Axis Magnus', cycle:'12 Jul – 11 Aug', due:'27 Aug', outstanding:49180, paid:0, status:'Upcoming', tone:'purple' }
 ];
 
+function creditCardTone(card = {}) {
+  if (card.status === 'Paid') return 'green';
+  if (card.status === 'Partial') return 'red';
+  return 'purple';
+}
+
+function creditCardCycleText(card = {}) {
+  if (card.cycle) return card.cycle;
+  const month = card.currentCycleMonth || currentMonthKey();
+  const label = new Date(`${month}-01T00:00:00`).toLocaleDateString('en-IN', { month:'short', year:'numeric' });
+  return `${label} · cycle ${card.cycleStartDay || 1}${ordinal(card.cycleStartDay || 1)}–${card.cycleEndDay || 31}${ordinal(card.cycleEndDay || 31)}`;
+}
+
+function creditCardDueText(card = {}) {
+  if (card.due) return card.due;
+  return `${card.dueDay || 1}${ordinal(card.dueDay || 1)}`;
+}
+
 function renderCreditCardPage() {
   const cards = data.creditCards?.length ? data.creditCards : creditCardPreview;
   const totalOutstanding = sumAmount(cards.map(card => ({ amount:card.outstanding || 0 })));
@@ -14,17 +32,17 @@ function renderCreditCardPage() {
   return `<article class="credit-card-shell">
     <section class="panel credit-card-hero">
       <div><p class="panel-kicker">SEPARATE TRACKER</p><h3>Credit cards</h3><p class="subtitle">Outstanding, billing cycles, due dates and payments. This does not impact expenses.</p></div>
-      <button class="primary-button" type="button">＋ Add card</button>
+      <button class="primary-button" type="button" data-action="open-credit-card-modal">＋ Add card</button>
     </section>
     <section class="credit-summary-grid">
-      <article class="summary-card total-card credit-total-card"><div class="card-icon">💳</div><p>Total outstanding</p><strong>${money(totalOutstanding)}</strong><div class="summary-breakdown">${cards.map(card => `<span>● ${card.name.split(' ')[0]} <b>${money(card.outstanding || 0)}</b></span>`).join('')}</div></article>
+      <article class="summary-card total-card credit-total-card"><div class="card-icon">💳</div><p>Total outstanding</p><strong>${money(totalOutstanding)}</strong><div class="summary-breakdown">${cards.map(card => `<span>● ${esc((card.name || 'Card').split(' ')[0])} <b>${money(card.outstanding || 0)}</b></span>`).join('')}</div></article>
       <article class="summary-card"><div class="card-icon amber-bg">!</div><p>Due soon</p><strong>${money(dueSoon)}</strong><small>Unpaid balance this cycle</small></article>
       <article class="summary-card"><div class="card-icon teal-bg">✓</div><p>Paid this cycle</p><strong>${money(paidThisCycle)}</strong><small>Recorded payments</small></article>
       <article class="summary-card"><div class="card-icon purple-bg">%</div><p>Payment health</p><strong>${cards.filter(card => card.status === 'Paid').length}/${cards.length}</strong><small>${cards.length - cards.filter(card => card.status === 'Paid').length} cards need attention</small></article>
     </section>
     <section class="credit-main-grid">
-      <div class="panel"><div class="panel-heading"><div><p class="panel-kicker">THIS CYCLE</p><h3>Cards overview</h3></div><button class="ghost-button" type="button">View all</button></div><div class="credit-card-list">${cards.map(card => `<div class="credit-card-row"><span class="credit-card-icon ${card.tone}">💳</span><div><b>${card.name}</b><small>Cycle ${card.cycle} · due ${card.due}</small></div><div><small>Outstanding</small><strong>${money(card.outstanding || 0)}</strong></div><div><small>Paid</small><strong>${money(card.paid || 0)}</strong></div><em class="${card.tone}">${card.status}</em></div>`).join('')}</div></div>
-      <div class="panel credit-timeline-panel"><div class="panel-heading"><div><p class="panel-kicker">PAYMENT TIMELINE</p><h3>Upcoming due dates</h3></div><button class="ghost-button" type="button">Manage</button></div><div class="credit-due-timeline">${cards.map((card, index) => `<div class="credit-due-node ${card.tone}" style="--x:${18 + index * 34}%"><span>${card.due.split(' ')[0]}</span><b>${card.due}</b><small>${card.name.split(' ')[0]}</small><strong>${money(Math.max(0, Number(card.outstanding || 0) - Number(card.paid || 0)))}</strong></div>`).join('')}</div><div class="credit-action-note"><small>Recommended action</small><b>${cards.find(card => card.status !== 'Paid')?.name || 'All cards'} ${dueSoon ? 'has unpaid balance to clear before due date.' : 'is fully paid for this cycle.'}</b></div></div>
+      <div class="panel"><div class="panel-heading"><div><p class="panel-kicker">THIS CYCLE</p><h3>Cards overview</h3></div><button class="ghost-button" type="button">View all</button></div><div class="credit-card-list">${cards.map(card => { const tone = card.tone || creditCardTone(card); return `<div class="credit-card-row"><span class="credit-card-icon ${tone}">💳</span><div><b>${esc(card.name)}</b><small>Cycle ${esc(creditCardCycleText(card))} · due ${esc(creditCardDueText(card))}</small></div><div><small>Outstanding</small><strong>${money(card.outstanding || 0)}</strong></div><div><small>Paid</small><strong>${money(card.paid || 0)}</strong></div><em class="${tone}">${esc(card.status || 'Upcoming')}</em></div>`; }).join('')}</div></div>
+      <div class="panel credit-timeline-panel"><div class="panel-heading"><div><p class="panel-kicker">PAYMENT TIMELINE</p><h3>Upcoming due dates</h3></div><button class="ghost-button" type="button">Manage</button></div><div class="credit-due-timeline">${cards.map((card, index) => { const due = creditCardDueText(card); const tone = card.tone || creditCardTone(card); return `<div class="credit-due-node ${tone}" style="--x:${18 + index * 34}%"><span>${esc(String(due).split(' ')[0])}</span><b>${esc(due)}</b><small>${esc((card.name || 'Card').split(' ')[0])}</small><strong>${money(Math.max(0, Number(card.outstanding || 0) - Number(card.paid || 0)))}</strong></div>`; }).join('')}</div><div class="credit-action-note"><small>Recommended action</small><b>${esc(cards.find(card => card.status !== 'Paid')?.name || 'All cards')} ${dueSoon ? 'has unpaid balance to clear before due date.' : 'is fully paid for this cycle.'}</b></div></div>
     </section>
     <section class="credit-bottom-grid">
       <div class="panel"><div class="panel-heading"><div><p class="panel-kicker">PAYMENT HEALTH</p><h3>Status check</h3></div></div><div class="home-pace-status ${dueSoon ? 'over' : 'under'}"><span>${dueSoon ? '!' : '✓'}</span><div><b>${dueSoon ? `${cards.length - cards.filter(card => card.status === 'Paid').length} cards need attention` : 'All cards paid'}</b><small>${dueSoon ? `${money(dueSoon)} pending this cycle` : 'No pending card payments'}</small></div></div><div class="home-pace-metrics"><span><small>Paid</small><b class="under">${money(paidThisCycle)}</b></span><span><small>Left</small><b class="${dueSoon ? 'over' : 'under'}">${money(dueSoon)}</b></span><span><small>Total</small><b>${money(totalOutstanding)}</b></span></div></div>
