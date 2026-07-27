@@ -54,6 +54,56 @@ function normalizeMonthKey(value) {
   const monthIndex = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'].indexOf(match[1].slice(0, 3).toLowerCase());
   return monthIndex >= 0 ? `${match[2]}-${String(monthIndex + 1).padStart(2, '0')}` : '';
 }
+function normalizeLookupText(value = '') { return String(value).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim(); }
+const creditCardBenefitCatalog = [
+  {
+    match:['hdfc regalia', 'regalia'],
+    sourceName:'HDFC Bank Regalia Credit Card',
+    sourceUrl:'https://www.hdfc.bank.in/credit-cards/regalia-credit-card',
+    annualFee:2500,
+    waiverSpendLimit:300000,
+    privileges:[
+      '2 complimentary domestic lounge vouchers every quarter after ₹1 lakh quarterly spends',
+      'Up to 6 complimentary international lounge visits per year with Priority Pass',
+      '4 reward points on every ₹200 spent',
+      'Up to 5x reward points on SmartBuy bookings',
+      'Dining discounts via Good Food Trail / Swiggy Dineout',
+      'Air accident cover and emergency overseas hospitalization cover'
+    ]
+  },
+  {
+    match:['axis magnus', 'magnus'],
+    sourceName:'Axis Bank Magnus Credit Card',
+    sourceUrl:'https://www.axis.bank.in/cards/credit-card/axis-bank-magnus-credit-card',
+    annualFee:12500,
+    waiverSpendLimit:1500000,
+    privileges:[
+      'Welcome voucher options worth ₹12,500',
+      'Unlimited complimentary international lounge visits with Priority Pass',
+      'Unlimited domestic lounge visits at select Indian airport lounges',
+      'Discounts at The Leela Palace Hotels & Resorts',
+      'Travel and stay focused premium card benefits'
+    ]
+  },
+  {
+    match:['icici amazon pay', 'amazon pay icici', 'amazon pay'],
+    sourceName:'Amazon Pay ICICI Bank Credit Card',
+    sourceUrl:'https://www.icicibank.com/offers/credit-n-debit-card-ofr/amazon-sitewide-offer',
+    annualFee:0,
+    waiverSpendLimit:null,
+    privileges:[
+      'Amazon Pay benefits tied to Prime membership status',
+      'Reward points on eligible non-EMI Amazon purchases',
+      'Offer-based instant discounts on eligible Amazon categories',
+      'Credit limit shared with existing ICICI Bank credit card when applicable',
+      'Contactless and international usage subject to ICICI Bank card controls'
+    ]
+  }
+];
+function findCreditCardBenefits(name = '', issuer = '') {
+  const lookup = normalizeLookupText(`${issuer} ${name}`);
+  return creditCardBenefitCatalog.find(card => card.match.some(term => lookup.includes(normalizeLookupText(term))));
+}
 function timeToMinutes(value = '') {
   const match = String(value || '').match(/^(\d{1,2}):(\d{2})$/);
   if (!match) return null;
@@ -260,12 +310,14 @@ app.post('/api/credit-cards', requireAuth, async (req, res) => {
     const waiverSpendLimit = req.body.waiverSpendLimit === '' || req.body.waiverSpendLimit === null || req.body.waiverSpendLimit === undefined ? null : Number(req.body.waiverSpendLimit);
     const feeFrequency = ['free','yearly'].includes(req.body.feeFrequency) ? req.body.feeFrequency : annualFee > 0 ? 'yearly' : 'free';
     const privileges = String(req.body.privileges || '').split(/\n|,/).map(item => item.trim()).filter(Boolean).slice(0, 12);
+    const benefitsSourceName = String(req.body.benefitsSourceName || '').trim();
+    const benefitsSourceUrl = String(req.body.benefitsSourceUrl || '').trim();
     const status = ['Upcoming','Partial','Paid'].includes(req.body.status) ? req.body.status : paid >= outstanding && outstanding > 0 ? 'Paid' : paid > 0 ? 'Partial' : 'Upcoming';
     if (!name || !issuer) return res.status(400).json({ error:'Card name and issuer are required.' });
     if (![cycleStartDay, cycleEndDay, dueDay].every(day => Number.isInteger(day) && day >= 1 && day <= 31)) return res.status(400).json({ error:'Cycle and due days must be between 1 and 31.' });
     if (outstanding < 0 || paid < 0 || annualFee < 0 || (creditLimit !== null && creditLimit < 0) || (waiverSpendLimit !== null && waiverSpendLimit < 0)) return res.status(400).json({ error:'Amounts cannot be negative.' });
     const bill = { month:currentCycleMonth, outstanding, paid, status, updatedAt:new Date() };
-    const card = { id:`cc-${Date.now()}`, ownerId:req.user.id, name, issuer, currentCycleMonth, cycleStartDay, cycleEndDay, dueDay, outstanding, paid, creditLimit:Number.isFinite(creditLimit) ? creditLimit : null, annualFee:Number.isFinite(annualFee) ? annualFee : 0, feeFrequency, waiverSpendLimit:Number.isFinite(waiverSpendLimit) ? waiverSpendLimit : null, privileges, bills:[bill], status, notes:String(req.body.notes || '').trim(), active:req.body.active !== false, createdAt:new Date(), updatedAt:new Date() };
+    const card = { id:`cc-${Date.now()}`, ownerId:req.user.id, name, issuer, currentCycleMonth, cycleStartDay, cycleEndDay, dueDay, outstanding, paid, creditLimit:Number.isFinite(creditLimit) ? creditLimit : null, annualFee:Number.isFinite(annualFee) ? annualFee : 0, feeFrequency, waiverSpendLimit:Number.isFinite(waiverSpendLimit) ? waiverSpendLimit : null, privileges, benefitsSourceName, benefitsSourceUrl, bills:[bill], status, notes:String(req.body.notes || '').trim(), active:req.body.active !== false, createdAt:new Date(), updatedAt:new Date() };
     await database.collection('creditCards').insertOne(card);
     const { ownerId, _id, ...publicCard } = card;
     res.status(201).json(publicCard);
@@ -292,6 +344,8 @@ app.put('/api/credit-cards/:id', requireAuth, async (req, res) => {
     if (req.body.waiverSpendLimit !== undefined) updates.waiverSpendLimit = req.body.waiverSpendLimit === '' || req.body.waiverSpendLimit === null ? null : Number(req.body.waiverSpendLimit);
     if (req.body.feeFrequency !== undefined) updates.feeFrequency = ['free','yearly'].includes(req.body.feeFrequency) ? req.body.feeFrequency : Number(updates.annualFee || existing.annualFee || 0) > 0 ? 'yearly' : 'free';
     if (req.body.privileges !== undefined) updates.privileges = String(req.body.privileges || '').split(/\n|,/).map(item => item.trim()).filter(Boolean).slice(0, 12);
+    if (req.body.benefitsSourceName !== undefined) updates.benefitsSourceName = String(req.body.benefitsSourceName || '').trim();
+    if (req.body.benefitsSourceUrl !== undefined) updates.benefitsSourceUrl = String(req.body.benefitsSourceUrl || '').trim();
     if (req.body.status !== undefined) updates.status = ['Upcoming','Partial','Paid'].includes(req.body.status) ? req.body.status : existing.status || 'Upcoming';
     if (req.body.notes !== undefined) updates.notes = String(req.body.notes || '').trim();
     if (updates.name === '') return res.status(400).json({ error:'Card name is required.' });
@@ -314,6 +368,20 @@ app.put('/api/credit-cards/:id', requireAuth, async (req, res) => {
     );
     if (!result || (!result.value && !result.id)) return res.status(404).json({ error:'Credit card not found.' });
     res.json(result.value || result);
+  } catch (error) { res.status(500).json({ error:error.message }); }
+});
+
+app.post('/api/credit-card-benefits', requireAuth, async (req, res) => {
+  try {
+    const match = findCreditCardBenefits(req.body.name, req.body.issuer);
+    if (!match) return res.status(404).json({ error:'No online benefits match found for this card yet.' });
+    res.json({
+      sourceName:match.sourceName,
+      sourceUrl:match.sourceUrl,
+      annualFee:match.annualFee,
+      waiverSpendLimit:match.waiverSpendLimit,
+      privileges:match.privileges
+    });
   } catch (error) { res.status(500).json({ error:error.message }); }
 });
 

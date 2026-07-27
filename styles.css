@@ -240,6 +240,9 @@ h1,h2,h3,p { margin:0; } h1,h2,h3 { font-family:'Inter',sans-serif; } h1 { font-
 .drill-heading { align-items:flex-start; }
 
 .hero-actions { display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end; }
+.benefits-fetch-row { display:flex;align-items:center;gap:10px;margin:2px 0 13px; }
+.benefits-fetch-row small { color:var(--muted);font-size:10px;line-height:1.35; }
+.benefits-fetch-row .secondary-button { flex:0 0 auto;padding:10px 12px;font-size:11px; }
 .credit-card-shell { display:grid;gap:14px; }
 .credit-card-hero { display:flex;align-items:center;justify-content:space-between;gap:16px;background:linear-gradient(135deg,rgba(255,255,255,.94),rgba(247,243,255,.9),rgba(238,251,255,.85)); }
 .credit-card-hero h3 { font-size:28px;letter-spacing:-.9px; }
@@ -264,6 +267,7 @@ h1,h2,h3,p { margin:0; } h1,h2,h3 { font-family:'Inter',sans-serif; } h1 { font-
 .credit-card-main { min-width:0; }
 .credit-privileges { display:flex;flex-wrap:wrap;gap:6px;margin-top:8px; }
 .credit-privileges span { padding:5px 7px;border-radius:999px;background:#f4f1ff;color:var(--purple);font-size:9px;font-weight:900; }
+.benefits-source-link { display:inline-block;margin-top:8px;color:var(--purple);font-size:10px;font-weight:900;text-decoration:none; }
 .credit-card-actions { display:flex;flex-direction:column;align-items:flex-end;gap:6px; }
 .credit-card-row em.red { color:#d65353;background:#fff0f0; }
 .credit-card-row em.green { color:#159d89;background:#e1faf4; }
