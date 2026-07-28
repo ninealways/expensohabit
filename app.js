@@ -709,15 +709,12 @@ function openCreditCardModal(card = null) {
   form.cardId.value = editingCreditCardId || '';
   form.name.value = card?.name || '';
   form.issuer.value = card?.issuer || '';
-  form.currentCycleMonth.value = card?.currentCycleMonth || currentMonthKey();
   form.cycleStartDay.value = card?.cycleStartDay || 1;
   form.cycleEndDay.value = card?.cycleEndDay || 31;
   form.dueDay.value = card?.dueDay || 15;
-  form.status.value = card?.status || 'Upcoming';
-  form.outstanding.value = card?.outstanding ?? '';
-  form.paid.value = card?.paid ?? '';
   form.creditLimit.value = card?.creditLimit ?? '';
   form.annualFee.value = card?.annualFee ?? '';
+  form.annualFeeDate.value = card?.annualFeeDate || '';
   form.feeFrequency.value = card?.feeFrequency || (card?.annualFee ? 'yearly' : 'free');
   form.waiverSpendLimit.value = card?.waiverSpendLimit ?? '';
   form.privileges.value = Array.isArray(card?.privileges) ? card.privileges.join('\n') : card?.privileges || '';
@@ -738,8 +735,6 @@ async function submitCreditCard(event) {
   event.preventDefault();
   const form = new FormData(event.target);
   const payload = Object.fromEntries(form.entries());
-  const monthInput = event.target.querySelector('[name="currentCycleMonth"]');
-  payload.currentCycleMonth = normalizeMonthValue(payload.currentCycleMonth, monthInput?._flatpickr?.selectedDates?.[0]) || currentMonthKey();
   const cardId = payload.cardId || editingCreditCardId;
   delete payload.cardId;
   const response = await fetch(cardId ? `/api/credit-cards/${cardId}` : '/api/credit-cards', { method:cardId ? 'PUT' : 'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) });

@@ -18,7 +18,7 @@ function creditCardDueText(card = {}) {
 
 function creditCardFeeText(card = {}) {
   if (card.feeFrequency === 'free' || !Number(card.annualFee || 0)) return 'Lifetime free / no yearly charge';
-  return `Yearly charge ${money(card.annualFee || 0)}${card.waiverSpendLimit ? ` · waived after ${money(card.waiverSpendLimit)} spend` : ''}`;
+  return `Yearly charge ${money(card.annualFee || 0)}${card.annualFeeDate ? ` · fee date ${card.annualFeeDate}` : ''}${card.waiverSpendLimit ? ` · waived after ${money(card.waiverSpendLimit)} spend` : ''}`;
 }
 
 function creditCardPrivileges(card = {}) {
@@ -29,6 +29,28 @@ function creditCardBills(card = {}) {
   const bills = Array.isArray(card.bills) ? card.bills : [];
   if (bills.length) return bills.slice().sort((a, b) => String(b.month).localeCompare(String(a.month)));
   return card.currentCycleMonth ? [{ month:card.currentCycleMonth, outstanding:card.outstanding || 0, paid:card.paid || 0, status:card.status || 'Upcoming' }] : [];
+}
+
+function creditCardWaiverProgress(card = {}) {
+  const target = Number(card.waiverSpendLimit || 0);
+  if (!target) return null;
+  const now = new Date();
+  let start = new Date(now.getFullYear(), 0, 1);
+  let end = new Date(now.getFullYear(), 11, 31);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(String(card.annualFeeDate || ''))) {
+    const fee = new Date(`${card.annualFeeDate}T00:00:00`);
+    start = new Date(now.getFullYear(), fee.getMonth(), fee.getDate());
+    if (start > now) start.setFullYear(start.getFullYear() - 1);
+    end = new Date(start);
+    end.setFullYear(end.getFullYear() + 1);
+    end.setDate(end.getDate() - 1);
+  }
+  const spend = sumAmount(creditCardBills(card).filter(bill => {
+    const billDate = /^\d{4}-\d{2}-\d{2}$/.test(String(bill.billDate || '')) ? new Date(`${bill.billDate}T00:00:00`) : new Date(`${bill.month || currentMonthKey()}-01T00:00:00`);
+    return billDate >= start && billDate <= end;
+  }).map(bill => ({ amount:bill.outstanding || 0 })));
+  const pct = Math.min(100, percent(spend, target));
+  return { spend, target, pct, remaining:Math.max(0, target - spend), done:spend >= target, start:dateKey(start), end:dateKey(end) };
 }
 
 function renderCreditCardPage() {
@@ -48,6 +70,8 @@ function renderCreditCardPage() {
   const lifetimeCardSpend = sumAmount(allBills.map(bill => ({ amount:bill.outstanding || 0 })));
   const lifetimeCardPaid = sumAmount(allBills.map(bill => ({ amount:bill.paid || 0 })));
   const topSpendCard = summaryCards.slice().sort((a, b) => sumAmount(creditCardBills(b).map(bill => ({ amount:bill.outstanding || 0 }))) - sumAmount(creditCardBills(a).map(bill => ({ amount:bill.outstanding || 0 }))))[0];
+  const waiverCards = summaryCards.map(card => ({ card, progress:creditCardWaiverProgress(card) })).filter(item => item.progress);
+  const completedWaivers = waiverCards.filter(item => item.progress.done).length;
   return `<article class="credit-card-shell">
     <section class="panel credit-card-hero">
       <div><p class="panel-kicker">SEPARATE TRACKER</p><h3>Credit cards</h3><p class="subtitle">Outstanding, billing cycles, due dates and payments. This does not impact expenses.</p></div>
@@ -60,7 +84,7 @@ function renderCreditCardPage() {
       <article class="summary-card"><div class="card-icon purple-bg">%</div><p>Total card spends</p><strong>${money(lifetimeCardSpend)}</strong><small>${allBills.length} monthly bills recorded</small></article>
     </section>
     <section class="credit-main-grid">
-      <div class="panel" id="creditCardListPanel"><div class="panel-heading"><div><p class="panel-kicker">THIS CYCLE</p><h3>Cards overview</h3></div><button class="ghost-button" type="button" data-action="credit-card-view-all">View all</button></div><div class="credit-card-list">${cards.map(card => { const tone = card.active === false ? 'inactive' : card.tone || creditCardTone(card); const canToggle = hasSavedCards && card.id; const perks = creditCardPrivileges(card); return `<div class="credit-card-row expanded ${card.active === false ? 'inactive' : ''}"><span class="credit-card-icon ${tone}">💳</span><div class="credit-card-main"><b>${esc(card.name)}</b><small>${esc(card.issuer || 'Card')} · Cycle ${esc(creditCardCycleText(card))} · due ${esc(creditCardDueText(card))}</small><small>${esc(creditCardFeeText(card))}</small>${perks.length ? `<div class="credit-privileges">${perks.slice(0, 4).map(item => `<span>${esc(item)}</span>`).join('')}</div>` : ''}${card.benefitsSourceName ? `<a class="benefits-source-link" href="${esc(card.benefitsSourceUrl || '#')}" target="_blank" rel="noopener">Source: ${esc(card.benefitsSourceName)}</a>` : ''}</div><div><small>Outstanding</small><strong>${money(card.outstanding || 0)}</strong></div><div><small>Paid</small><strong>${money(card.paid || 0)}</strong></div><em class="${tone}">${card.active === false ? 'Inactive' : esc(card.status || 'Upcoming')}</em>${canToggle ? `<div class="credit-card-actions"><button class="mini-action neutral" type="button" data-action="edit-credit-card" data-id="${esc(card.id)}">Edit details</button><button class="mini-action neutral" type="button" data-action="update-credit-card-bill" data-id="${esc(card.id)}">Update bill</button><button class="mini-action ${card.active === false ? 'activate' : ''}" type="button" data-action="toggle-credit-card-active" data-id="${esc(card.id)}">${card.active === false ? 'Activate' : 'Deactivate'}</button></div>` : ''}</div>`; }).join('') || `<div class="credit-empty-state"><span>💳</span><b>No credit cards added yet</b><p>Add your first card to track outstanding, cycle dates, due dates, and payments.</p><button class="primary-button" type="button" data-action="open-credit-card-modal">＋ Add card</button></div>`}</div></div>
+      <div class="panel" id="creditCardListPanel"><div class="panel-heading"><div><p class="panel-kicker">THIS CYCLE</p><h3>Cards overview</h3></div><button class="ghost-button" type="button" data-action="credit-card-view-all">View all</button></div><div class="credit-card-list">${cards.map(card => { const tone = card.active === false ? 'inactive' : card.tone || creditCardTone(card); const canToggle = hasSavedCards && card.id; const perks = creditCardPrivileges(card); const waiver = creditCardWaiverProgress(card); return `<div class="credit-card-row expanded ${card.active === false ? 'inactive' : ''}"><span class="credit-card-icon ${tone}">💳</span><div class="credit-card-main"><b>${esc(card.name)}</b><small>${esc(card.issuer || 'Card')} · Cycle ${esc(creditCardCycleText(card))} · due ${esc(creditCardDueText(card))}</small><small>${esc(creditCardFeeText(card))}</small>${waiver ? `<div class="credit-waiver-meter"><div><b>${waiver.done ? 'Waiver milestone done' : `${money(waiver.remaining)} to fee waiver`}</b><small>${money(waiver.spend)} / ${money(waiver.target)} · ${waiver.pct}% · ${esc(waiver.start)} to ${esc(waiver.end)}</small></div><i><span style="width:${waiver.pct}%"></span></i></div>` : ''}${perks.length ? `<div class="credit-privileges">${perks.slice(0, 4).map(item => `<span>${esc(item)}</span>`).join('')}</div>` : ''}${card.benefitsSourceName ? `<a class="benefits-source-link" href="${esc(card.benefitsSourceUrl || '#')}" target="_blank" rel="noopener">Source: ${esc(card.benefitsSourceName)}</a>` : ''}</div><div><small>Outstanding</small><strong>${money(card.outstanding || 0)}</strong></div><div><small>Paid</small><strong>${money(card.paid || 0)}</strong></div><em class="${tone}">${card.active === false ? 'Inactive' : esc(card.status || 'Upcoming')}</em>${canToggle ? `<div class="credit-card-actions"><button class="mini-action neutral" type="button" data-action="edit-credit-card" data-id="${esc(card.id)}">Edit details</button><button class="mini-action neutral" type="button" data-action="update-credit-card-bill" data-id="${esc(card.id)}">Update bill</button><button class="mini-action ${card.active === false ? 'activate' : ''}" type="button" data-action="toggle-credit-card-active" data-id="${esc(card.id)}">${card.active === false ? 'Activate' : 'Deactivate'}</button></div>` : ''}</div>`; }).join('') || `<div class="credit-empty-state"><span>💳</span><b>No credit cards added yet</b><p>Add your first card to track billing cycles and waiver milestones first. Monthly bills can be added after the card exists.</p><button class="primary-button" type="button" data-action="open-credit-card-modal">＋ Add card</button></div>`}</div></div>
       <div class="panel credit-timeline-panel" id="creditCardTimelinePanel"><div class="panel-heading"><div><p class="panel-kicker">PAYMENT TIMELINE</p><h3>Upcoming due dates</h3></div><button class="ghost-button" type="button" data-action="credit-card-manage">Manage</button></div>${timelineCards.length ? `<div class="credit-due-timeline">${timelineCards.map((card, index) => { const due = creditCardDueText(card); const tone = card.tone || creditCardTone(card); return `<div class="credit-due-node ${tone}" style="--x:${18 + index * 34}%"><span>${esc(String(due).split(' ')[0])}</span><b>${esc(due)}</b><small>${esc((card.name || 'Card').split(' ')[0])}</small><strong>${money(Math.max(0, Number(card.outstanding || 0) - Number(card.paid || 0)))}</strong></div>`; }).join('')}</div><div class="credit-action-note"><small>Recommended action</small><b>${esc(summaryCards.find(card => card.status !== 'Paid')?.name || 'All active cards')} ${dueSoon ? 'has unpaid balance to clear before due date.' : 'is fully paid for this cycle.'}</b></div>` : `<div class="credit-empty-state compact"><span>📅</span><b>No upcoming due dates</b><p>Add an active credit card to build your payment timeline.</p></div>`}</div>
     </section>
     <section class="panel">
@@ -73,7 +97,7 @@ function renderCreditCardPage() {
     <section class="credit-bottom-grid">
       <div class="panel"><div class="panel-heading"><div><p class="panel-kicker">PAYMENT HEALTH</p><h3>Status check</h3></div></div><div class="home-pace-status ${dueSoon ? 'over' : 'under'}"><span>${dueSoon ? '!' : '✓'}</span><div><b>${dueSoon ? `${attentionCount} active cards need attention` : 'All active cards paid'}</b><small>${dueSoon ? `${money(dueSoon)} pending this cycle` : 'No pending card payments'}</small></div></div><div class="home-pace-metrics"><span><small>Paid history</small><b class="under">${money(lifetimeCardPaid)}</b></span><span><small>Left</small><b class="${dueSoon ? 'over' : 'under'}">${money(dueSoon)}</b></span><span><small>Current total</small><b>${money(totalOutstanding)}</b></span></div></div>
       <div class="panel"><div class="panel-heading"><div><p class="panel-kicker">LAST 6 MONTHS</p><h3>Outstanding trend</h3></div></div><div class="credit-mini-chart">${[58,82,42,96,72,108].map((height, index) => `<span style="--h:${height}px"><b>${['Feb','Mar','Apr','May','Jun','Jul'][index]}</b></span>`).join('')}</div></div>
-      <div class="panel"><div class="panel-heading"><div><p class="panel-kicker">INSIGHTS</p><h3>Useful signals</h3></div></div><div class="key-insight-list"><div class="key-insight"><span>%</span><p>${largest?.name || 'Top card'} is ${largestPct}% of active outstanding.</p></div><div class="key-insight"><span>₹</span><p>${topSpendCard?.name || 'Top card'} has the highest recorded card spend history.</p></div><div class="key-insight"><span>✓</span><p>${summaryCards.some(card => card.status === 'Paid') ? 'At least one active card is fully paid this cycle.' : 'No active card is fully paid yet this cycle.'}</p></div><div class="key-insight"><span>!</span><p>${cards.filter(card => card.active === false).length} cards are inactive and excluded from totals.</p></div></div></div>
+      <div class="panel"><div class="panel-heading"><div><p class="panel-kicker">INSIGHTS</p><h3>Useful signals</h3></div></div><div class="key-insight-list"><div class="key-insight"><span>%</span><p>${largest?.name || 'Top card'} is ${largestPct}% of active outstanding.</p></div><div class="key-insight"><span>₹</span><p>${topSpendCard?.name || 'Top card'} has the highest recorded card spend history.</p></div><div class="key-insight"><span>✓</span><p>${completedWaivers}/${waiverCards.length || 0} fee waiver milestones are complete.</p></div><div class="key-insight"><span>!</span><p>${cards.filter(card => card.active === false).length} cards are inactive and excluded from totals.</p></div></div></div>
     </section>
   </article>`;
 }

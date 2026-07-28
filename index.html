@@ -10,7 +10,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="vendor/flatpickr/flatpickr.min.css" />
     <link rel="stylesheet" href="vendor/flatpickr/plugins/monthSelect/style.css" />
-    <link rel="stylesheet" href="styles.css?v=20260728-06" />
+    <link rel="stylesheet" href="styles.css?v=20260728-07" />
   </head>
   <body class="app-booting">
     <svg class="icon-sprite" aria-hidden="true">
@@ -316,10 +316,9 @@
           <input name="cardId" type="hidden" />
           <div class="form-row"><label>Card name<input name="name" placeholder="HDFC Regalia, Axis Magnus..." required /></label><label>Issuer / bank<input name="issuer" placeholder="HDFC, ICICI, Axis..." required /></label></div>
           <div class="form-row"><label>Credit limit (optional)<input name="creditLimit" type="number" min="0" step="1" placeholder="Used for utilization alerts" /></label><label>Fee type<select name="feeFrequency"><option value="free">Free / lifetime free</option><option value="yearly">Yearly charge</option></select></label></div>
-          <div class="form-row"><label>Yearly charge<input name="annualFee" type="number" min="0" step="1" placeholder="0 if free" /></label><label>Waiver spend limit<input name="waiverSpendLimit" type="number" min="0" step="1" placeholder="Annual spend needed for waiver" /></label></div>
-          <div class="form-row"><label>Cycle month<input name="currentCycleMonth" type="text" data-picker="month" placeholder="Select month" required /></label><label>Status<select name="status"><option value="Upcoming">Upcoming</option><option value="Partial">Partial</option><option value="Paid">Paid</option></select></label></div>
+          <div class="form-row"><label>Yearly charge<input name="annualFee" type="number" min="0" step="1" placeholder="0 if free" /></label><label>Annual charge date<input name="annualFeeDate" type="text" data-picker="date" placeholder="When fee is charged" /></label></div>
+          <label>Waiver spend limit<input name="waiverSpendLimit" type="number" min="0" step="1" placeholder="Annual spend needed for waiver" /></label>
           <div class="form-row"><label>Cycle start day<input name="cycleStartDay" type="number" min="1" max="31" step="1" placeholder="1" required /></label><label>Cycle end day<input name="cycleEndDay" type="number" min="1" max="31" step="1" placeholder="31" required /></label><label>Due day<input name="dueDay" type="number" min="1" max="31" step="1" placeholder="15" required /></label></div>
-          <div class="form-row"><label>Monthly bill / outstanding<input name="outstanding" type="number" min="0" step="1" placeholder="0" required /></label><label>Paid this cycle<input name="paid" type="number" min="0" step="1" placeholder="0" /></label></div>
           <input name="benefitsSourceName" type="hidden" />
           <input name="benefitsSourceUrl" type="hidden" />
           <div class="benefits-fetch-row"><button class="secondary-button" type="button" id="fetchCreditBenefitsButton">Fetch online benefits</button><small id="creditBenefitsSource">Uses known official card pages when a match is available.</small></div>
@@ -367,11 +366,11 @@
     <script src="js/router.js?v=20260728-01"></script>
     <script src="js/pages/basic.js?v=20260716-01"></script>
     <script src="js/pages/transactions.js?v=20260725-02"></script>
-    <script src="js/pages/credit-card.js?v=20260728-08"></script>
+    <script src="js/pages/credit-card.js?v=20260728-09"></script>
     <script src="js/pages/schedule.js?v=20260719-01"></script>
     <script src="js/pages/habits.js?v=20260714-04"></script>
     <script src="js/pages/insights.js?v=20260725-02"></script>
     <script src="js/pages/calendar.js?v=20260716-01"></script>
-    <script src="app.js?v=20260728-07"></script>
+    <script src="app.js?v=20260728-08"></script>
   </body>
 </html>
