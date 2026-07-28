@@ -10,7 +10,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="vendor/flatpickr/flatpickr.min.css" />
     <link rel="stylesheet" href="vendor/flatpickr/plugins/monthSelect/style.css" />
-    <link rel="stylesheet" href="styles.css?v=20260728-05" />
+    <link rel="stylesheet" href="styles.css?v=20260728-06" />
   </head>
   <body class="app-booting">
     <svg class="icon-sprite" aria-hidden="true">
@@ -330,6 +330,20 @@
       </section>
     </div>
 
+    <div class="modal-backdrop" id="creditCardBillModalBackdrop" hidden>
+      <section class="modal credit-card-modal" role="dialog" aria-modal="true" aria-labelledby="creditCardBillModalTitle">
+        <div class="modal-heading"><div><p class="panel-kicker">MONTHLY BILL</p><h3 id="creditCardBillModalTitle">Add monthly bill</h3></div><button class="close-button" id="closeCreditCardBillModal">×</button></div>
+        <form id="creditCardBillForm" class="credit-card-form">
+          <input name="cardId" type="hidden" />
+          <div class="form-row"><label>Card<input name="cardName" readonly /></label><label>Cycle month<input name="month" type="text" data-picker="month" placeholder="Select month" required /></label></div>
+          <div class="form-row"><label>Outstanding / spent<input name="outstanding" type="number" min="0" step="1" placeholder="0" required /></label><label>Paid amount<input name="paid" type="number" min="0" step="1" placeholder="0" /></label></div>
+          <div class="form-row"><label>Bill date<input name="billDate" type="text" data-picker="date" placeholder="Bill generated date" /></label><label>Payment date<input name="paymentDate" type="text" data-picker="date" placeholder="When paid" /></label></div>
+          <label>Status<select name="status"><option value="Upcoming">Upcoming</option><option value="Partial">Partial</option><option value="Paid">Paid</option></select></label>
+          <div class="modal-actions"><button type="button" class="secondary-button" id="cancelCreditCardBillModal">Cancel</button><button class="primary-button" type="submit">Save bill</button></div>
+        </form>
+      </section>
+    </div>
+
     <div class="modal-backdrop" id="confirmModalBackdrop" hidden>
       <section class="modal confirm-modal" role="dialog" aria-modal="true" aria-labelledby="confirmModalTitle">
         <div class="modal-heading"><div><p class="panel-kicker">CONFIRMATION</p><h3 id="confirmModalTitle">Delete habit?</h3></div><button class="close-button" id="closeConfirmModal">×</button></div>
@@ -353,11 +367,11 @@
     <script src="js/router.js?v=20260728-01"></script>
     <script src="js/pages/basic.js?v=20260716-01"></script>
     <script src="js/pages/transactions.js?v=20260725-02"></script>
-    <script src="js/pages/credit-card.js?v=20260728-07"></script>
+    <script src="js/pages/credit-card.js?v=20260728-08"></script>
     <script src="js/pages/schedule.js?v=20260719-01"></script>
     <script src="js/pages/habits.js?v=20260714-04"></script>
     <script src="js/pages/insights.js?v=20260725-02"></script>
     <script src="js/pages/calendar.js?v=20260716-01"></script>
-    <script src="app.js?v=20260728-06"></script>
+    <script src="app.js?v=20260728-07"></script>
   </body>
 </html>

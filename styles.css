@@ -296,6 +296,16 @@ h1,h2,h3,p { margin:0; } h1,h2,h3 { font-family:'Inter',sans-serif; } h1 { font-
 .credit-action-note small,.credit-action-note b { display:block; }
 .credit-action-note small { color:var(--muted);font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.05em; }
 .credit-action-note b { margin-top:4px;font-size:13px; }
+.credit-history-list { display:grid;gap:10px; }
+.credit-history-card { display:grid;grid-template-columns:minmax(180px,.42fr) 1fr;gap:12px;padding:13px;border:1px solid #f0eef9;border-radius:17px;background:#fff; }
+.credit-history-card b,.credit-history-card small { display:block; }
+.credit-history-card > div:first-child b { font-size:13px; }
+.credit-history-card > div:first-child small { margin-top:4px;color:var(--muted);font-size:11px;line-height:1.35; }
+.credit-history-rows { display:grid;grid-template-columns:repeat(auto-fit,minmax(138px,1fr));gap:8px; }
+.credit-history-rows span { display:block;padding:9px;border-radius:13px;background:#f9f7ff;border:1px solid #eee9fb; }
+.credit-history-rows b { font-size:11px; }
+.credit-history-rows em { display:block;margin-top:4px;color:var(--ink);font-size:10px;font-weight:900;font-style:normal; }
+.credit-history-rows small { margin-top:4px;color:var(--muted);font-size:9px;line-height:1.3; }
 .credit-mini-chart { height:136px;display:flex;align-items:end;justify-content:space-around;gap:9px;padding:10px 0 2px;border-bottom:1px solid #e9ebf3; }
 .credit-mini-chart span { position:relative;width:24px;height:var(--h);min-height:18px;border-radius:10px 10px 3px 3px;background:linear-gradient(#b15eff,#7959f4); }
 .credit-mini-chart b { position:absolute;left:50%;bottom:-22px;transform:translateX(-50%);color:var(--muted);font-size:10px; }
@@ -340,4 +350,5 @@ h1,h2,h3,p { margin:0; } h1,h2,h3 { font-family:'Inter',sans-serif; } h1 { font-
   .credit-card-row { grid-template-columns:34px minmax(0,1fr); }
   .credit-card-row > div:nth-of-type(2),.credit-card-row > div:nth-of-type(3),.credit-card-row em,.credit-card-row .mini-action,.credit-card-actions { grid-column:2; }
   .credit-card-row strong { white-space:normal; }
+  .credit-history-card { grid-template-columns:1fr; }
 }

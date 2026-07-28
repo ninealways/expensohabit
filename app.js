@@ -764,6 +764,44 @@ async function fetchCreditCardBenefits() {
   $('#creditBenefitsSource').textContent = result.sourceName ? `Benefits source: ${result.sourceName}` : 'Benefits filled from online source.';
   toast('Benefits filled from online source');
 }
+function openCreditCardBillModal(card) {
+  if (!card) return;
+  const form = $('#creditCardBillForm');
+  const latestBill = Array.isArray(card.bills) ? card.bills.find(item => item.month === card.currentCycleMonth) : null;
+  form.reset();
+  form.cardId.value = card.id;
+  form.cardName.value = card.name || 'Credit card';
+  form.month.value = card.currentCycleMonth || currentMonthKey();
+  form.outstanding.value = latestBill?.outstanding ?? card.outstanding ?? '';
+  form.paid.value = latestBill?.paid ?? card.paid ?? '';
+  form.billDate.value = latestBill?.billDate || '';
+  form.paymentDate.value = latestBill?.paymentDate || '';
+  form.status.value = latestBill?.status || card.status || 'Upcoming';
+  $('#creditCardBillModalTitle').textContent = `Update ${card.name || 'card'} bill`;
+  $('#creditCardBillModalBackdrop').hidden = false;
+  initializeDatePickers($('#creditCardBillModalBackdrop'));
+}
+function closeCreditCardBillModal() {
+  $('#creditCardBillModalBackdrop').hidden = true;
+  $('#creditCardBillForm').reset();
+}
+async function submitCreditCardBill(event) {
+  event.preventDefault();
+  const form = new FormData(event.target);
+  const payload = Object.fromEntries(form.entries());
+  const cardId = payload.cardId;
+  const monthInput = event.target.querySelector('[name="month"]');
+  payload.month = normalizeMonthValue(payload.month, monthInput?._flatpickr?.selectedDates?.[0]) || currentMonthKey();
+  delete payload.cardId;
+  delete payload.cardName;
+  const response = await fetch(`/api/credit-cards/${cardId}/bills`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) });
+  const result = await response.json();
+  if (!response.ok) { toast(result.error || 'Could not save card bill'); return; }
+  closeCreditCardBillModal();
+  await loadData();
+  navigate('creditCard', false);
+  toast('Credit card bill saved');
+}
 async function submitProfile(event) {
   event.preventDefault();
   const form = new FormData(event.target);
@@ -847,7 +885,7 @@ async function deletePendingSchedule() {
   toast('Schedule deleted');
 }
 
-$('#heroAddButton').addEventListener('click', () => openModal()); $('#fabButton').addEventListener('click', () => openModal()); $('#topAddButton').addEventListener('click', () => openModal()); $('#closeModal').addEventListener('click', closeModal); $('#cancelModal').addEventListener('click', closeModal); $('#modalBackdrop').addEventListener('click', event => { if (event.target.id === 'modalBackdrop') closeModal(); }); $('#transactionForm').addEventListener('submit', addTransaction); $('#closeHabitModal').addEventListener('click', closeHabitModal); $('#cancelHabitModal').addEventListener('click', closeHabitModal); $('#habitModalBackdrop').addEventListener('click', event => { if (event.target.id === 'habitModalBackdrop') closeHabitModal(); }); $('#habitForm').addEventListener('submit', submitHabit); $('#closeCategoryModal').addEventListener('click', closeCategoryModal); $('#cancelCategoryModal').addEventListener('click', closeCategoryModal); $('#categoryModalBackdrop').addEventListener('click', event => { if (event.target.id === 'categoryModalBackdrop') closeCategoryModal(); }); $('#categoryForm').addEventListener('submit', submitCategory); $('#categoryForm select[name="kind"]').addEventListener('change', updateCategoryModalSpendVisibility); $('#closeStockTradeModal').addEventListener('click', closeStockTradeModal); $('#cancelStockTradeModal').addEventListener('click', closeStockTradeModal); $('#stockTradeModalBackdrop').addEventListener('click', event => { if (event.target.id === 'stockTradeModalBackdrop') closeStockTradeModal(); }); $('#stockTradeForm').addEventListener('submit', submitStockTrade); $('#closeCreditCardModal').addEventListener('click', closeCreditCardModal); $('#cancelCreditCardModal').addEventListener('click', closeCreditCardModal); $('#creditCardModalBackdrop').addEventListener('click', event => { if (event.target.id === 'creditCardModalBackdrop') closeCreditCardModal(); }); $('#creditCardForm').addEventListener('submit', submitCreditCard); $('#fetchCreditBenefitsButton').addEventListener('click', fetchCreditCardBenefits); $('#closeHabitCheckinModal').addEventListener('click', closeHabitCheckinModal); $('#cancelHabitCheckinModal').addEventListener('click', closeHabitCheckinModal); $('#habitCheckinModalBackdrop').addEventListener('click', event => { if (event.target.id === 'habitCheckinModalBackdrop') closeHabitCheckinModal(); }); $('#habitCheckinForm').addEventListener('submit', submitHabitCheckin); $('#closeConfirmModal').addEventListener('click', closeConfirmModal); $('#cancelConfirmModal').addEventListener('click', closeConfirmModal); $('#confirmModalBackdrop').addEventListener('click', event => { if (event.target.id === 'confirmModalBackdrop') closeConfirmModal(); }); $('#confirmArchiveButton').addEventListener('click', archivePendingSchedule); $('#confirmDeleteButton').addEventListener('click', deletePendingSchedule); $('#refreshButton').addEventListener('click', refreshData); $('#privacyButton').addEventListener('click', togglePrivacy);
+$('#heroAddButton').addEventListener('click', () => openModal()); $('#fabButton').addEventListener('click', () => openModal()); $('#topAddButton').addEventListener('click', () => openModal()); $('#closeModal').addEventListener('click', closeModal); $('#cancelModal').addEventListener('click', closeModal); $('#modalBackdrop').addEventListener('click', event => { if (event.target.id === 'modalBackdrop') closeModal(); }); $('#transactionForm').addEventListener('submit', addTransaction); $('#closeHabitModal').addEventListener('click', closeHabitModal); $('#cancelHabitModal').addEventListener('click', closeHabitModal); $('#habitModalBackdrop').addEventListener('click', event => { if (event.target.id === 'habitModalBackdrop') closeHabitModal(); }); $('#habitForm').addEventListener('submit', submitHabit); $('#closeCategoryModal').addEventListener('click', closeCategoryModal); $('#cancelCategoryModal').addEventListener('click', closeCategoryModal); $('#categoryModalBackdrop').addEventListener('click', event => { if (event.target.id === 'categoryModalBackdrop') closeCategoryModal(); }); $('#categoryForm').addEventListener('submit', submitCategory); $('#categoryForm select[name="kind"]').addEventListener('change', updateCategoryModalSpendVisibility); $('#closeStockTradeModal').addEventListener('click', closeStockTradeModal); $('#cancelStockTradeModal').addEventListener('click', closeStockTradeModal); $('#stockTradeModalBackdrop').addEventListener('click', event => { if (event.target.id === 'stockTradeModalBackdrop') closeStockTradeModal(); }); $('#stockTradeForm').addEventListener('submit', submitStockTrade); $('#closeCreditCardModal').addEventListener('click', closeCreditCardModal); $('#cancelCreditCardModal').addEventListener('click', closeCreditCardModal); $('#creditCardModalBackdrop').addEventListener('click', event => { if (event.target.id === 'creditCardModalBackdrop') closeCreditCardModal(); }); $('#creditCardForm').addEventListener('submit', submitCreditCard); $('#fetchCreditBenefitsButton').addEventListener('click', fetchCreditCardBenefits); $('#closeCreditCardBillModal').addEventListener('click', closeCreditCardBillModal); $('#cancelCreditCardBillModal').addEventListener('click', closeCreditCardBillModal); $('#creditCardBillModalBackdrop').addEventListener('click', event => { if (event.target.id === 'creditCardBillModalBackdrop') closeCreditCardBillModal(); }); $('#creditCardBillForm').addEventListener('submit', submitCreditCardBill); $('#closeHabitCheckinModal').addEventListener('click', closeHabitCheckinModal); $('#cancelHabitCheckinModal').addEventListener('click', closeHabitCheckinModal); $('#habitCheckinModalBackdrop').addEventListener('click', event => { if (event.target.id === 'habitCheckinModalBackdrop') closeHabitCheckinModal(); }); $('#habitCheckinForm').addEventListener('submit', submitHabitCheckin); $('#closeConfirmModal').addEventListener('click', closeConfirmModal); $('#cancelConfirmModal').addEventListener('click', closeConfirmModal); $('#confirmModalBackdrop').addEventListener('click', event => { if (event.target.id === 'confirmModalBackdrop') closeConfirmModal(); }); $('#confirmArchiveButton').addEventListener('click', archivePendingSchedule); $('#confirmDeleteButton').addEventListener('click', deletePendingSchedule); $('#refreshButton').addEventListener('click', refreshData); $('#privacyButton').addEventListener('click', togglePrivacy);
 $('#accountMenuButton').addEventListener('click', event => { event.stopPropagation(); $('#accountMenuPanel').hidden = !$('#accountMenuPanel').hidden; });
 $('#accountMenuPanel').addEventListener('click', async event => { const target = event.target.closest('[data-account-page],[data-account-action]'); if (!target) return; $('#accountMenuPanel').hidden = true; if (target.dataset.accountPage) { navigate(target.dataset.accountPage); return; } if (target.dataset.accountAction === 'logout') await logout(); });
 document.addEventListener('click', event => {
@@ -942,7 +980,9 @@ $('#subPageView').addEventListener('click', event => {
   const target = event.target.closest('[data-action="edit-credit-card"],[data-action="update-credit-card-bill"]');
   if (!target) return;
   const card = data.creditCards.find(item => item.id === target.dataset.id);
-  if (card) openCreditCardModal(card);
+  if (!card) return;
+  if (target.dataset.action === 'update-credit-card-bill') openCreditCardBillModal(card);
+  else openCreditCardModal(card);
 });
 $('#subPageView').addEventListener('submit', async event => {
   if (!['budgetSettingsForm','profileForm'].includes(event.target.id)) return;

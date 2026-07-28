@@ -371,6 +371,33 @@ app.put('/api/credit-cards/:id', requireAuth, async (req, res) => {
   } catch (error) { res.status(500).json({ error:error.message }); }
 });
 
+app.post('/api/credit-cards/:id/bills', requireAuth, async (req, res) => {
+  try {
+    const database = await ensureDatabase();
+    const existing = await database.collection('creditCards').findOne({ id:req.params.id, ownerId:req.user.id });
+    if (!existing) return res.status(404).json({ error:'Credit card not found.' });
+    const month = normalizeMonthKey(req.body.month) || localDate().slice(0, 7);
+    const outstanding = Number(req.body.outstanding || 0);
+    const paid = Number(req.body.paid || 0);
+    const billDate = String(req.body.billDate || '').trim();
+    const paymentDate = String(req.body.paymentDate || '').trim();
+    const status = ['Upcoming','Partial','Paid'].includes(req.body.status) ? req.body.status : paid >= outstanding && outstanding > 0 ? 'Paid' : paid > 0 ? 'Partial' : 'Upcoming';
+    if (outstanding < 0 || paid < 0) return res.status(400).json({ error:'Amounts cannot be negative.' });
+    if (billDate && !/^\d{4}-\d{2}-\d{2}$/.test(billDate)) return res.status(400).json({ error:'Bill date must be valid.' });
+    if (paymentDate && !/^\d{4}-\d{2}-\d{2}$/.test(paymentDate)) return res.status(400).json({ error:'Payment date must be valid.' });
+    const bill = { month, outstanding, paid, billDate, paymentDate, status, updatedAt:new Date() };
+    const bills = Array.isArray(existing.bills) ? existing.bills.filter(item => item.month !== month) : [];
+    bills.push(bill);
+    bills.sort((a, b) => String(b.month).localeCompare(String(a.month)));
+    const result = await database.collection('creditCards').findOneAndUpdate(
+      { id:req.params.id, ownerId:req.user.id },
+      { $set:{ bills, currentCycleMonth:month, outstanding, paid, status, updatedAt:new Date() } },
+      { returnDocument:'after', projection:{ _id:0, ownerId:0 } }
+    );
+    res.json(result.value || result);
+  } catch (error) { res.status(500).json({ error:error.message }); }
+});
+
 app.post('/api/credit-card-benefits', requireAuth, async (req, res) => {
   try {
     const match = findCreditCardBenefits(req.body.name, req.body.issuer);
