@@ -2,6 +2,7 @@
   const routeForPage = {
     dashboard:'/dashboard',
     transactions:'/transactions',
+    creditCard:'/credit-card',
     calendar:'/calendar',
     schedule:'/schedule',
     settings:'/settings',

@@ -54,6 +54,56 @@ function normalizeMonthKey(value) {
   const monthIndex = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'].indexOf(match[1].slice(0, 3).toLowerCase());
   return monthIndex >= 0 ? `${match[2]}-${String(monthIndex + 1).padStart(2, '0')}` : '';
 }
+function normalizeLookupText(value = '') { return String(value).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim(); }
+const creditCardBenefitCatalog = [
+  {
+    match:['hdfc regalia', 'regalia'],
+    sourceName:'HDFC Bank Regalia Credit Card',
+    sourceUrl:'https://www.hdfc.bank.in/credit-cards/regalia-credit-card',
+    annualFee:2500,
+    waiverSpendLimit:300000,
+    privileges:[
+      '2 complimentary domestic lounge vouchers every quarter after ₹1 lakh quarterly spends',
+      'Up to 6 complimentary international lounge visits per year with Priority Pass',
+      '4 reward points on every ₹200 spent',
+      'Up to 5x reward points on SmartBuy bookings',
+      'Dining discounts via Good Food Trail / Swiggy Dineout',
+      'Air accident cover and emergency overseas hospitalization cover'
+    ]
+  },
+  {
+    match:['axis magnus', 'magnus'],
+    sourceName:'Axis Bank Magnus Credit Card',
+    sourceUrl:'https://www.axis.bank.in/cards/credit-card/axis-bank-magnus-credit-card',
+    annualFee:12500,
+    waiverSpendLimit:1500000,
+    privileges:[
+      'Welcome voucher options worth ₹12,500',
+      'Unlimited complimentary international lounge visits with Priority Pass',
+      'Unlimited domestic lounge visits at select Indian airport lounges',
+      'Discounts at The Leela Palace Hotels & Resorts',
+      'Travel and stay focused premium card benefits'
+    ]
+  },
+  {
+    match:['icici amazon pay', 'amazon pay icici', 'amazon pay'],
+    sourceName:'Amazon Pay ICICI Bank Credit Card',
+    sourceUrl:'https://www.icicibank.com/offers/credit-n-debit-card-ofr/amazon-sitewide-offer',
+    annualFee:0,
+    waiverSpendLimit:null,
+    privileges:[
+      'Amazon Pay benefits tied to Prime membership status',
+      'Reward points on eligible non-EMI Amazon purchases',
+      'Offer-based instant discounts on eligible Amazon categories',
+      'Credit limit shared with existing ICICI Bank credit card when applicable',
+      'Contactless and international usage subject to ICICI Bank card controls'
+    ]
+  }
+];
+function findCreditCardBenefits(name = '', issuer = '') {
+  const lookup = normalizeLookupText(`${issuer} ${name}`);
+  return creditCardBenefitCatalog.find(card => card.match.some(term => lookup.includes(normalizeLookupText(term))));
+}
 function timeToMinutes(value = '') {
   const match = String(value || '').match(/^(\d{1,2}):(\d{2})$/);
   if (!match) return null;
@@ -167,7 +217,7 @@ async function ensureDatabase() {
   const client = new MongoClient(mongoUri);
   await client.connect();
   db = client.db(dbName);
-  const transactions = db.collection('transactions'); const schedules = db.collection('schedules'); const habits = db.collection('habits'); const habitLogs = db.collection('habitLogs'); const stockTrades = db.collection('stockTrades');
+  const transactions = db.collection('transactions'); const schedules = db.collection('schedules'); const habits = db.collection('habits'); const habitLogs = db.collection('habitLogs'); const stockTrades = db.collection('stockTrades'); const creditCards = db.collection('creditCards');
   await transactions.dropIndex('id_1').catch(error => { if (error.codeName !== 'IndexNotFound') throw error; });
   await schedules.dropIndex('id_1').catch(error => { if (error.codeName !== 'IndexNotFound') throw error; });
   await transactions.createIndex({ ownerId: 1, id: 1 }, { unique: true });
@@ -175,6 +225,7 @@ async function ensureDatabase() {
   await habits.createIndex({ ownerId: 1, id: 1 }, { unique: true });
   await habitLogs.createIndex({ ownerId: 1, habitId: 1, date: 1 }, { unique: true });
   await stockTrades.createIndex({ ownerId: 1, id: 1 }, { unique: true });
+  await creditCards.createIndex({ ownerId: 1, id: 1 }, { unique: true });
   await db.collection('sessions').createIndex({ expiresAt:1 }, { expireAfterSeconds:0 });
   return db;
 }
@@ -218,7 +269,7 @@ async function processSchedules(userId) {
 }
 
 app.get('/api/data', requireAuth, async (req, res) => {
-  try { const database = await ensureDatabase(); await ensureUserData(req.user.id); await processSchedules(req.user.id); const [transactions, schedules, categories, settings, habits, habitLogs, stockTrades] = await Promise.all([database.collection('transactions').find({ ownerId:req.user.id }, { projection:{ _id:0, ownerId:0 } }).toArray(), database.collection('schedules').find({ ownerId:req.user.id }, { projection:{ _id:0, ownerId:0 } }).toArray(), database.collection('categories').find({ ownerId:req.user.id }, { projection:{ _id:0, ownerId:0 } }).toArray(), database.collection('settings').findOne({ ownerId:req.user.id }, { projection:{ _id:0, ownerId:0 } }), database.collection('habits').find({ ownerId:req.user.id }, { projection:{ _id:0, ownerId:0 } }).toArray(), database.collection('habitLogs').find({ ownerId:req.user.id }, { projection:{ _id:0, ownerId:0 } }).toArray(), database.collection('stockTrades').find({ ownerId:req.user.id }, { projection:{ _id:0, ownerId:0 } }).toArray()]); res.json({ transactions, schedules, categories, settings:settings || defaultSettings, habits, habitLogs, stockTrades }); }
+  try { const database = await ensureDatabase(); await ensureUserData(req.user.id); await processSchedules(req.user.id); const [transactions, schedules, categories, settings, habits, habitLogs, stockTrades, creditCards] = await Promise.all([database.collection('transactions').find({ ownerId:req.user.id }, { projection:{ _id:0, ownerId:0 } }).toArray(), database.collection('schedules').find({ ownerId:req.user.id }, { projection:{ _id:0, ownerId:0 } }).toArray(), database.collection('categories').find({ ownerId:req.user.id }, { projection:{ _id:0, ownerId:0 } }).toArray(), database.collection('settings').findOne({ ownerId:req.user.id }, { projection:{ _id:0, ownerId:0 } }), database.collection('habits').find({ ownerId:req.user.id }, { projection:{ _id:0, ownerId:0 } }).toArray(), database.collection('habitLogs').find({ ownerId:req.user.id }, { projection:{ _id:0, ownerId:0 } }).toArray(), database.collection('stockTrades').find({ ownerId:req.user.id }, { projection:{ _id:0, ownerId:0 } }).toArray(), database.collection('creditCards').find({ ownerId:req.user.id }, { projection:{ _id:0, ownerId:0 } }).toArray()]); res.json({ transactions, schedules, categories, settings:settings || defaultSettings, habits, habitLogs, stockTrades, creditCards }); }
   catch (error) { res.status(500).json({ error:error.message }); }
 });
 
@@ -242,6 +293,113 @@ app.post('/api/transactions', requireAuth, async (req, res) => {
 
 app.post('/api/categories', requireAuth, async (req, res) => { try { const database = await ensureDatabase(); const { name, kind, spendGroup } = req.body; if (!name?.trim() || !['expense','loan','investment'].includes(kind)) return res.status(400).json({ error:'Category name and type are required.' }); const cleanName = name.trim(); const category = { id:`c-${Date.now()}`, ownerId:req.user.id, name:cleanName, kind, ...(kind === 'expense' ? { spendGroup:cleanSpendGroup(spendGroup, cleanName) } : {}), active:true }; await database.collection('categories').insertOne(category); const { ownerId, _id, ...publicCategory } = category; res.status(201).json(publicCategory); } catch (error) { res.status(500).json({ error:error.message }); } });
 app.put('/api/categories/:id', requireAuth, async (req, res) => { try { const database = await ensureDatabase(); const existing = await database.collection('categories').findOne({ id:req.params.id, ownerId:req.user.id }); if (!existing) return res.status(404).json({ error:'Category not found' }); const updates = {}; if (req.body.name?.trim()) updates.name=req.body.name.trim(); if (['expense','loan','investment'].includes(req.body.kind)) updates.kind=req.body.kind; const finalKind = updates.kind || existing.kind; const finalName = updates.name || existing.name; if (finalKind === 'expense') updates.spendGroup = cleanSpendGroup(req.body.spendGroup ?? existing.spendGroup, finalName); else updates.spendGroup = null; if (typeof req.body.active === 'boolean') updates.active=req.body.active; const result = await database.collection('categories').findOneAndUpdate({ id:req.params.id, ownerId:req.user.id }, { $set:updates }, { returnDocument:'after', projection:{ _id:0, ownerId:0 } }); res.json(result.value || result); } catch (error) { res.status(500).json({ error:error.message }); } });
+
+app.post('/api/credit-cards', requireAuth, async (req, res) => {
+  try {
+    const database = await ensureDatabase();
+    const name = String(req.body.name || '').trim();
+    const issuer = String(req.body.issuer || '').trim();
+    const cycleStartDay = Number(req.body.cycleStartDay);
+    const cycleEndDay = Number(req.body.cycleEndDay);
+    const dueDay = Number(req.body.dueDay);
+    const creditLimit = req.body.creditLimit === '' || req.body.creditLimit === null || req.body.creditLimit === undefined ? null : Number(req.body.creditLimit);
+    const annualFee = Number(req.body.annualFee || 0);
+    const annualFeeDate = String(req.body.annualFeeDate || '').trim();
+    const waiverSpendLimit = req.body.waiverSpendLimit === '' || req.body.waiverSpendLimit === null || req.body.waiverSpendLimit === undefined ? null : Number(req.body.waiverSpendLimit);
+    const feeFrequency = ['free','yearly'].includes(req.body.feeFrequency) ? req.body.feeFrequency : annualFee > 0 ? 'yearly' : 'free';
+    const privileges = String(req.body.privileges || '').split(/\n|,/).map(item => item.trim()).filter(Boolean).slice(0, 12);
+    const benefitsSourceName = String(req.body.benefitsSourceName || '').trim();
+    const benefitsSourceUrl = String(req.body.benefitsSourceUrl || '').trim();
+    if (!name || !issuer) return res.status(400).json({ error:'Card name and issuer are required.' });
+    if (![cycleStartDay, cycleEndDay, dueDay].every(day => Number.isInteger(day) && day >= 1 && day <= 31)) return res.status(400).json({ error:'Cycle and due days must be between 1 and 31.' });
+    if (annualFeeDate && !/^\d{4}-\d{2}-\d{2}$/.test(annualFeeDate)) return res.status(400).json({ error:'Annual fee date must be valid.' });
+    if (annualFee < 0 || (creditLimit !== null && creditLimit < 0) || (waiverSpendLimit !== null && waiverSpendLimit < 0)) return res.status(400).json({ error:'Amounts cannot be negative.' });
+    const card = { id:`cc-${Date.now()}`, ownerId:req.user.id, name, issuer, cycleStartDay, cycleEndDay, dueDay, outstanding:0, paid:0, creditLimit:Number.isFinite(creditLimit) ? creditLimit : null, annualFee:Number.isFinite(annualFee) ? annualFee : 0, annualFeeDate, feeFrequency, waiverSpendLimit:Number.isFinite(waiverSpendLimit) ? waiverSpendLimit : null, privileges, benefitsSourceName, benefitsSourceUrl, bills:[], status:'Upcoming', notes:String(req.body.notes || '').trim(), active:req.body.active !== false, createdAt:new Date(), updatedAt:new Date() };
+    await database.collection('creditCards').insertOne(card);
+    const { ownerId, _id, ...publicCard } = card;
+    res.status(201).json(publicCard);
+  } catch (error) { res.status(500).json({ error:error.message }); }
+});
+
+app.put('/api/credit-cards/:id', requireAuth, async (req, res) => {
+  try {
+    const database = await ensureDatabase();
+    const existing = await database.collection('creditCards').findOne({ id:req.params.id, ownerId:req.user.id });
+    if (!existing) return res.status(404).json({ error:'Credit card not found.' });
+    const updates = {};
+    if (typeof req.body.active === 'boolean') updates.active = req.body.active;
+    if (req.body.name !== undefined) updates.name = String(req.body.name || '').trim();
+    if (req.body.issuer !== undefined) updates.issuer = String(req.body.issuer || '').trim();
+    if (req.body.cycleStartDay !== undefined) updates.cycleStartDay = Number(req.body.cycleStartDay);
+    if (req.body.cycleEndDay !== undefined) updates.cycleEndDay = Number(req.body.cycleEndDay);
+    if (req.body.dueDay !== undefined) updates.dueDay = Number(req.body.dueDay);
+    if (req.body.creditLimit !== undefined) updates.creditLimit = req.body.creditLimit === '' || req.body.creditLimit === null ? null : Number(req.body.creditLimit);
+    if (req.body.annualFee !== undefined) updates.annualFee = Number(req.body.annualFee || 0);
+    if (req.body.annualFeeDate !== undefined) updates.annualFeeDate = String(req.body.annualFeeDate || '').trim();
+    if (req.body.waiverSpendLimit !== undefined) updates.waiverSpendLimit = req.body.waiverSpendLimit === '' || req.body.waiverSpendLimit === null ? null : Number(req.body.waiverSpendLimit);
+    if (req.body.feeFrequency !== undefined) updates.feeFrequency = ['free','yearly'].includes(req.body.feeFrequency) ? req.body.feeFrequency : Number(updates.annualFee || existing.annualFee || 0) > 0 ? 'yearly' : 'free';
+    if (req.body.privileges !== undefined) updates.privileges = String(req.body.privileges || '').split(/\n|,/).map(item => item.trim()).filter(Boolean).slice(0, 12);
+    if (req.body.benefitsSourceName !== undefined) updates.benefitsSourceName = String(req.body.benefitsSourceName || '').trim();
+    if (req.body.benefitsSourceUrl !== undefined) updates.benefitsSourceUrl = String(req.body.benefitsSourceUrl || '').trim();
+    if (req.body.notes !== undefined) updates.notes = String(req.body.notes || '').trim();
+    if (updates.name === '') return res.status(400).json({ error:'Card name is required.' });
+    if (updates.issuer === '') return res.status(400).json({ error:'Issuer is required.' });
+    const cycleDays = [updates.cycleStartDay ?? existing.cycleStartDay, updates.cycleEndDay ?? existing.cycleEndDay, updates.dueDay ?? existing.dueDay].map(Number);
+    if (!cycleDays.every(day => Number.isInteger(day) && day >= 1 && day <= 31)) return res.status(400).json({ error:'Cycle and due days must be between 1 and 31.' });
+    if (updates.annualFeeDate && !/^\d{4}-\d{2}-\d{2}$/.test(updates.annualFeeDate)) return res.status(400).json({ error:'Annual fee date must be valid.' });
+    for (const field of ['creditLimit','annualFee','waiverSpendLimit']) if (updates[field] !== undefined && updates[field] !== null && (!Number.isFinite(updates[field]) || updates[field] < 0)) return res.status(400).json({ error:'Amounts cannot be negative.' });
+    updates.updatedAt = new Date();
+    if (!Object.keys(updates).length) return res.status(400).json({ error:'No credit card updates provided.' });
+    const result = await database.collection('creditCards').findOneAndUpdate(
+      { id:req.params.id, ownerId:req.user.id },
+      { $set:updates },
+      { returnDocument:'after', projection:{ _id:0, ownerId:0 } }
+    );
+    if (!result || (!result.value && !result.id)) return res.status(404).json({ error:'Credit card not found.' });
+    res.json(result.value || result);
+  } catch (error) { res.status(500).json({ error:error.message }); }
+});
+
+app.post('/api/credit-cards/:id/bills', requireAuth, async (req, res) => {
+  try {
+    const database = await ensureDatabase();
+    const existing = await database.collection('creditCards').findOne({ id:req.params.id, ownerId:req.user.id });
+    if (!existing) return res.status(404).json({ error:'Credit card not found.' });
+    const month = normalizeMonthKey(req.body.month) || localDate().slice(0, 7);
+    const outstanding = Number(req.body.outstanding || 0);
+    const paid = Number(req.body.paid || 0);
+    const billDate = String(req.body.billDate || '').trim();
+    const paymentDate = String(req.body.paymentDate || '').trim();
+    const status = ['Upcoming','Partial','Paid'].includes(req.body.status) ? req.body.status : paid >= outstanding && outstanding > 0 ? 'Paid' : paid > 0 ? 'Partial' : 'Upcoming';
+    if (outstanding < 0 || paid < 0) return res.status(400).json({ error:'Amounts cannot be negative.' });
+    if (billDate && !/^\d{4}-\d{2}-\d{2}$/.test(billDate)) return res.status(400).json({ error:'Bill date must be valid.' });
+    if (paymentDate && !/^\d{4}-\d{2}-\d{2}$/.test(paymentDate)) return res.status(400).json({ error:'Payment date must be valid.' });
+    const bill = { month, outstanding, paid, billDate, paymentDate, status, updatedAt:new Date() };
+    const bills = Array.isArray(existing.bills) ? existing.bills.filter(item => item.month !== month) : [];
+    bills.push(bill);
+    bills.sort((a, b) => String(b.month).localeCompare(String(a.month)));
+    const result = await database.collection('creditCards').findOneAndUpdate(
+      { id:req.params.id, ownerId:req.user.id },
+      { $set:{ bills, currentCycleMonth:month, outstanding, paid, status, updatedAt:new Date() } },
+      { returnDocument:'after', projection:{ _id:0, ownerId:0 } }
+    );
+    res.json(result.value || result);
+  } catch (error) { res.status(500).json({ error:error.message }); }
+});
+
+app.post('/api/credit-card-benefits', requireAuth, async (req, res) => {
+  try {
+    const match = findCreditCardBenefits(req.body.name, req.body.issuer);
+    if (!match) return res.status(404).json({ error:'No online benefits match found for this card yet.' });
+    res.json({
+      sourceName:match.sourceName,
+      sourceUrl:match.sourceUrl,
+      annualFee:match.annualFee,
+      waiverSpendLimit:match.waiverSpendLimit,
+      privileges:match.privileges
+    });
+  } catch (error) { res.status(500).json({ error:error.message }); }
+});
 
 app.post('/api/stock-trades', requireAuth, async (req, res) => {
   try {
@@ -381,7 +539,7 @@ app.put('/api/schedules/:id', requireAuth, async (req, res) => { try { const dat
 app.get('/api/schedules/:id', requireAuth, async (req, res) => { try { const database = await ensureDatabase(); const schedule = await database.collection('schedules').findOne({ id:req.params.id, ownerId:req.user.id }, { projection:{ _id:0, ownerId:0 } }); if (!schedule) return res.status(404).json({ error:'Schedule not found' }); res.json(schedule); } catch (error) { res.status(500).json({ error:error.message }); } });
 app.delete('/api/schedules/:id', requireAuth, async (req, res) => { try { const database = await ensureDatabase(); const result = await database.collection('schedules').deleteOne({ id:req.params.id, ownerId:req.user.id }); if (!result.deletedCount) return res.status(404).json({ error:'Schedule not found' }); res.json({ ok:true }); } catch (error) { res.status(500).json({ error:error.message }); } });
 
-app.get(['/dashboard', '/transactions', '/calendar', '/schedule', '/settings', '/outflow', '/investments', '/insights', '/profile', '/habits', '/habit-insights', '/habit-manage', '/habit-checkins'], (_req, res) => {
+app.get(['/dashboard', '/transactions', '/credit-card', '/calendar', '/schedule', '/settings', '/outflow', '/investments', '/insights', '/profile', '/habits', '/habit-insights', '/habit-manage', '/habit-checkins'], (_req, res) => {
   res.setHeader('Cache-Control', 'no-store');
   res.sendFile(path.join(__dirname, 'index.html'));
 });
