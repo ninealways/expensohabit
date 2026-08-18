@@ -1,0 +1,291 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Calendar Month Comparison Mockup</title>
+  <style>
+    :root {
+      --ink:#14225a;
+      --muted:#647399;
+      --border:#e9e6f5;
+      --purple:#7857f4;
+      --peach:#ff8c72;
+      --teal:#35bfa9;
+      --green:#15937f;
+      --red:#e15b5b;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    * { box-sizing:border-box; }
+    body {
+      margin:0;
+      padding:28px;
+      color:var(--ink);
+      background:linear-gradient(135deg,#fbf4ff 0%,#fff8f5 48%,#eefbff 100%);
+    }
+    .mock-shell {
+      max-width:1220px;
+      margin:auto;
+      display:grid;
+      gap:18px;
+    }
+    .panel {
+      border:1px solid rgba(255,255,255,.88);
+      border-radius:24px;
+      background:rgba(255,255,255,.9);
+      box-shadow:0 26px 70px rgba(73,65,142,.12);
+      backdrop-filter:blur(12px);
+    }
+    .hero {
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:18px;
+      padding:24px 26px;
+      background:linear-gradient(135deg,rgba(255,255,255,.94),rgba(247,243,255,.9),rgba(238,251,255,.86));
+    }
+    .kicker {
+      margin:0 0 6px;
+      color:#8a95b5;
+      font-size:12px;
+      font-weight:900;
+      letter-spacing:.16em;
+    }
+    h1,h2,p { margin:0; }
+    h1 { font-size:30px;line-height:1.08; }
+    h2 { font-size:22px; }
+    .subtitle { margin-top:7px;color:var(--muted);font-size:15px; }
+    .button-row { display:flex;gap:10px;align-items:center; }
+    button {
+      border:0;
+      border-radius:15px;
+      padding:12px 16px;
+      color:var(--ink);
+      background:#fff;
+      font-weight:900;
+      box-shadow:0 10px 26px rgba(73,65,142,.09);
+    }
+    .primary { color:#fff;background:linear-gradient(135deg,var(--purple),var(--peach)); }
+    .calendar-comparison {
+      padding:18px;
+      display:grid;
+      gap:14px;
+    }
+    .comparison-head {
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap:14px;
+      padding-bottom:12px;
+      border-bottom:1px solid #eeeaf8;
+    }
+    .comparison-nav {
+      display:flex;
+      align-items:center;
+      gap:8px;
+      color:var(--muted);
+      font-size:11px;
+      font-weight:900;
+      text-transform:uppercase;
+      white-space:nowrap;
+    }
+    .comparison-nav button {
+      display:grid;
+      place-items:center;
+      width:30px;
+      height:30px;
+      padding:0;
+      color:var(--purple);
+      border:1px solid #ebe6fb;
+      box-shadow:none;
+    }
+    .table-wrap {
+      overflow:auto;
+      border:1px solid var(--border);
+      border-radius:18px;
+      background:linear-gradient(135deg,rgba(255,255,255,.92),rgba(250,248,255,.8));
+    }
+    table {
+      width:100%;
+      min-width:760px;
+      border-collapse:separate;
+      border-spacing:0;
+    }
+    th,td {
+      padding:10px 12px;
+      border-bottom:1px solid #eeeaf8;
+      text-align:right;
+      white-space:nowrap;
+    }
+    th {
+      position:sticky;
+      top:0;
+      z-index:2;
+      color:var(--muted);
+      background:#fbfaff;
+      font-size:11px;
+      font-weight:900;
+      text-transform:uppercase;
+      letter-spacing:.08em;
+    }
+    th:first-child,td:first-child {
+      position:sticky;
+      left:0;
+      z-index:1;
+      text-align:left;
+      color:var(--ink);
+      background:#fff;
+      font-weight:900;
+    }
+    th:first-child { z-index:3;background:#fbfaff; }
+    tbody tr:last-child td { border-bottom:0; }
+    tbody tr:hover td { background:#fbfaff; }
+    .amount-pill {
+      display:inline-flex;
+      align-items:center;
+      justify-content:flex-end;
+      min-width:92px;
+      padding:7px 10px;
+      border:1px solid #f0eef9;
+      border-radius:13px;
+      color:var(--ink);
+      background:#fff;
+      font-size:12px;
+      font-weight:900;
+      box-shadow:0 7px 16px rgba(73,65,142,.05);
+    }
+    .amount-pill.zero {
+      color:var(--green);
+      border-color:#c8f3ea;
+      background:linear-gradient(135deg,#f7fffc,#ecfbf7);
+    }
+    .amount-pill.high {
+      border-color:#ffd5cf;
+      background:linear-gradient(135deg,#fff7f4,#fff0ed);
+    }
+    .summary-row td {
+      background:#fbfaff;
+      font-weight:900;
+    }
+    .summary-row td:first-child {
+      background:#fbfaff;
+    }
+    .legend {
+      display:flex;
+      align-items:center;
+      gap:10px;
+      flex-wrap:wrap;
+      color:var(--muted);
+      font-size:11px;
+      font-weight:800;
+    }
+    .legend span {
+      display:inline-flex;
+      align-items:center;
+      gap:6px;
+    }
+    .legend i {
+      width:10px;
+      height:10px;
+      border-radius:50%;
+      display:inline-block;
+    }
+    .legend .zero-dot { background:var(--green); }
+    .legend .normal-dot { background:var(--purple); }
+    .legend .high-dot { background:var(--peach); }
+    @media (max-width:760px) {
+      body { padding:16px; }
+      .hero,.comparison-head { flex-direction:column;align-items:stretch; }
+      .button-row { flex-direction:column;align-items:stretch; }
+      .comparison-nav { justify-content:space-between; }
+      table { min-width:640px; }
+      th,td { padding:9px 8px; }
+      .amount-pill { min-width:78px;font-size:11px;padding:7px 8px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="mock-shell">
+    <section class="hero panel">
+      <div>
+        <p class="kicker">SPEND CALENDAR</p>
+        <h1>Calendar</h1>
+        <p class="subtitle">Daily spend by month, shown in a simple comparison table.</p>
+      </div>
+      <div class="button-row">
+        <button>Back to transactions</button>
+        <button class="primary">＋ Add transaction</button>
+      </div>
+    </section>
+
+    <section class="calendar-comparison panel">
+      <div class="comparison-head">
+        <div>
+          <p class="kicker">DAILY MONTH COMPARISON</p>
+          <h2>Day-wise spend</h2>
+          <p class="subtitle">Rows are dates. Columns are months. Cells show full outflow for that date.</p>
+        </div>
+        <div class="comparison-nav">
+          <button>←</button>
+          <span>May – Aug</span>
+          <button>→</button>
+        </div>
+      </div>
+
+      <div class="legend">
+        <span><i class="zero-dot"></i>₹0 day</span>
+        <span><i class="normal-dot"></i>Regular spend</span>
+        <span><i class="high-dot"></i>High spend day</span>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>May</th>
+              <th>Jun</th>
+              <th>Jul</th>
+              <th>Aug</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr class="summary-row"><td>Total</td><td><span class="amount-pill">₹1,18,240</span></td><td><span class="amount-pill">₹96,840</span></td><td><span class="amount-pill high">₹2,00,303</span></td><td><span class="amount-pill">₹1,51,708</span></td></tr>
+            <tr><td>01</td><td><span class="amount-pill">₹100</span></td><td><span class="amount-pill">₹23</span></td><td><span class="amount-pill high">₹14,317</span></td><td><span class="amount-pill zero">₹0</span></td></tr>
+            <tr><td>02</td><td><span class="amount-pill">₹126</span></td><td><span class="amount-pill zero">₹0</span></td><td><span class="amount-pill">₹844</span></td><td><span class="amount-pill">₹1,250</span></td></tr>
+            <tr><td>03</td><td><span class="amount-pill">₹123</span></td><td><span class="amount-pill">₹2,100</span></td><td><span class="amount-pill high">₹25,374</span></td><td><span class="amount-pill">₹3,600</span></td></tr>
+            <tr><td>04</td><td><span class="amount-pill zero">₹0</span></td><td><span class="amount-pill">₹1,591</span></td><td><span class="amount-pill">₹4,492</span></td><td><span class="amount-pill">₹860</span></td></tr>
+            <tr><td>05</td><td><span class="amount-pill high">₹18,420</span></td><td><span class="amount-pill">₹700</span></td><td><span class="amount-pill high">₹21,054</span></td><td><span class="amount-pill">₹5,000</span></td></tr>
+            <tr><td>06</td><td><span class="amount-pill">₹2,200</span></td><td><span class="amount-pill">₹5,600</span></td><td><span class="amount-pill">₹7,299</span></td><td><span class="amount-pill">₹6,300</span></td></tr>
+            <tr><td>07</td><td><span class="amount-pill">₹7,000</span></td><td><span class="amount-pill">₹1,100</span></td><td><span class="amount-pill">₹9,681</span></td><td><span class="amount-pill zero">₹0</span></td></tr>
+            <tr><td>08</td><td><span class="amount-pill zero">₹0</span></td><td><span class="amount-pill">₹2,821</span></td><td><span class="amount-pill">₹5,573</span></td><td><span class="amount-pill">₹4,200</span></td></tr>
+            <tr><td>09</td><td><span class="amount-pill">₹1,860</span></td><td><span class="amount-pill zero">₹0</span></td><td><span class="amount-pill">₹5,220</span></td><td><span class="amount-pill">₹3,200</span></td></tr>
+            <tr><td>10</td><td><span class="amount-pill high">₹35,861</span></td><td><span class="amount-pill">₹750</span></td><td><span class="amount-pill high">₹41,108</span></td><td><span class="amount-pill high">₹71,961</span></td></tr>
+            <tr><td>11</td><td><span class="amount-pill">₹700</span></td><td><span class="amount-pill">₹295</span></td><td><span class="amount-pill">₹7,698</span></td><td><span class="amount-pill">₹1,200</span></td></tr>
+            <tr><td>12</td><td><span class="amount-pill zero">₹0</span></td><td><span class="amount-pill">₹3,200</span></td><td><span class="amount-pill">₹2,644</span></td><td><span class="amount-pill zero">₹0</span></td></tr>
+            <tr><td>13</td><td><span class="amount-pill">₹2,100</span></td><td><span class="amount-pill">₹8,400</span></td><td><span class="amount-pill">₹3,203</span></td><td><span class="amount-pill">₹2,950</span></td></tr>
+            <tr><td>14</td><td><span class="amount-pill">₹4,000</span></td><td><span class="amount-pill">₹2,600</span></td><td><span class="amount-pill">₹3,635</span></td><td><span class="amount-pill">₹1,700</span></td></tr>
+            <tr><td>15</td><td><span class="amount-pill">₹700</span></td><td><span class="amount-pill zero">₹0</span></td><td><span class="amount-pill">₹295</span></td><td><span class="amount-pill">₹8,640</span></td></tr>
+            <tr><td>16</td><td><span class="amount-pill">₹3,500</span></td><td><span class="amount-pill">₹2,300</span></td><td><span class="amount-pill">₹8,700</span></td><td><span class="amount-pill">₹4,500</span></td></tr>
+            <tr><td>17</td><td><span class="amount-pill">₹1,250</span></td><td><span class="amount-pill">₹400</span></td><td><span class="amount-pill">₹400</span></td><td><span class="amount-pill">₹2,200</span></td></tr>
+            <tr><td>18</td><td><span class="amount-pill zero">₹0</span></td><td><span class="amount-pill">₹2,300</span></td><td><span class="amount-pill">₹2,301</span></td><td><span class="amount-pill">₹1,900</span></td></tr>
+            <tr><td>19</td><td><span class="amount-pill">₹1,591</span></td><td><span class="amount-pill">₹2,100</span></td><td><span class="amount-pill zero">₹0</span></td><td><span class="amount-pill">₹1,200</span></td></tr>
+            <tr><td>20</td><td><span class="amount-pill">₹500</span></td><td><span class="amount-pill zero">₹0</span></td><td><span class="amount-pill zero">₹0</span></td><td><span class="amount-pill">₹7,000</span></td></tr>
+            <tr><td>21</td><td><span class="amount-pill">₹2,600</span></td><td><span class="amount-pill">₹8,000</span></td><td><span class="amount-pill">₹15,844</span></td><td><span class="amount-pill">₹2,300</span></td></tr>
+            <tr><td>22</td><td><span class="amount-pill">₹3,100</span></td><td><span class="amount-pill">₹1,200</span></td><td><span class="amount-pill">₹3,363</span></td><td><span class="amount-pill">₹9,500</span></td></tr>
+            <tr><td>23</td><td><span class="amount-pill zero">₹0</span></td><td><span class="amount-pill">₹900</span></td><td><span class="amount-pill zero">₹0</span></td><td><span class="amount-pill">₹1,500</span></td></tr>
+            <tr><td>24</td><td><span class="amount-pill">₹1,500</span></td><td><span class="amount-pill">₹5,000</span></td><td><span class="amount-pill">₹1,992</span></td><td><span class="amount-pill">₹3,600</span></td></tr>
+            <tr><td>25</td><td><span class="amount-pill">₹2,400</span></td><td><span class="amount-pill zero">₹0</span></td><td><span class="amount-pill">₹1,048</span></td><td><span class="amount-pill">₹700</span></td></tr>
+            <tr><td>26</td><td><span class="amount-pill">₹1,250</span></td><td><span class="amount-pill">₹1,850</span></td><td><span class="amount-pill">₹1,185</span></td><td><span class="amount-pill zero">₹0</span></td></tr>
+            <tr><td>27</td><td><span class="amount-pill">₹900</span></td><td><span class="amount-pill">₹2,000</span></td><td><span class="amount-pill">₹1,999</span></td><td><span class="amount-pill">₹2,100</span></td></tr>
+            <tr><td>28</td><td><span class="amount-pill">₹1,100</span></td><td><span class="amount-pill">₹912</span></td><td><span class="amount-pill">₹912</span></td><td><span class="amount-pill">₹1,600</span></td></tr>
+            <tr><td>29</td><td><span class="amount-pill zero">₹0</span></td><td><span class="amount-pill">₹1,083</span></td><td><span class="amount-pill">₹1,083</span></td><td><span class="amount-pill">₹1,200</span></td></tr>
+            <tr><td>30</td><td><span class="amount-pill">₹3,200</span></td><td><span class="amount-pill">₹2,400</span></td><td><span class="amount-pill zero">₹0</span></td><td><span class="amount-pill">₹900</span></td></tr>
+            <tr><td>31</td><td><span class="amount-pill">₹750</span></td><td><span class="amount-pill zero">—</span></td><td><span class="amount-pill zero">₹0</span></td><td><span class="amount-pill">₹2,050</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+</body>
+</html>
