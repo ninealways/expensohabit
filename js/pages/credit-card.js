@@ -26,8 +26,26 @@ function creditCardPrivileges(card = {}) {
 }
 
 function creditCardBills(card = {}) {
-  const bills = Array.isArray(card.bills) ? card.bills : [];
-  return bills.slice().sort((a, b) => String(b.month).localeCompare(String(a.month)));
+  const bills = Array.isArray(card.bills) ? card.bills.slice() : [];
+  const legacyMonth = card.currentCycleMonth || '';
+  const legacyOutstanding = Number(card.outstanding || 0);
+  const legacyPaid = Number(card.paid || 0);
+  if (
+    legacyMonth &&
+    (legacyOutstanding > 0 || legacyPaid > 0) &&
+    !bills.some(bill => bill.month === legacyMonth)
+  ) {
+    bills.push({
+      month:legacyMonth,
+      outstanding:legacyOutstanding,
+      paid:legacyPaid,
+      billDate:card.billDate || '',
+      paymentDate:card.paymentDate || '',
+      status:card.status || 'Upcoming',
+      migrated:true
+    });
+  }
+  return bills.sort((a, b) => String(b.month).localeCompare(String(a.month)));
 }
 
 function latestCreditCardBill(card = {}) {

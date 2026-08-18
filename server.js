@@ -142,6 +142,10 @@ function buildStockPositions(trades = []) {
     const symbol = String(trade.symbol || '').toUpperCase();
     if (!symbol) continue;
     const row = positions[symbol] || { quantityLeft:0, openCost:0 };
+    if (trade.tradeType === 'price') {
+      positions[symbol] = row;
+      continue;
+    }
     const qty = Number(trade.quantity || 0);
     const price = Number(trade.price || 0);
     const fees = Number(trade.fees || 0);
@@ -376,6 +380,26 @@ app.post('/api/credit-cards/:id/bills', requireAuth, async (req, res) => {
     if (paymentDate && !/^\d{4}-\d{2}-\d{2}$/.test(paymentDate)) return res.status(400).json({ error:'Payment date must be valid.' });
     const bill = { month, outstanding, paid, billDate, paymentDate, status, updatedAt:new Date() };
     const bills = Array.isArray(existing.bills) ? existing.bills.filter(item => item.month !== month) : [];
+    const legacyMonth = normalizeMonthKey(existing.currentCycleMonth);
+    const legacyOutstanding = Number(existing.outstanding || 0);
+    const legacyPaid = Number(existing.paid || 0);
+    if (
+      legacyMonth &&
+      legacyMonth !== month &&
+      (legacyOutstanding > 0 || legacyPaid > 0) &&
+      !bills.some(item => normalizeMonthKey(item.month) === legacyMonth)
+    ) {
+      bills.push({
+        month:legacyMonth,
+        outstanding:legacyOutstanding,
+        paid:legacyPaid,
+        billDate:String(existing.billDate || '').trim(),
+        paymentDate:String(existing.paymentDate || '').trim(),
+        status:['Upcoming','Partial','Paid'].includes(existing.status) ? existing.status : legacyPaid >= legacyOutstanding && legacyOutstanding > 0 ? 'Paid' : legacyPaid > 0 ? 'Partial' : 'Upcoming',
+        migrated:true,
+        updatedAt:existing.updatedAt || new Date()
+      });
+    }
     bills.push(bill);
     bills.sort((a, b) => String(b.month).localeCompare(String(a.month)));
     const result = await database.collection('creditCards').findOneAndUpdate(
@@ -405,14 +429,19 @@ app.post('/api/stock-trades', requireAuth, async (req, res) => {
   try {
     const database = await ensureDatabase();
     const symbol = String(req.body.symbol || '').trim().toUpperCase();
-    const tradeType = req.body.tradeType === 'sell' ? 'sell' : 'buy';
+    const tradeType = ['buy','sell','price'].includes(req.body.tradeType) ? req.body.tradeType : 'buy';
     const quantity = Number(req.body.quantity);
     const price = Number(req.body.price);
     const fees = Number(req.body.fees || 0);
     const currentPrice = req.body.currentPrice === '' || req.body.currentPrice === null || req.body.currentPrice === undefined ? null : Number(req.body.currentPrice);
     const tradeDate = String(req.body.tradeDate || '');
-    if (!symbol || !quantity || quantity <= 0 || !price || price <= 0 || !/^\d{4}-\d{2}-\d{2}$/.test(tradeDate)) return res.status(400).json({ error:'Symbol, quantity, price, and valid trade date are required.' });
-    const trade = { id:`st-${Date.now()}`, ownerId:req.user.id, symbol, companyName:String(req.body.companyName || '').trim(), tradeType, quantity, price, fees:Number.isFinite(fees) ? fees : 0, currentPrice:Number.isFinite(currentPrice) ? currentPrice : null, tradeDate, notes:String(req.body.notes || '').trim(), createdAt:new Date() };
+    if (!symbol || !/^\d{4}-\d{2}-\d{2}$/.test(tradeDate)) return res.status(400).json({ error:'Symbol and valid date are required.' });
+    if (tradeType === 'price') {
+      if (!Number.isFinite(currentPrice) || currentPrice <= 0) return res.status(400).json({ error:'Current price is required.' });
+    } else if (!quantity || quantity <= 0 || !price || price <= 0) {
+      return res.status(400).json({ error:'Quantity and price are required.' });
+    }
+    const trade = { id:`st-${Date.now()}`, ownerId:req.user.id, symbol, companyName:String(req.body.companyName || '').trim(), tradeType, quantity:tradeType === 'price' ? 0 : quantity, price:tradeType === 'price' ? 0 : price, fees:tradeType === 'price' ? 0 : Number.isFinite(fees) ? fees : 0, currentPrice:Number.isFinite(currentPrice) ? currentPrice : null, tradeDate, notes:String(req.body.notes || '').trim(), createdAt:new Date() };
     if (tradeType === 'sell') {
       const existingTrades = await database.collection('stockTrades').find({ ownerId:req.user.id, symbol }, { projection:{ _id:0, ownerId:0 } }).toArray();
       const validation = buildStockPositions([...existingTrades, trade]);

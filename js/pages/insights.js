@@ -165,6 +165,52 @@ function buildKeyInsights(current, previous, sums, fixedTotal) {
     smallRepeated ? `${smallRepeated[0]} totals ${money(smallRepeated[1])}; review if this is a recurring leak` : 'No small repeated spend pattern found yet'
   ];
 }
+function moneyFlowMonthSummaries(endMonth, count = 6) {
+  const end = new Date(`${endMonth || currentMonthKey()}-01T00:00:00`);
+  return Array.from({ length:count }, (_, index) => {
+    const monthDate = addMonthsToDate(end, index - (count - 1));
+    const month = monthInputKey(monthDate);
+    const items = data.transactions.filter(item => item.date?.slice(0, 7) === month);
+    const expenses = items.filter(item => item.type === 'expense');
+    const loans = items.filter(item => item.type === 'loan');
+    const investments = items.filter(item => item.type === 'investment');
+    return {
+      month,
+      label:monthDate.toLocaleDateString('en-IN', { month:'short' }),
+      total:sumAmount(expenses) + sumAmount(loans) + sumAmount(investments),
+      real:sumAmount(expenses.filter(item => item.includeInReal !== false)),
+      loan:sumAmount(loans),
+      investment:sumAmount(investments),
+      fixed:sumAmount(items.filter(item => item.scheduleId || item.type === 'loan' || item.type === 'investment'))
+    };
+  });
+}
+function moneyFlowChange(current, previous) {
+  const diff = current - previous;
+  if (!previous && !current) return { label:'—', cls:'flat', title:'No change' };
+  if (!previous) return { label:'New', cls:'up', title:`New outflow of ${money(current)}` };
+  const pctChange = Math.round((diff / previous) * 100);
+  if (!pctChange) return { label:'0%', cls:'flat', title:'No meaningful change' };
+  return { label:`${pctChange > 0 ? '▲' : '▼'} ${Math.abs(pctChange)}%`, cls:pctChange > 0 ? 'up' : 'down', title:`${money(Math.abs(diff))} ${pctChange > 0 ? 'higher' : 'lower'} than previous month` };
+}
+function renderMoneyFlowHistory(endMonth, offset = moneyFlowHistoryOffset) {
+  const safeOffset = Math.max(0, Math.min(8, Number(offset) || 0));
+  const baseDate = new Date(`${endMonth || currentMonthKey()}-01T00:00:00`);
+  const windowEndMonth = monthInputKey(addMonthsToDate(baseDate, -safeOffset));
+  const history = moneyFlowMonthSummaries(windowEndMonth, 5);
+  const months = history.slice(1);
+  const firstLabel = months[0]?.label || '';
+  const lastLabel = months[months.length - 1]?.label || '';
+  const nav = `<div class="flow-history-nav"><button type="button" data-money-flow-history-nav="back" ${safeOffset >= 8 ? 'disabled' : ''}>←</button><span>${firstLabel} – ${lastLabel}</span><button type="button" data-money-flow-history-nav="forward" ${safeOffset <= 0 ? 'disabled' : ''}>→</button></div>`;
+  const rows = [
+    ['Total outflow', 'total'],
+    ['Real expenses', 'real'],
+    ['Loans', 'loan'],
+    ['Investments', 'investment'],
+    ['Fixed commitments', 'fixed']
+  ];
+  return `<div class="money-flow-history">${nav}<div class="money-flow-history-scroll"><table><thead><tr><th>Flow</th>${months.map(month => `<th>${month.label}</th>`).join('')}</tr></thead><tbody>${rows.map(([label, key]) => `<tr><td>${label}</td>${months.map((month, index) => { const previous = history[index]; const change = moneyFlowChange(month[key], previous[key]); const changeClass = key === 'investment' && change.cls === 'up' ? 'positive' : change.cls; const share = month.total ? percent(month[key], month.total) : 0; return `<td><span class="flow-history-cell" title="${htmlAttr(`${change.title} · ${share}% of total outflow`)}"><span class="flow-history-main"><b>${money(month[key])}</b><small>${share}%</small><em class="${changeClass}">${change.label}</em></span></span></td>`; }).join('')}</tr>`).join('')}</tbody></table></div></div>`;
+}
 function renderInsightsPage(filter = insightFilter) {
   const range = insightRange(filter);
   const current = insightTransactions(filter);
@@ -240,17 +286,20 @@ function renderInsightsPage(filter = insightFilter) {
       <div class="panel money-flow-panel"><div class="panel-heading"><div><p class="panel-kicker">MONEY FLOW</p><h3>Money flow</h3><p class="subtitle">How your money is distributed</p></div><button class="ghost-button" data-page="outflow">View report</button></div><div class="flow-stage radial-split"><div class="flow-total"><small>Total outflow</small><strong>${money(sums.total)}</strong></div><div class="flow-lines">${moneyFlowRows.map((row, index) => `<div class="flow-row ${row.cls}"><span class="flow-row-icon">${svgIcon(['bag','receipt','pie','lock'][index])}</span><div class="flow-row-text"><b>${row.label}</b><small>${row.note}</small></div><strong>${money(row.value)}</strong><em>${percent(row.value, sums.total)}%</em></div>`).join('')}</div></div><p class="flow-note"><span>ⓘ</span> Loans and investments are shown in the flow but excluded from real-expense ranking.</p></div>
       ${renderInsightsCategoryPanel(range, expenseItems, categoryEntries, categoryChartTotal, categoryRows)}
     </section>
+    <section class="insights-flow-history-grid">
+      <div class="panel money-flow-history-panel"><div class="panel-heading"><div><p class="panel-kicker">FLOW TREND</p><h3>4-month movement</h3><p class="subtitle">Amount, share %, and month-over-month change. Browse the last 12 months.</p></div></div>${renderMoneyFlowHistory(range.to.slice(0, 7))}</div>
+      <div class="panel priority-panel"><div class="panel-heading"><div><p class="panel-kicker">SPEND PRIORITY</p><h3>Need vs optional</h3><p class="subtitle">Only real expenses. Loans and investments are excluded.</p></div><button class="ghost-button" data-page="settings">Classify</button></div>${renderSpendPriorityChart(expenseItems)}</div>
+    </section>
     <section class="insights-lower-grid">
       <div class="panel heatmap-panel"><div class="panel-heading"><div><p class="panel-kicker">WEEKLY PATTERN</p><h3>Category heatmap</h3></div></div><div class="heatmap-head"><span></span><span>W1</span><span>W2</span><span>W3</span><span>W4</span><span>W5</span></div>${heatCategories.length ? heatCategories.map(category => `<div class="heatmap-row"><b>${category}</b>${[1,2,3,4,5].map(week => { const value = heatValues[`${category}-${week}`] || 0; return `<span title="${category} week ${week}: ${money(value)}" style="opacity:${value ? Math.max(.25, value / heatMax) : .12}"></span>`; }).join('')}</div>`).join('') : '<p class="empty-state">Add real expenses to populate the heatmap.</p>'}<div class="heatmap-scale"><small>Low</small><i></i><small>High</small></div></div>
       <div class="panel split-panel"><div class="panel-heading"><div><p class="panel-kicker">STRUCTURE</p><h3>Fixed vs variable</h3></div></div><div class="donut" style="--fixed:${percent(fixedTotal, sums.total) * 3.6}deg"><div><strong>${percent(fixedTotal, sums.total)}%</strong><small>Fixed</small></div></div><div class="split-legend"><span><i class="legend-dot purple"></i>Fixed / recurring <b>${money(fixedTotal)}</b></span><span><i class="legend-dot amber"></i>Variable <b>${money(variableTotal)}</b></span></div></div>
       <div class="panel velocity-panel"><div class="panel-heading"><div><p class="panel-kicker">SPEND VELOCITY</p><h3>Pace check</h3></div></div><div class="velocity-meter"><div class="velocity-ring" style="--pace:${Math.min(100, velocityTargetPct) * 3.6}deg"><strong>${velocityTargetPct}%</strong><small>of target</small></div><div class="velocity-copy"><p class="velocity-status ${velocity.statusTone}">${velocity.status}</p><b>${money(sums.real)}</b><div class="velocity-detail-list"><span><i>${svgIcon('bag')}</i><span class="velocity-text">Actual real spend so far <b>${money(sums.real)}</b></span></span><span><i>${svgIcon('insights')}</i><span class="velocity-text">Projected month-end <b class="${velocity.statusTone}">${money(velocity.projected)}</b></span></span><span><i>${svgIcon('tag')}</i><span class="velocity-text">Target <b>${money(velocity.target)}</b>${velocity.months > 1 ? ` · Avg monthly <b>${money(velocity.averageMonthlyBudget)}</b>` : ''}</span></span><span><i>${svgIcon('bolt')}</i><span class="velocity-text">Daily budget <b>${money(velocity.dailyBudget)}</b><small>Actual <b>${money(velocity.daily)}</b> per active day</small></span></span></div></div></div></div>
-      <div class="panel priority-panel"><div class="panel-heading"><div><p class="panel-kicker">SPEND PRIORITY</p><h3>Need vs optional</h3><p class="subtitle">Only real expenses. Loans and investments are excluded.</p></div><button class="ghost-button" data-page="settings">Classify</button></div>${renderSpendPriorityChart(expenseItems)}</div>
+      <div class="panel trend-panel"><div class="panel-heading"><div><p class="panel-kicker">MONTHLY TREND</p><h3>Category trend</h3></div></div>${renderCategoryTrends(groups.expense.filter(t => t.includeInReal !== false), range, currentCats)}</div>
       <div class="panel movers-panel"><div class="panel-heading"><div><p class="panel-kicker">CHANGE</p><h3>Top movers</h3></div></div><table class="outflow-table"><thead><tr><th>Category</th><th>This period</th><th>Change</th></tr></thead><tbody>${topMovers.length ? topMovers.map(item => `<tr><td>${item.category}</td><td>${money(item.current)}</td><td><span class="change-chip ${item.change >= 0 ? 'up' : 'down'}">${item.change >= 0 ? '▲' : '▼'} ${money(Math.abs(item.change))}</span></td></tr>`).join('') : '<tr><td colspan="3">No comparison yet.</td></tr>'}</tbody></table></div>
       <div class="panel recurring-panel"><div class="panel-heading"><div><p class="panel-kicker">COMMITMENTS</p><h3>Recurring commitments</h3></div><button class="ghost-button" data-page="schedule">Manage</button></div><div class="commitment-list">${scheduled.length ? scheduled.map(schedule => `<div class="commitment-item"><span class="upcoming-icon ${schedule.type === 'loan' ? 'amber-bg' : schedule.type === 'investment' ? 'teal-bg' : 'purple-bg'}">${svgIcon(schedule.type === 'loan' ? 'receipt' : schedule.type === 'investment' ? 'pie' : 'bag')}</span><div><b>${schedule.subcategory}</b><small>${scheduleWhen(schedule)}</small></div><strong>${money(schedule.amount)}</strong></div>`).join('') : '<p class="empty-state">No schedules configured.</p>'}</div></div>
     </section>
     <section class="insights-extra-grid">
       <div class="panel alerts-panel"><div class="panel-heading"><div><p class="panel-kicker">UNUSUAL SPEND</p><h3>Alerts</h3></div></div><div class="alert-list">${unusualAlerts.length ? unusualAlerts.map(alert => `<div class="alert-item"><div><span>${alert.type}</span><b>${alert.title}</b></div><strong>${money(alert.value)}</strong><small>${alert.reason}</small><small>${alert.detail}</small><em>${alert.action}</em></div>`).join('') : '<p class="empty-state">No unusual category or day spikes found for this range.</p>'}</div></div>
-      <div class="panel trend-panel"><div class="panel-heading"><div><p class="panel-kicker">MONTHLY TREND</p><h3>Category trend</h3></div></div>${renderCategoryTrends(groups.expense.filter(t => t.includeInReal !== false), range, currentCats)}</div>
       <div class="panel insight-list-panel"><div class="panel-heading"><div><p class="panel-kicker">ACTIONABLE</p><h3>Key insights</h3></div></div><div class="key-insight-list">${keyInsights.map((text, index) => `<div class="key-insight"><span>${svgIcon(['fork','calendar','car','tag'][index])}</span><p>${text}</p></div>`).join('')}</div><button class="primary-button insight-wide-button" data-page="investments">View investments</button></div>
     </section>
   </article>`;
