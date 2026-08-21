@@ -131,6 +131,7 @@ function defaultSpendGroup(name = '') {
   return 'need';
 }
 function cleanSpendGroup(value, name = '') { return validSpendGroups.includes(value) ? value : defaultSpendGroup(name); }
+function cleanPaymentMode(value) { return ['cash','bank','upi','credit_card'].includes(value) ? value : 'upi'; }
 function buildStockPositions(trades = []) {
   const positions = {};
   const sorted = trades.slice().sort((a, b) => {
@@ -267,7 +268,7 @@ async function processSchedules(userId) {
       const periodKey = dueDate; if ((schedule.skippedMonths || []).includes(periodKey)) continue;
       const exists = await transactions.findOne({ ownerId:userId, scheduleId:schedule.id, $or:[{ periodKey }, { date:dueDate }] });
       if (exists) continue;
-      await transactions.insertOne({ id:`auto-${schedule.id}-${periodKey}`, ownerId:userId, scheduleId:schedule.id, periodKey, type:schedule.type, amount:schedule.amount, category:schedule.category, subcategory:schedule.subcategory, date:dueDate, note:'Auto-added from schedule', includeInReal:schedule.type === 'expense' });
+      await transactions.insertOne({ id:`auto-${schedule.id}-${periodKey}`, ownerId:userId, scheduleId:schedule.id, periodKey, type:schedule.type, amount:schedule.amount, category:schedule.category, subcategory:schedule.subcategory, date:dueDate, note:'Auto-added from schedule', includeInReal:schedule.type === 'expense', ...(schedule.type === 'expense' ? { paymentMode:cleanPaymentMode(schedule.paymentMode), creditCardId:schedule.creditCardId || '', creditCardName:schedule.creditCardName || '' } : {}) });
     }
   }
 }
@@ -291,7 +292,7 @@ app.put('/api/settings', requireAuth, async (req, res) => {
 });
 
 app.post('/api/transactions', requireAuth, async (req, res) => {
-  try { const database = await ensureDatabase(); const { transaction, recurring, frequency, dueDays, endDate, originalAmount, remainingPrincipal, annualRate, interestType, amountInvestedToDate, currentValue, investmentValuationDate, amountWithdrawn, expectedAnnualRate, projectionEndDate } = req.body; if (!transaction?.amount || !transaction?.type) return res.status(400).json({ error:'Invalid transaction' }); transaction.ownerId=req.user.id; if (recurring) { if (endDate && endDate < transaction.date) return res.status(400).json({ error:'Schedule end date must be after the transaction date.' }); const cleanDueDays = Array.isArray(dueDays) ? dueDays.map(Number).filter(day => day >= 1 && day <= 31).sort((a,b) => a - b) : [Number(transaction.date.slice(-2))]; if (frequency === 'BiMonthly' && cleanDueDays.length < 2) return res.status(400).json({ error:'Select two bi-monthly dates.' }); transaction.scheduleId=`s-${Date.now()}`; await database.collection('schedules').insertOne({ id:transaction.scheduleId, ownerId:req.user.id, type:transaction.type, amount:transaction.amount, category:transaction.category, subcategory:transaction.subcategory, startDate:transaction.date, dueDay:cleanDueDays[0], dueDays:cleanDueDays, frequency:frequency || 'Monthly', autoAdd:true, ...(endDate ? { endDate } : {}), ...(transaction.type === 'loan' ? { originalAmount, remainingPrincipal, annualRate, interestType:interestType === 'floating' ? 'floating' : 'fixed' } : {}), ...(transaction.type === 'investment' ? { amountInvestedToDate, currentValue, investmentValuationDate, amountWithdrawn, expectedAnnualRate, projectionEndDate } : {}) }); } await database.collection('transactions').insertOne(transaction); res.status(201).json(transaction); }
+  try { const database = await ensureDatabase(); const { transaction, recurring, frequency, dueDays, endDate, originalAmount, remainingPrincipal, annualRate, interestType, amountInvestedToDate, currentValue, investmentValuationDate, amountWithdrawn, expectedAnnualRate, projectionEndDate } = req.body; if (!transaction?.amount || !transaction?.type) return res.status(400).json({ error:'Invalid transaction' }); transaction.ownerId=req.user.id; if (transaction.type !== 'expense') { delete transaction.paymentMode; delete transaction.creditCardId; delete transaction.creditCardName; } else { transaction.paymentMode = cleanPaymentMode(transaction.paymentMode); if (transaction.paymentMode !== 'credit_card') { transaction.creditCardId = ''; transaction.creditCardName = ''; } } if (recurring) { if (endDate && endDate < transaction.date) return res.status(400).json({ error:'Schedule end date must be after the transaction date.' }); const cleanDueDays = Array.isArray(dueDays) ? dueDays.map(Number).filter(day => day >= 1 && day <= 31).sort((a,b) => a - b) : [Number(transaction.date.slice(-2))]; if (frequency === 'BiMonthly' && cleanDueDays.length < 2) return res.status(400).json({ error:'Select two bi-monthly dates.' }); transaction.scheduleId=`s-${Date.now()}`; await database.collection('schedules').insertOne({ id:transaction.scheduleId, ownerId:req.user.id, type:transaction.type, amount:transaction.amount, category:transaction.category, subcategory:transaction.subcategory, startDate:transaction.date, dueDay:cleanDueDays[0], dueDays:cleanDueDays, frequency:frequency || 'Monthly', autoAdd:true, ...(endDate ? { endDate } : {}), ...(transaction.type === 'expense' ? { paymentMode:transaction.paymentMode, creditCardId:transaction.creditCardId || '', creditCardName:transaction.creditCardName || '' } : {}), ...(transaction.type === 'loan' ? { originalAmount, remainingPrincipal, annualRate, interestType:interestType === 'floating' ? 'floating' : 'fixed' } : {}), ...(transaction.type === 'investment' ? { amountInvestedToDate, currentValue, investmentValuationDate, amountWithdrawn, expectedAnnualRate, projectionEndDate } : {}) }); } await database.collection('transactions').insertOne(transaction); res.status(201).json(transaction); }
   catch (error) { res.status(500).json({ error:error.message }); }
 });
 
@@ -540,13 +541,16 @@ app.delete('/api/habits/:id', requireAuth, async (req, res) => {
 app.post('/api/habit-logs', requireAuth, async (req, res) => {
   try {
     const database = await ensureDatabase();
-    const { habitId, date, value, completed, note, sleepStart, sleepEnd } = req.body;
+    const { habitId, date, value, completed, note, sleepStart, sleepEnd, bookTitle, bookStatus, bookNote, bookRating } = req.body;
     if (!habitId || !/^\d{4}-\d{2}-\d{2}$/.test(String(date || ''))) return res.status(400).json({ error:'Habit and date are required.' });
     const habit = await database.collection('habits').findOne({ id:habitId, ownerId:req.user.id });
     if (!habit) return res.status(404).json({ error:'Habit not found.' });
     const sleepValue = sleepStart && sleepEnd ? sleepHours(sleepStart, sleepEnd) : null;
     const numericValue = sleepValue !== null ? sleepValue : value === '' || value === null || value === undefined ? 0 : Number(value) || 0;
-    const log = { id:`hl-${habitId}-${date}`, ownerId:req.user.id, habitId, date, value:numericValue, completed:typeof completed === 'boolean' ? completed : numericValue >= Number(habit.target || 1), note:note?.trim() || '', ...(sleepValue !== null ? { sleepStart, sleepEnd } : {}), updatedAt:new Date() };
+    const cleanBookStatus = ['reading', 'completed', 'paused'].includes(bookStatus) ? bookStatus : '';
+    const isReadingHabit = String(`${habit.name || ''} ${habit.icon || ''}`).toLowerCase().includes('read') || habit.icon === 'book';
+    const cleanBookRating = Number(bookRating || 0);
+    const log = { id:`hl-${habitId}-${date}`, ownerId:req.user.id, habitId, date, value:numericValue, completed:typeof completed === 'boolean' ? completed : numericValue >= Number(habit.target || 1), note:note?.trim() || '', ...(sleepValue !== null ? { sleepStart, sleepEnd } : {}), ...(isReadingHabit || bookTitle || cleanBookStatus || bookNote || cleanBookRating ? { bookTitle:String(bookTitle || '').trim(), bookStatus:cleanBookStatus || (bookTitle ? 'reading' : ''), bookNote:String(bookNote || '').trim(), bookRating:cleanBookStatus === 'completed' && cleanBookRating >= 1 && cleanBookRating <= 5 ? cleanBookRating : '' } : {}), updatedAt:new Date() };
     await database.collection('habitLogs').updateOne({ ownerId:req.user.id, habitId, date }, { $set:log }, { upsert:true });
     const { ownerId, _id, ...publicLog } = log;
     res.json(publicLog);
