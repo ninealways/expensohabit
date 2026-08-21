@@ -94,8 +94,16 @@ function transactionResultsMeta(rows = filteredTransactions(), total = sumAmount
   return `${rows.length} entries · ${money(total)} in selected results`;
 }
 
+function transactionPaymentLabel(transaction) {
+  if (transaction.type !== 'expense') return '—';
+  if (transaction.paymentMode === 'credit_card') return `Credit card${transaction.creditCardName ? ` · ${transaction.creditCardName}` : ''}`;
+  if (transaction.paymentMode === 'bank') return 'Bank';
+  if (transaction.paymentMode === 'upi') return 'UPI';
+  return 'UPI';
+}
+
 function renderTransactionResultsTable(rows = filteredTransactions()) {
-  return `<div class="table-scroll"><table class="data-table"><thead><tr><th>Date</th><th>Description</th><th>Type</th><th>Category</th><th>Amount</th><th></th></tr></thead><tbody>${rows.length ? rows.map(t => `<tr><td>${t.date}</td><td><b>${t.subcategory || t.category}</b><br><small>${t.note || 'No note'}</small></td><td><span class="type-badge ${t.type}">${t.type}</span></td><td>${t.category}</td><td>${money(t.amount)}</td><td><div class="row-actions"><button class="table-actions" data-action="edit" data-id="${t.id}">Edit</button><button class="table-actions delete-action" data-action="delete" data-id="${t.id}">Delete</button></div></td></tr>`).join('') : '<tr><td colspan="6"><p class="empty-state">No transactions match the selected range and filters.</p></td></tr>'}</tbody></table></div>`;
+  return `<div class="table-scroll"><table class="data-table"><thead><tr><th>Date</th><th>Description</th><th>Type</th><th>Category</th><th>Payment</th><th>Amount</th><th></th></tr></thead><tbody>${rows.length ? rows.map(t => `<tr><td>${t.date}</td><td><b>${t.subcategory || t.category}</b><br><small>${t.note || 'No note'}</small></td><td><span class="type-badge ${t.type}">${t.type}</span></td><td>${t.category}</td><td><small>${transactionPaymentLabel(t)}</small></td><td>${money(t.amount)}</td><td><div class="row-actions"><button class="table-actions" data-action="edit" data-id="${t.id}">Edit</button><button class="table-actions delete-action" data-action="delete" data-id="${t.id}">Delete</button></div></td></tr>`).join('') : '<tr><td colspan="7"><p class="empty-state">No transactions match the selected range and filters.</p></td></tr>'}</tbody></table></div>`;
 }
 
 function refreshTransactionResultsOnly() {

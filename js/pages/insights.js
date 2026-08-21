@@ -97,6 +97,35 @@ function renderSpendPriorityChart(items) {
   const essential = (totals.need || 0) + (totals.commitment || 0);
   return `<div class="priority-chart"><div class="priority-stack">${rows.map(row => `<span style="--w:${row.value / total * 100}%;--c:${row.color}" title="${row.label}: ${money(row.value)}"></span>`).join('')}</div><div class="priority-summary"><div><small>Essential</small><b>${money(essential)}</b><em>${percent(essential, total)}%</em></div><div><small>Optional</small><b>${money(optional)}</b><em>${percent(optional, total)}%</em></div><div><small>Growth</small><b>${money(totals.growth || 0)}</b><em>${percent(totals.growth || 0, total)}%</em></div></div><div class="priority-list">${rows.map(row => `<div><span style="--c:${row.color}">${svgIcon(row.icon)}</span><b>${row.label}</b><strong>${money(row.value)}</strong><em>${percent(row.value, total)}%</em></div>`).join('')}</div></div>`;
 }
+function renderPaymentSourceChart(items) {
+  const creditItems = items.filter(item => item.paymentMode === 'credit_card');
+  const totals = items.reduce((acc, item) => {
+    const key = ['cash','bank','upi','credit_card'].includes(item.paymentMode) ? item.paymentMode : 'upi';
+    acc[key] = (acc[key] || 0) + Number(item.amount || 0);
+    return acc;
+  }, { cash:0, bank:0, upi:0, credit_card:0 });
+  const total = sumAmount(items);
+  if (!total) return '<p class="empty-state">Tag expenses as cash, bank, UPI, or credit card to see payment mix.</p>';
+  const cardTotal = totals.credit_card || 0;
+  const cardRows = Object.entries(creditItems.reduce((acc, item) => {
+    const key = item.creditCardName || (data.creditCards || []).find(card => card.id === item.creditCardId)?.name || 'Credit card';
+    acc[key] = (acc[key] || 0) + Number(item.amount || 0);
+    return acc;
+  }, {})).sort((a, b) => b[1] - a[1]).slice(0, 4);
+  const sourceRows = [
+    { key:'cash', label:'Cash', icon:'rupee', color:'purple-bg' },
+    { key:'bank', label:'Bank', icon:'lock', color:'blue-bg' },
+    { key:'upi', label:'UPI', icon:'bolt', color:'teal-bg' },
+    { key:'credit_card', label:'Credit card', icon:'receipt', color:'amber-bg' }
+  ].filter(row => totals[row.key] || row.key === 'cash');
+  return `<div class="payment-source-chart">
+    <div class="payment-source-ring" style="--card:${percent(cardTotal, total) * 3.6}deg"><div><strong>${percent(cardTotal, total)}%</strong><small>Credit card</small></div></div>
+    <div class="payment-source-summary">
+      ${sourceRows.map(row => `<div><span class="map-icon ${row.color}">${svgIcon(row.icon)}</span><b>${row.label}</b><strong>${money(totals[row.key] || 0)}</strong><em>${percent(totals[row.key] || 0, total)}%</em></div>`).join('')}
+    </div>
+    <div class="payment-card-list">${cardRows.length ? cardRows.map(([name, value]) => `<span><b>${esc(name)}</b><strong>${money(value)}</strong><em>${percent(value, cardTotal)}%</em></span>`).join('') : '<small class="subtitle">No card-tagged expenses in this range.</small>'}</div>
+  </div>`;
+}
 function daysBetweenInclusive(from, to) { return Math.max(1, Math.round((new Date(`${to}T00:00:00`) - new Date(`${from}T00:00:00`)) / 86400000) + 1); }
 function budgetForMonth(month) {
   const settings = normalizeSettings(data.settings);
@@ -283,7 +312,7 @@ function renderInsightsPage(filter = insightFilter) {
       ${renderInsightFilters(filter)}
     </section>
     <section class="insights-grid-main">
-      <div class="panel money-flow-panel"><div class="panel-heading"><div><p class="panel-kicker">MONEY FLOW</p><h3>Money flow</h3><p class="subtitle">How your money is distributed</p></div><button class="ghost-button" data-page="outflow">View report</button></div><div class="flow-stage radial-split"><div class="flow-total"><small>Total outflow</small><strong>${money(sums.total)}</strong></div><div class="flow-lines">${moneyFlowRows.map((row, index) => `<div class="flow-row ${row.cls}"><span class="flow-row-icon">${svgIcon(['bag','receipt','pie','lock'][index])}</span><div class="flow-row-text"><b>${row.label}</b><small>${row.note}</small></div><strong>${money(row.value)}</strong><em>${percent(row.value, sums.total)}%</em></div>`).join('')}</div></div><p class="flow-note"><span>ⓘ</span> Loans and investments are shown in the flow but excluded from real-expense ranking.</p></div>
+      <div class="panel money-flow-panel"><div class="panel-heading"><div><p class="panel-kicker">MONEY FLOW</p><h3>Money flow</h3><p class="subtitle">How your money is distributed</p></div><button class="ghost-button" data-page="outflow">View report</button></div><div class="flow-stage radial-split"><div class="flow-total"><small>Total outflow</small><strong>${money(sums.total)}</strong></div><div class="flow-lines">${moneyFlowRows.map((row, index) => `<div class="flow-row ${row.cls}"><span class="flow-row-icon">${svgIcon(['bag','receipt','pie','lock'][index])}</span><div class="flow-row-text"><b>${row.label}</b><small>${row.note}</small></div><strong>${money(row.value)}</strong><em>${percent(row.value, sums.total)}%</em></div>`).join('')}</div></div><div class="money-flow-payment"><div><p class="panel-kicker">PAYMENT MIX</p><h4>Credit card vs cash</h4></div>${renderPaymentSourceChart(expenseItems)}</div><p class="flow-note"><span>ⓘ</span> Loans and investments are shown in the flow but excluded from real-expense ranking.</p></div>
       ${renderInsightsCategoryPanel(range, expenseItems, categoryEntries, categoryChartTotal, categoryRows)}
     </section>
     <section class="insights-flow-history-grid">

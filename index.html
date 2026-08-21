@@ -10,7 +10,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="vendor/flatpickr/flatpickr.min.css" />
     <link rel="stylesheet" href="vendor/flatpickr/plugins/monthSelect/style.css" />
-    <link rel="stylesheet" href="styles.css?v=20260818-01" />
+    <link rel="stylesheet" href="styles.css?v=20260821-04" />
   </head>
   <body class="app-booting">
     <svg class="icon-sprite" aria-hidden="true">
@@ -210,6 +210,11 @@
           <label>Amount (₹)<input name="amount" type="number" min="1" step="1" placeholder="0" required /></label>
           <div class="form-row"><label>Category<select name="category" id="categoryInput"></select></label><label>Subcategory<input name="subcategory" placeholder="Optional" /></label></div>
           <div class="form-row"><label>Date<input name="date" type="text" data-picker="date" placeholder="Select date" required /></label><label>Note<input name="note" placeholder="What was this for?" /></label></div>
+          <div class="schedule-detail-section payment-source-section" id="paymentSourceSection">
+            <p class="form-section-title">Payment source</p>
+            <div class="form-row"><label>Paid from<select name="paymentMode"><option value="upi">UPI</option><option value="cash">Cash</option><option value="bank">Bank</option><option value="credit_card">Credit card</option></select></label><label id="creditCardSourceRow">Credit card<select name="creditCardId" id="creditCardSourceInput"></select></label></div>
+            <small class="form-help">Used only for expense analysis. This does not change credit card bills or totals automatically.</small>
+          </div>
           <label class="switch-line"><span><b>Include in Real Expenses</b><small>Turn off for loans, investments, or excluded items.</small></span><input class="switch" name="includeInReal" type="checkbox" checked /></label>
           <label class="switch-line"><span><b>Recurring schedule</b><small>Automatically add this when the date arrives.</small></span><input class="switch" name="recurring" type="checkbox" /></label>
           <label class="schedule-end-row" id="scheduleFrequencyRow" hidden>Repeat frequency<select name="frequency"><option value="Daily">Daily</option><option value="Weekly">Weekly</option><option value="Monthly" selected>Monthly</option><option value="BiMonthly">Bi-monthly</option><option value="Quarterly">Quarterly</option><option value="Yearly">Yearly</option></select><small>Monthly is the default for fixed payments.</small></label>
@@ -368,12 +373,12 @@
     <script src="js/auth.js?v=20260712-31"></script>
     <script src="js/router.js?v=20260728-01"></script>
     <script src="js/pages/basic.js?v=20260802-01"></script>
-    <script src="js/pages/transactions.js?v=20260725-02"></script>
+    <script src="js/pages/transactions.js?v=20260821-03"></script>
     <script src="js/pages/credit-card.js?v=20260729-01"></script>
     <script src="js/pages/schedule.js?v=20260719-01"></script>
-    <script src="js/pages/habits.js?v=20260714-04"></script>
-    <script src="js/pages/insights.js?v=20260818-01"></script>
+    <script src="js/pages/habits.js?v=20260821-03"></script>
+    <script src="js/pages/insights.js?v=20260821-04"></script>
     <script src="js/pages/calendar.js?v=20260816-01"></script>
-    <script src="app.js?v=20260816-02"></script>
+    <script src="app.js?v=20260821-05"></script>
   </body>
 </html>

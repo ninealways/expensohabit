@@ -258,6 +258,10 @@ function renderHabitInsightsPage() {
   const sleepTarget = Number(sleepHabit?.target || 7.5);
   const sleepTargetHits = sleepLogs.filter(log => Number(log.value || 0) >= sleepTarget).length;
   const latestSleep = sleepLogs.slice().sort((a, b) => b.date.localeCompare(a.date))[0];
+  const readingHabits = allHabits.filter(habit => isReadingHabit(habit));
+  const currentMonth = currentMonthKey();
+  const previousMonth = monthInputKey(addMonthsToDate(new Date(`${currentMonth}-01T00:00:00`), -1));
+  const readingSummary = readingStatsForMonths(readingHabits, [previousMonth, currentMonth]);
   return `<section class="habits-shell">
     <article class="panel habits-hero">
       <div><p class="panel-kicker">HABIT INSIGHTS</p><h3>Routine report</h3><p class="subtitle">Patterns, streaks, and consistency for your habits.</p></div>
@@ -292,6 +296,16 @@ function renderHabitInsightsPage() {
     </section>
     <section class="habit-growth-grid">
       ${rows.map(renderHabitGrowthCard).join('') || '<p class="empty-state">Add habits to see individual growth charts.</p>'}
+    </section>
+    <section class="habits-grid secondary">
+      <article class="panel reading-insight-panel">
+        <div class="panel-heading"><div><p class="panel-kicker">READING TRACKER</p><h3>Books started &amp; completed</h3><p class="subtitle">Based on Reading habit check-ins with book titles.</p></div><button class="mini-button" data-action="open-habit-checkin" data-id="${readingHabits[0]?.id || ''}" type="button">Log reading</button></div>
+        ${renderReadingSummary(readingSummary, currentMonth, previousMonth)}
+      </article>
+      <article class="panel">
+        <div class="panel-heading"><div><p class="panel-kicker">BOOK NOTES</p><h3>Completed notes</h3></div><button class="mini-button" data-page="habitCheckins" type="button">Edit history</button></div>
+        <div class="habit-insight-list">${readingSummary.completedNotes.length ? readingSummary.completedNotes.slice(0, 6).map(item => `<div><b>${esc(item.title)} · Started ${item.startedDate || '—'} · Completed ${item.date}${item.rating ? ` · ${'★'.repeat(item.rating)}${'☆'.repeat(5 - item.rating)}` : ''}</b><span>${esc(item.note || 'Completed without a final note.')}</span></div>`).join('') : '<p class="empty-state">Mark a reading entry as completed and add a completion note.</p>'}</div>
+      </article>
     </section>
     <section class="habits-grid secondary">
       <article class="panel">
@@ -332,6 +346,46 @@ function renderHabitInsightsPage() {
   </section>`;
 }
 
+function readingStatsForMonths(readingHabits, months) {
+  const readingIds = new Set(readingHabits.map(habit => habit.id));
+  const logs = (data.habitLogs || []).filter(log => readingIds.has(log.habitId) && log.bookTitle).sort((a, b) => a.date.localeCompare(b.date));
+  const monthStats = months.reduce((acc, month) => {
+    const monthLogs = logs.filter(log => log.date?.startsWith(month));
+    const started = new Map();
+    const completed = new Map();
+    monthLogs.forEach(log => {
+      const title = String(log.bookTitle || '').trim();
+      if (!title) return;
+      const key = title.toLowerCase();
+      if (!started.has(key)) started.set(key, { title, date:log.date });
+      if (log.bookStatus === 'completed') completed.set(key, { title, date:log.date, note:log.bookNote || log.note || '', rating:Number(log.bookRating || 0) });
+    });
+    acc[month] = { started:[...started.values()], completed:[...completed.values()] };
+    return acc;
+  }, {});
+  const firstLogByTitle = logs.reduce((acc, log) => {
+    const key = String(log.bookTitle || '').trim().toLowerCase();
+    if (key && (!acc[key] || log.date < acc[key])) acc[key] = log.date;
+    return acc;
+  }, {});
+  const completedNotes = logs.filter(log => log.bookStatus === 'completed' && (log.bookNote || log.note || log.bookRating)).map(log => {
+    const key = String(log.bookTitle || '').trim().toLowerCase();
+    return { title:log.bookTitle, date:log.date, startedDate:firstLogByTitle[key] || log.date, note:log.bookNote || log.note || '', rating:Number(log.bookRating || 0) };
+  }).sort((a, b) => b.date.localeCompare(a.date));
+  return { months:monthStats, completedNotes };
+}
+
+function renderReadingSummary(summary, currentMonth, previousMonth) {
+  const current = summary.months[currentMonth] || { started:[], completed:[] };
+  const previous = summary.months[previousMonth] || { started:[], completed:[] };
+  const monthLabel = month => new Date(`${month}-01T00:00:00`).toLocaleDateString('en-IN', { month:'short', year:'numeric' });
+  const bookPills = books => books.length ? books.map(book => `<span class="book-pill" title="${esc(book.title)}">${esc(book.title)}${book.rating ? ` · ${'★'.repeat(book.rating)}` : ''}</span>`).join('') : '<p class="empty-state">No book titles logged.</p>';
+  return `<div class="reading-summary-grid">
+    <div class="reading-month-card current"><span>${monthLabel(currentMonth)}</span><b>${current.completed.length}</b><small>completed · ${current.started.length} started</small><div>${bookPills(current.completed)}</div></div>
+    <div class="reading-month-card"><span>${monthLabel(previousMonth)}</span><b>${previous.completed.length}</b><small>completed · ${previous.started.length} started</small><div>${bookPills(previous.completed)}</div></div>
+  </div>`;
+}
+
 function renderHabitManagePage() {
   const habits = (data.habits || []).slice().sort((a, b) => Number(b.active !== false) - Number(a.active !== false) || a.name.localeCompare(b.name));
   return `<section class="habits-shell">
@@ -360,7 +414,7 @@ function renderHabitCheckinsPage() {
     </article>
     <article class="panel">
       <div class="panel-heading"><div><p class="panel-kicker">RECENT CHECK-INS</p><h3>History</h3></div><span class="tag">${rows.length} entries</span></div>
-      <div class="table-scroll"><table class="outflow-table habit-history-table"><thead><tr><th>Date</th><th>Habit</th><th>Status</th><th>Value</th><th>Note</th><th></th></tr></thead><tbody>${rows.map(({ log, habit }) => `<tr><td>${log.date}</td><td>${esc(habit.name)}</td><td>${log.completed ? 'Done' : 'Not done'}</td><td>${isSleepHabit(habit) ? sleepLogText(log) : habit.goalType === 'checkbox' ? '—' : `${Number(log.value || 0).toLocaleString('en-IN')} ${esc(habit.unit || '')}`}</td><td>${esc(log.note || '')}</td><td><button class="mini-button" data-action="open-habit-checkin" data-date="${log.date}" data-id="${habit.id}" type="button">Edit</button><button class="mini-button warn" data-action="delete-habit-log" data-id="${habit.id}" data-date="${log.date}" type="button">Delete</button></td></tr>`).join('') || '<tr><td colspan="6">No check-ins yet.</td></tr>'}</tbody></table></div>
+      <div class="table-scroll"><table class="outflow-table habit-history-table"><thead><tr><th>Date</th><th>Habit</th><th>Status</th><th>Value</th><th>Note</th><th></th></tr></thead><tbody>${rows.map(({ log, habit }) => `<tr><td>${log.date}</td><td>${esc(habit.name)}</td><td>${log.completed ? 'Done' : 'Not done'}</td><td>${isReadingHabit(habit) ? `${esc(log.bookTitle || '—')}${log.bookStatus ? `<br><small>${esc(log.bookStatus)}${log.bookRating ? ` · ${'★'.repeat(Number(log.bookRating))}${'☆'.repeat(5 - Number(log.bookRating))}` : ''}</small>` : ''}` : isSleepHabit(habit) ? sleepLogText(log) : habit.goalType === 'checkbox' ? '—' : `${Number(log.value || 0).toLocaleString('en-IN')} ${esc(habit.unit || '')}`}</td><td>${isReadingHabit(habit) && log.bookNote ? `<b>Book note:</b> ${esc(log.bookNote)}${log.note ? `<br>${esc(log.note)}` : ''}` : esc(log.note || '')}</td><td><button class="mini-button" data-action="open-habit-checkin" data-date="${log.date}" data-id="${habit.id}" type="button">Edit</button><button class="mini-button warn" data-action="delete-habit-log" data-id="${habit.id}" data-date="${log.date}" type="button">Delete</button></td></tr>`).join('') || '<tr><td colspan="6">No check-ins yet.</td></tr>'}</tbody></table></div>
     </article>
   </section>`;
 }
