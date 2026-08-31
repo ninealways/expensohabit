@@ -19,6 +19,11 @@ function selectedTransactionFilterValues(form, name) {
   return [...form.querySelectorAll(`input[name="${name}"]:checked`)].map(input => input.value).filter(value => value && value !== 'all');
 }
 
+function transactionPaymentMode(transaction = {}) {
+  if (transaction.type !== 'expense') return '';
+  return ['cash','bank','upi','credit_card'].includes(transaction.paymentMode) ? transaction.paymentMode : 'upi';
+}
+
 function renderMultiSelectFilter(name, label, allLabel, options, selectedValue) {
   const selected = selectedFilterValues(selectedValue);
   const summary = selected.length ? `${selected.length} selected` : allLabel;
@@ -40,13 +45,15 @@ function filteredTransactions(filter = transactionFilter) {
   const query = (filter.search || '').trim().toLowerCase();
   const selectedCategories = selectedFilterValues(filter.category);
   const selectedSpendGroups = selectedFilterValues(filter.spendGroup);
+  const selectedPayment = filter.payment || 'all';
   const rows = data.transactions.filter(transaction => {
     const matchesRange = transaction.date >= range.from && transaction.date <= range.to;
     const matchesType = !filter.type || filter.type === 'all' || transaction.type === filter.type;
     const matchesCategory = !selectedCategories.length || selectedCategories.includes(transaction.category);
     const matchesSpendGroup = !selectedSpendGroups.length || (transaction.type === 'expense' && selectedSpendGroups.includes(categorySpendGroup(transaction.category)));
+    const matchesPayment = selectedPayment === 'all' || transactionPaymentMode(transaction) === selectedPayment;
     const text = `${transaction.subcategory || ''} ${transaction.note || ''}`.toLowerCase();
-    return matchesRange && matchesType && matchesCategory && matchesSpendGroup && (!query || text.includes(query));
+    return matchesRange && matchesType && matchesCategory && matchesSpendGroup && matchesPayment && (!query || text.includes(query));
   });
   const sorters = {
     dateDesc:(a,b) => b.date.localeCompare(a.date) || (b.amount - a.amount),
@@ -66,6 +73,7 @@ function renderTransactionFilters(filter = transactionFilter) {
   const typeOptions = [['all','All types'],['expense','Expenses'],['loan','Loans'],['investment','Investments']].map(([value, label]) => `<option value="${value}" ${filter.type === value ? 'selected' : ''}>${label}</option>`).join('');
   const categoryOptions = transactionCategories().map(category => [category, category]);
   const spendGroupOptions = Object.entries(spendGroups).map(([value, group]) => [value, group.label]);
+  const paymentOptions = [['all','All payment'],['upi','UPI'],['cash','Cash'],['bank','Bank'],['credit_card','Credit card']].map(([value, label]) => `<option value="${value}" ${filter.payment === value ? 'selected' : ''}>${label}</option>`).join('');
   const sortOptions = [['dateDesc','Newest first'],['dateAsc','Oldest first'],['amountDesc','Amount high to low'],['amountAsc','Amount low to high'],['nameAsc','Name A-Z']].map(([value, label]) => `<option value="${value}" ${filter.sort === value ? 'selected' : ''}>${label}</option>`).join('');
   return `<form id="transactionFilters" class="transaction-filter-panel">
     <div class="insight-range-control transaction-range-control">
@@ -78,6 +86,7 @@ function renderTransactionFilters(filter = transactionFilter) {
       <label>Type<select name="type">${typeOptions}</select></label>
       ${renderMultiSelectFilter('category', 'Category', 'All categories', categoryOptions, filter.category)}
       ${renderMultiSelectFilter('spendGroup', 'Spend group', 'All spend groups', spendGroupOptions, filter.spendGroup)}
+      <label>Payment<select name="payment">${paymentOptions}</select></label>
       <label>Sort<select name="sort">${sortOptions}</select></label>
     </div>
   </form>`;
@@ -96,9 +105,10 @@ function transactionResultsMeta(rows = filteredTransactions(), total = sumAmount
 
 function transactionPaymentLabel(transaction) {
   if (transaction.type !== 'expense') return '—';
-  if (transaction.paymentMode === 'credit_card') return `Credit card${transaction.creditCardName ? ` · ${transaction.creditCardName}` : ''}`;
-  if (transaction.paymentMode === 'bank') return 'Bank';
-  if (transaction.paymentMode === 'upi') return 'UPI';
+  const mode = transactionPaymentMode(transaction);
+  if (mode === 'credit_card') return `Credit card${transaction.creditCardName ? ` · ${transaction.creditCardName}` : ''}`;
+  if (mode === 'bank') return 'Bank';
+  if (mode === 'cash') return 'Cash';
   return 'UPI';
 }
 
@@ -117,7 +127,7 @@ function refreshTransactionResultsOnly() {
 
 function applyTransactionFiltersFromForm(form, mode = transactionFilter.mode || 'thisMonth', options = {}) {
   const data = new FormData(form);
-  transactionFilter = { mode, fromMonth:data.get('fromMonth'), toMonth:data.get('toMonth'), fromYear:data.get('fromYear'), toYear:data.get('toYear'), search:data.get('search') || '', type:data.get('type') || 'all', category:selectedTransactionFilterValues(form, 'category'), spendGroup:selectedTransactionFilterValues(form, 'spendGroup'), sort:data.get('sort') || 'dateDesc' };
+  transactionFilter = { mode, fromMonth:data.get('fromMonth'), toMonth:data.get('toMonth'), fromYear:data.get('fromYear'), toYear:data.get('toYear'), search:data.get('search') || '', type:data.get('type') || 'all', category:selectedTransactionFilterValues(form, 'category'), spendGroup:selectedTransactionFilterValues(form, 'spendGroup'), payment:data.get('payment') || 'all', sort:data.get('sort') || 'dateDesc' };
   if (options.resultsOnly) {
     refreshTransactionResultsOnly();
     return;
