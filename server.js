@@ -547,10 +547,10 @@ app.post('/api/habit-logs', requireAuth, async (req, res) => {
     if (!habit) return res.status(404).json({ error:'Habit not found.' });
     const sleepValue = sleepStart && sleepEnd ? sleepHours(sleepStart, sleepEnd) : null;
     const numericValue = sleepValue !== null ? sleepValue : value === '' || value === null || value === undefined ? 0 : Number(value) || 0;
-    const cleanBookStatus = ['reading', 'completed', 'paused'].includes(bookStatus) ? bookStatus : '';
+    const cleanBookStatus = ['inProgress', 'reading', 'completed', 'paused'].includes(bookStatus) ? bookStatus : '';
     const isReadingHabit = String(`${habit.name || ''} ${habit.icon || ''}`).toLowerCase().includes('read') || habit.icon === 'book';
     const cleanBookRating = Number(bookRating || 0);
-    const log = { id:`hl-${habitId}-${date}`, ownerId:req.user.id, habitId, date, value:numericValue, completed:typeof completed === 'boolean' ? completed : numericValue >= Number(habit.target || 1), note:note?.trim() || '', ...(sleepValue !== null ? { sleepStart, sleepEnd } : {}), ...(isReadingHabit || bookTitle || cleanBookStatus || bookNote || cleanBookRating ? { bookTitle:String(bookTitle || '').trim(), bookStatus:cleanBookStatus || (bookTitle ? 'reading' : ''), bookNote:String(bookNote || '').trim(), bookRating:cleanBookStatus === 'completed' && cleanBookRating >= 1 && cleanBookRating <= 5 ? cleanBookRating : '' } : {}), updatedAt:new Date() };
+    const log = { id:`hl-${habitId}-${date}`, ownerId:req.user.id, habitId, date, value:numericValue, completed:typeof completed === 'boolean' ? completed : isReadingHabit ? cleanBookStatus === 'completed' : numericValue >= Number(habit.target || 1), note:note?.trim() || '', ...(sleepValue !== null ? { sleepStart, sleepEnd } : {}), ...(isReadingHabit || bookTitle || cleanBookStatus || bookNote || cleanBookRating ? { bookTitle:String(bookTitle || '').trim(), bookStatus:cleanBookStatus || (bookTitle ? 'inProgress' : ''), bookNote:String(bookNote || '').trim(), bookRating:cleanBookStatus === 'completed' && cleanBookRating >= 1 && cleanBookRating <= 5 ? cleanBookRating : '' } : {}), updatedAt:new Date() };
     await database.collection('habitLogs').updateOne({ ownerId:req.user.id, habitId, date }, { $set:log }, { upsert:true });
     const { ownerId, _id, ...publicLog } = log;
     res.json(publicLog);
