@@ -10,7 +10,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="vendor/flatpickr/flatpickr.min.css" />
     <link rel="stylesheet" href="vendor/flatpickr/plugins/monthSelect/style.css" />
-    <link rel="stylesheet" href="styles.css?v=20260831-01" />
+    <link rel="stylesheet" href="styles.css?v=20260902-03" />
   </head>
   <body class="app-booting">
     <svg class="icon-sprite" aria-hidden="true">
@@ -160,12 +160,12 @@
             <button class="active" data-view="all">All outflow</button>
             <button data-view="real">Real expenses</button>
           </div>
-          <p class="helper-text">Top category excludes loans &amp; investments</p>
+          <p class="helper-text" id="dashboardViewHelper">All outflow chart includes loans &amp; investments. Top categories stay expense-only.</p>
         </section>
 
         <section class="content-grid">
           <article class="panel category-panel">
-            <div class="panel-heading"><div><p class="panel-kicker">THIS MONTH</p><h3>Top categories</h3></div><button class="ghost-button" data-page="transactions">View all</button></div>
+            <div class="panel-heading"><div><p class="panel-kicker" id="categoryPanelKicker">THIS MONTH</p><h3 id="categoryPanelTitle">Top expense categories</h3><p class="panel-caption" id="categoryPanelSubtitle">Expenses only. Loans and investments excluded.</p></div><button class="ghost-button" data-page="transactions">View all</button></div>
             <div id="categoryList" class="category-list"></div>
           </article>
           <article class="panel upcoming-panel">
@@ -372,13 +372,13 @@
     <script src="js/api.js?v=20260712-31"></script>
     <script src="js/auth.js?v=20260712-31"></script>
     <script src="js/router.js?v=20260728-01"></script>
-    <script src="js/pages/basic.js?v=20260802-01"></script>
-    <script src="js/pages/transactions.js?v=20260831-01"></script>
+    <script src="js/pages/basic.js?v=20260902-02"></script>
+    <script src="js/pages/transactions.js?v=20260902-01"></script>
     <script src="js/pages/credit-card.js?v=20260729-01"></script>
     <script src="js/pages/schedule.js?v=20260719-01"></script>
     <script src="js/pages/habits.js?v=20260831-01"></script>
     <script src="js/pages/insights.js?v=20260821-04"></script>
     <script src="js/pages/calendar.js?v=20260816-01"></script>
-    <script src="app.js?v=20260831-02"></script>
+    <script src="app.js?v=20260902-02"></script>
   </body>
 </html>
