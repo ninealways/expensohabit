@@ -274,8 +274,43 @@ async function processSchedules(userId) {
 }
 
 app.get('/api/data', requireAuth, async (req, res) => {
-  try { const database = await ensureDatabase(); await ensureUserData(req.user.id); await processSchedules(req.user.id); const [transactions, schedules, categories, settings, habits, habitLogs, stockTrades, creditCards] = await Promise.all([database.collection('transactions').find({ ownerId:req.user.id }, { projection:{ _id:0, ownerId:0 } }).toArray(), database.collection('schedules').find({ ownerId:req.user.id }, { projection:{ _id:0, ownerId:0 } }).toArray(), database.collection('categories').find({ ownerId:req.user.id }, { projection:{ _id:0, ownerId:0 } }).toArray(), database.collection('settings').findOne({ ownerId:req.user.id }, { projection:{ _id:0, ownerId:0 } }), database.collection('habits').find({ ownerId:req.user.id }, { projection:{ _id:0, ownerId:0 } }).toArray(), database.collection('habitLogs').find({ ownerId:req.user.id }, { projection:{ _id:0, ownerId:0 } }).toArray(), database.collection('stockTrades').find({ ownerId:req.user.id }, { projection:{ _id:0, ownerId:0 } }).toArray(), database.collection('creditCards').find({ ownerId:req.user.id }, { projection:{ _id:0, ownerId:0 } }).toArray()]); res.json({ transactions, schedules, categories, settings:settings || defaultSettings, habits, habitLogs, stockTrades, creditCards }); }
+  try { const database = await ensureDatabase(); await ensureUserData(req.user.id); await processSchedules(req.user.id); const [transactions, schedules, categories, settings, habits, habitLogs, stockTrades, creditCards, notes] = await Promise.all([database.collection('transactions').find({ ownerId:req.user.id }, { projection:{ _id:0, ownerId:0 } }).toArray(), database.collection('schedules').find({ ownerId:req.user.id }, { projection:{ _id:0, ownerId:0 } }).toArray(), database.collection('categories').find({ ownerId:req.user.id }, { projection:{ _id:0, ownerId:0 } }).toArray(), database.collection('settings').findOne({ ownerId:req.user.id }, { projection:{ _id:0, ownerId:0 } }), database.collection('habits').find({ ownerId:req.user.id }, { projection:{ _id:0, ownerId:0 } }).toArray(), database.collection('habitLogs').find({ ownerId:req.user.id }, { projection:{ _id:0, ownerId:0 } }).toArray(), database.collection('stockTrades').find({ ownerId:req.user.id }, { projection:{ _id:0, ownerId:0 } }).toArray(), database.collection('creditCards').find({ ownerId:req.user.id }, { projection:{ _id:0, ownerId:0 } }).toArray(), database.collection('notes').find({ ownerId:req.user.id }, { projection:{ _id:0, ownerId:0 } }).sort({ updatedAt:-1 }).toArray()]); res.json({ transactions, schedules, categories, settings:settings || defaultSettings, habits, habitLogs, stockTrades, creditCards, notes }); }
   catch (error) { res.status(500).json({ error:error.message }); }
+});
+
+app.post('/api/notes', requireAuth, async (req, res) => {
+  try {
+    const database = await ensureDatabase();
+    const title = String(req.body.title || '').trim();
+    const body = String(req.body.body || '').trim();
+    if (!title && !body) return res.status(400).json({ error:'Add a title or note before saving.' });
+    const note = { id:`n-${crypto.randomUUID()}`, ownerId:req.user.id, title, body, pinned:req.body.pinned === true, createdAt:new Date(), updatedAt:new Date() };
+    await database.collection('notes').insertOne(note);
+    const { ownerId, _id, ...publicNote } = note;
+    res.status(201).json(publicNote);
+  } catch (error) { res.status(500).json({ error:error.message }); }
+});
+
+app.put('/api/notes/:id', requireAuth, async (req, res) => {
+  try {
+    const database = await ensureDatabase();
+    const existing = await database.collection('notes').findOne({ id:req.params.id, ownerId:req.user.id });
+    if (!existing) return res.status(404).json({ error:'Note not found.' });
+    const title = String(req.body.title || '').trim();
+    const body = String(req.body.body || '').trim();
+    if (!title && !body) return res.status(400).json({ error:'Add a title or note before saving.' });
+    const updates = { title, body, pinned:req.body.pinned === true, updatedAt:new Date() };
+    const result = await database.collection('notes').findOneAndUpdate({ id:req.params.id, ownerId:req.user.id }, { $set:updates }, { returnDocument:'after', projection:{ _id:0, ownerId:0 } });
+    res.json(result.value || result);
+  } catch (error) { res.status(500).json({ error:error.message }); }
+});
+
+app.delete('/api/notes/:id', requireAuth, async (req, res) => {
+  try {
+    const database = await ensureDatabase();
+    await database.collection('notes').deleteOne({ id:req.params.id, ownerId:req.user.id });
+    res.json({ ok:true });
+  } catch (error) { res.status(500).json({ error:error.message }); }
 });
 
 app.put('/api/settings', requireAuth, async (req, res) => {
@@ -292,7 +327,7 @@ app.put('/api/settings', requireAuth, async (req, res) => {
 });
 
 app.post('/api/transactions', requireAuth, async (req, res) => {
-  try { const database = await ensureDatabase(); const { transaction, recurring, frequency, dueDays, endDate, originalAmount, remainingPrincipal, annualRate, interestType, amountInvestedToDate, currentValue, investmentValuationDate, amountWithdrawn, expectedAnnualRate, projectionEndDate } = req.body; if (!transaction?.amount || !transaction?.type) return res.status(400).json({ error:'Invalid transaction' }); transaction.ownerId=req.user.id; if (transaction.type !== 'expense') { delete transaction.paymentMode; delete transaction.creditCardId; delete transaction.creditCardName; } else { transaction.paymentMode = cleanPaymentMode(transaction.paymentMode); if (transaction.paymentMode !== 'credit_card') { transaction.creditCardId = ''; transaction.creditCardName = ''; } } if (recurring) { if (endDate && endDate < transaction.date) return res.status(400).json({ error:'Schedule end date must be after the transaction date.' }); const cleanDueDays = Array.isArray(dueDays) ? dueDays.map(Number).filter(day => day >= 1 && day <= 31).sort((a,b) => a - b) : [Number(transaction.date.slice(-2))]; if (frequency === 'BiMonthly' && cleanDueDays.length < 2) return res.status(400).json({ error:'Select two bi-monthly dates.' }); transaction.scheduleId=`s-${Date.now()}`; await database.collection('schedules').insertOne({ id:transaction.scheduleId, ownerId:req.user.id, type:transaction.type, amount:transaction.amount, category:transaction.category, subcategory:transaction.subcategory, startDate:transaction.date, dueDay:cleanDueDays[0], dueDays:cleanDueDays, frequency:frequency || 'Monthly', autoAdd:true, ...(endDate ? { endDate } : {}), ...(transaction.type === 'expense' ? { paymentMode:transaction.paymentMode, creditCardId:transaction.creditCardId || '', creditCardName:transaction.creditCardName || '' } : {}), ...(transaction.type === 'loan' ? { originalAmount, remainingPrincipal, annualRate, interestType:interestType === 'floating' ? 'floating' : 'fixed' } : {}), ...(transaction.type === 'investment' ? { amountInvestedToDate, currentValue, investmentValuationDate, amountWithdrawn, expectedAnnualRate, projectionEndDate } : {}) }); } await database.collection('transactions').insertOne(transaction); res.status(201).json(transaction); }
+  try { const database = await ensureDatabase(); const { transaction, recurring, frequency, dueDays, endDate, originalAmount, remainingPrincipal, annualRate, interestType, amountInvestedToDate, currentValue, investmentValuationDate, amountWithdrawn, expectedAnnualRate, projectionEndDate } = req.body; if (!transaction?.amount || !transaction?.type) return res.status(400).json({ error:'Invalid transaction' }); transaction.ownerId=req.user.id; if (transaction.type !== 'expense') { delete transaction.paymentMode; delete transaction.creditCardId; delete transaction.creditCardName; } else { transaction.paymentMode = cleanPaymentMode(transaction.paymentMode); if (transaction.paymentMode !== 'credit_card') { transaction.creditCardId = ''; transaction.creditCardName = ''; } } if (recurring) { if (endDate && endDate < transaction.date) return res.status(400).json({ error:'Schedule end date must be after the transaction date.' }); const cleanDueDays = Array.isArray(dueDays) ? dueDays.map(Number).filter(day => day >= 1 && day <= 31).sort((a,b) => a - b) : [Number(transaction.date.slice(-2))]; if (frequency === 'BiMonthly' && cleanDueDays.length < 2) return res.status(400).json({ error:'Select two bi-monthly dates.' }); transaction.scheduleId=`s-${Date.now()}`; await database.collection('schedules').insertOne({ id:transaction.scheduleId, ownerId:req.user.id, type:transaction.type, amount:transaction.amount, category:transaction.category, subcategory:transaction.subcategory, startDate:transaction.date, dueDay:cleanDueDays[0], dueDays:cleanDueDays, frequency:frequency || 'Monthly', autoAdd:true, ...(endDate ? { endDate } : {}), ...(transaction.type === 'expense' ? { paymentMode:transaction.paymentMode, creditCardId:transaction.creditCardId || '', creditCardName:transaction.creditCardName || '' } : {}), ...(transaction.type === 'loan' ? { originalAmount, remainingPrincipal, annualRate, interestType:interestType === 'floating' ? 'floating' : 'fixed' } : {}), ...(transaction.type === 'investment' ? { amountInvestedToDate, currentValue, investmentValuationDate, amountWithdrawn, expectedAnnualRate, projectionEndDate } : {}) }); } await database.collection('transactions').updateOne({ id:transaction.id, ownerId:req.user.id }, { $setOnInsert:transaction }, { upsert:true }); res.status(201).json(transaction); }
   catch (error) { res.status(500).json({ error:error.message }); }
 });
 
