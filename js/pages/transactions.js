@@ -21,7 +21,7 @@ function selectedTransactionFilterValues(form, name) {
 
 function transactionPaymentMode(transaction = {}) {
   if (transaction.type !== 'expense') return '';
-  return ['cash','bank','upi','credit_card'].includes(transaction.paymentMode) ? transaction.paymentMode : 'upi';
+  return ['cash','bank','upi','credit_card','mixed'].includes(transaction.paymentMode) ? transaction.paymentMode : 'upi';
 }
 
 function renderMultiSelectFilter(name, label, allLabel, options, selectedValue) {
@@ -73,7 +73,7 @@ function renderTransactionFilters(filter = transactionFilter) {
   const typeOptions = [['all','All types'],['expense','Expenses'],['loan','Loans'],['investment','Investments']].map(([value, label]) => `<option value="${value}" ${filter.type === value ? 'selected' : ''}>${label}</option>`).join('');
   const categoryOptions = transactionCategories().map(category => [category, category]);
   const spendGroupOptions = Object.entries(spendGroups).map(([value, group]) => [value, group.label]);
-  const paymentOptions = [['all','All payment'],['upi','UPI'],['cash','Cash'],['bank','Bank'],['credit_card','Credit card']].map(([value, label]) => `<option value="${value}" ${filter.payment === value ? 'selected' : ''}>${label}</option>`).join('');
+  const paymentOptions = [['all','All payment'],['upi','UPI'],['cash','Cash'],['bank','Bank'],['credit_card','Credit card'],['mixed','Mixed']].map(([value, label]) => `<option value="${value}" ${filter.payment === value ? 'selected' : ''}>${label}</option>`).join('');
   const sortOptions = [['dateDesc','Newest first'],['dateAsc','Oldest first'],['amountDesc','Amount high to low'],['amountAsc','Amount low to high'],['nameAsc','Name A-Z']].map(([value, label]) => `<option value="${value}" ${filter.sort === value ? 'selected' : ''}>${label}</option>`).join('');
   return `<form id="transactionFilters" class="transaction-filter-panel">
     <div class="insight-range-control transaction-range-control">
@@ -107,6 +107,7 @@ function transactionPaymentLabel(transaction) {
   if (transaction.type !== 'expense') return '—';
   const mode = transactionPaymentMode(transaction);
   if (mode === 'credit_card') return `Credit card${transaction.creditCardName ? ` · ${transaction.creditCardName}` : ''}`;
+  if (mode === 'mixed') return 'Mixed';
   if (mode === 'bank') return 'Bank';
   if (mode === 'cash') return 'Cash';
   return 'UPI';
