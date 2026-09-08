@@ -131,7 +131,7 @@ function defaultSpendGroup(name = '') {
   return 'need';
 }
 function cleanSpendGroup(value, name = '') { return validSpendGroups.includes(value) ? value : defaultSpendGroup(name); }
-function cleanPaymentMode(value) { return ['cash','bank','upi','credit_card'].includes(value) ? value : 'upi'; }
+function cleanPaymentMode(value) { return ['cash','bank','upi','credit_card','mixed'].includes(value) ? value : 'upi'; }
 function buildStockPositions(trades = []) {
   const positions = {};
   const sorted = trades.slice().sort((a, b) => {

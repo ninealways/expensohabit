@@ -100,12 +100,12 @@ function renderSpendPriorityChart(items) {
 function renderPaymentSourceChart(items) {
   const creditItems = items.filter(item => item.paymentMode === 'credit_card');
   const totals = items.reduce((acc, item) => {
-    const key = ['cash','bank','upi','credit_card'].includes(item.paymentMode) ? item.paymentMode : 'upi';
+    const key = ['cash','bank','upi','credit_card','mixed'].includes(item.paymentMode) ? item.paymentMode : 'upi';
     acc[key] = (acc[key] || 0) + Number(item.amount || 0);
     return acc;
-  }, { cash:0, bank:0, upi:0, credit_card:0 });
+  }, { cash:0, bank:0, upi:0, credit_card:0, mixed:0 });
   const total = sumAmount(items);
-  if (!total) return '<p class="empty-state">Tag expenses as cash, bank, UPI, or credit card to see payment mix.</p>';
+  if (!total) return '<p class="empty-state">Tag expenses as cash, bank, UPI, credit card, or mixed to see payment mix.</p>';
   const cardTotal = totals.credit_card || 0;
   const cardRows = Object.entries(creditItems.reduce((acc, item) => {
     const key = item.creditCardName || (data.creditCards || []).find(card => card.id === item.creditCardId)?.name || 'Credit card';
@@ -116,7 +116,8 @@ function renderPaymentSourceChart(items) {
     { key:'cash', label:'Cash', icon:'rupee', color:'purple-bg' },
     { key:'bank', label:'Bank', icon:'lock', color:'blue-bg' },
     { key:'upi', label:'UPI', icon:'bolt', color:'teal-bg' },
-    { key:'credit_card', label:'Credit card', icon:'receipt', color:'amber-bg' }
+    { key:'credit_card', label:'Credit card', icon:'receipt', color:'amber-bg' },
+    { key:'mixed', label:'Mixed', icon:'spark', color:'pink-bg' }
   ].filter(row => totals[row.key] || row.key === 'cash');
   return `<div class="payment-source-chart">
     <div class="payment-source-ring" style="--card:${percent(cardTotal, total) * 3.6}deg"><div><strong>${percent(cardTotal, total)}%</strong><small>Credit card</small></div></div>
