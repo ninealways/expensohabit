@@ -224,6 +224,10 @@ function renderCalendarDayComparison(comparison = calendarComparisonMonths()) {
   const values = months.flatMap(month => Object.values(month.byDay));
   const highThreshold = values.length ? Math.max(...values) * .55 : 0;
   const maxMonthTotal = Math.max(...months.map(month => month.total), 0);
+  const currentDay = Number(today().slice(-2));
+  const monthToDateTotal = month => Array.from({ length:Math.min(currentDay, month.daysInMonth) }, (_, index) => month.byDay[index + 1] || 0).reduce((sum, value) => sum + value, 0);
+  const monthToDateTotals = months.map(monthToDateTotal);
+  const maxMonthToDateTotal = Math.max(...monthToDateTotals, 0);
   const cell = (month, day) => {
     if (day > month.daysInMonth) return '<span class="calendar-compare-pill unavailable">—</span>';
     const amount = month.byDay[day] || 0;
@@ -238,6 +242,7 @@ function renderCalendarDayComparison(comparison = calendarComparisonMonths()) {
     <div class="calendar-comparison-legend"><span><i class="zero-dot"></i>₹0 day</span><span><i class="expense-dot"></i>Regular spend</span><span><i class="high-dot"></i>High spend day</span></div>
     <div class="calendar-comparison-scroll"><table class="calendar-comparison-table"><thead><tr><th>Date</th>${months.map(month => `<th>${month.label}</th>`).join('')}</tr></thead><tbody>
       <tr class="calendar-comparison-total"><td>Total</td>${months.map(month => `<td><span class="calendar-compare-pill ${month.total && month.total === maxMonthTotal ? 'high' : ''}">${money(month.total)}</span></td>`).join('')}</tr>
+      <tr class="calendar-comparison-total"><td>Till ${String(currentDay).padStart(2, '0')}</td>${months.map((month, index) => `<td><span class="calendar-compare-pill ${monthToDateTotals[index] && monthToDateTotals[index] === maxMonthToDateTotal ? 'high' : ''}">${money(monthToDateTotals[index])}</span></td>`).join('')}</tr>
       ${Array.from({ length:31 }, (_, index) => index + 1).map(day => `<tr><td>${String(day).padStart(2, '0')}</td>${months.map(month => `<td>${cell(month, day)}</td>`).join('')}</tr>`).join('')}
     </tbody></table></div>
   </section>`;
