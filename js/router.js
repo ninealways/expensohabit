@@ -13,7 +13,8 @@
     habits:'/habits',
     habitInsights:'/habit-insights',
     habitManage:'/habit-manage',
-    habitCheckins:'/habit-checkins'
+    habitCheckins:'/habit-checkins',
+    timeline:'/timeline'
   };
   const pageForRoute = Object.entries(routeForPage).reduce((acc, [page, route]) => {
     acc[route] = page;

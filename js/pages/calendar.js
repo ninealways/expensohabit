@@ -163,6 +163,7 @@ function calendarComparisonMonths() {
     const date = addMonthsToDate(endDate, index - 3);
     const month = monthInputKey(date);
     const rows = calendarComparisonTransactions(month);
+    const allRows = data.transactions.filter(transaction => transaction.date >= `${month}-01` && transaction.date <= dateKey(new Date(date.getFullYear(), date.getMonth() + 1, 0)));
     const byDay = rows.reduce((acc, item) => {
       const day = Number(item.date.slice(-2));
       acc[day] = (acc[day] || 0) + Number(item.amount || 0);
@@ -173,6 +174,9 @@ function calendarComparisonMonths() {
       label:date.toLocaleDateString('en-IN', { month:'short' }),
       daysInMonth:new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate(),
       total:sumAmount(rows),
+      realTotal:sumAmount(allRows.filter(item => item.type === 'expense' && item.includeInReal !== false)),
+      loanTotal:sumAmount(allRows.filter(item => item.type === 'loan')),
+      investmentTotal:sumAmount(allRows.filter(item => item.type === 'investment')),
       byDay
     };
   });
@@ -228,6 +232,15 @@ function renderCalendarDayComparison(comparison = calendarComparisonMonths()) {
   const monthToDateTotal = month => Array.from({ length:Math.min(currentDay, month.daysInMonth) }, (_, index) => month.byDay[index + 1] || 0).reduce((sum, value) => sum + value, 0);
   const monthToDateTotals = months.map(monthToDateTotal);
   const maxMonthToDateTotal = Math.max(...monthToDateTotals, 0);
+  const summaryRows = [
+    { label:'Real Expenses', key:'realTotal' },
+    { label:'Loans', key:'loanTotal' },
+    { label:'Investment', key:'investmentTotal' }
+  ];
+  const summaryRow = row => {
+    const maxValue = Math.max(...months.map(month => month[row.key] || 0), 0);
+    return `<tr class="calendar-comparison-total"><td>${row.label}</td>${months.map(month => `<td><span class="calendar-compare-pill ${(month[row.key] || 0) && month[row.key] === maxValue ? 'high' : ''}">${money(month[row.key] || 0)}</span></td>`).join('')}</tr>`;
+  };
   const cell = (month, day) => {
     if (day > month.daysInMonth) return '<span class="calendar-compare-pill unavailable">—</span>';
     const amount = month.byDay[day] || 0;
@@ -242,6 +255,7 @@ function renderCalendarDayComparison(comparison = calendarComparisonMonths()) {
     <div class="calendar-comparison-legend"><span><i class="zero-dot"></i>₹0 day</span><span><i class="expense-dot"></i>Regular spend</span><span><i class="high-dot"></i>High spend day</span></div>
     <div class="calendar-comparison-scroll"><table class="calendar-comparison-table"><thead><tr><th>Date</th>${months.map(month => `<th>${month.label}</th>`).join('')}</tr></thead><tbody>
       <tr class="calendar-comparison-total"><td>Total</td>${months.map(month => `<td><span class="calendar-compare-pill ${month.total && month.total === maxMonthTotal ? 'high' : ''}">${money(month.total)}</span></td>`).join('')}</tr>
+      ${summaryRows.map(summaryRow).join('')}
       <tr class="calendar-comparison-total"><td>Till ${String(currentDay).padStart(2, '0')}</td>${months.map((month, index) => `<td><span class="calendar-compare-pill ${monthToDateTotals[index] && monthToDateTotals[index] === maxMonthToDateTotal ? 'high' : ''}">${money(monthToDateTotals[index])}</span></td>`).join('')}</tr>
       ${Array.from({ length:31 }, (_, index) => index + 1).map(day => `<tr><td>${String(day).padStart(2, '0')}</td>${months.map(month => `<td>${cell(month, day)}</td>`).join('')}</tr>`).join('')}
     </tbody></table></div>

@@ -1,4 +1,4 @@
-let data = { transactions: [], schedules: [], categories: [], habits: [], habitLogs: [], stockTrades: [], creditCards: [], notes: [], settings: { monthlyExpenseBudget: 60000, monthlyBudgetOverrides: {} } };
+let data = { transactions: [], schedules: [], categories: [], habits: [], habitLogs: [], stockTrades: [], creditCards: [], notes: [], timelineEvents: [], settings: { monthlyExpenseBudget: 60000, monthlyBudgetOverrides: {} } };
 let activePage = 'dashboard';
 let activeType = 'expense';
 let authMode = 'login';
@@ -6,7 +6,6 @@ let editingTransactionId = null;
 let editingScheduleId = null;
 let editingCategoryId = null;
 let editingCreditCardId = null;
-let editingNoteId = null;
 let stockTradeSeed = null;
 let dashboardView = 'all';
 let chartRange = 'last7';
@@ -265,6 +264,7 @@ async function loadData() {
   data.stockTrades = data.stockTrades || [];
   data.creditCards = data.creditCards || [];
   data.notes = data.notes || [];
+  data.timelineEvents = data.timelineEvents || [];
   data.settings = normalizeSettings(data.settings);
   mergePendingTransactions(await pendingOfflineTransactions());
   await updateSyncStatus();
@@ -388,9 +388,9 @@ function showAppShell() {
 }
 function displayName() { return currentUser?.name || currentUser?.email?.split('@')[0] || 'there'; }
 function dashboardGreeting() { return `Good morning, ${displayName()} <span class="title-icon">${svgIcon('insights')}</span>`; }
-function setAuthMode(mode) { authMode=mode; const isLogin=mode==='login'; $('#authTitle').textContent=isLogin?'Welcome back':'Create your account'; $('#authSubtitle').textContent=isLogin?'Sign in to access your money and habit dashboard.':'Create a secure account for your money and habit data.'; $('#authSubmit').textContent=isLogin?'Sign in':'Create account'; $('#authToggle').textContent=isLogin?'Create a new account':'I already have an account'; $('#authPassword').autocomplete=isLogin?'current-password':'new-password'; $('#authNameRow').hidden=isLogin; $('#authName').required=!isLogin; $('#inviteCodeRow').hidden=isLogin; $('#inviteCode').required=!isLogin; $('#authError').textContent=''; }
+function setAuthMode(mode) { authMode=mode; const isLogin=mode==='login'; $('#authTitle').textContent=isLogin?'Welcome back':'Create your account'; $('#authSubmit').textContent=isLogin?'Sign in':'Create account'; $('#authToggle').textContent=isLogin?'Create a new account':'I already have an account'; $('#authPassword').autocomplete=isLogin?'current-password':'new-password'; $('#authNameRow').hidden=isLogin; $('#authName').required=!isLogin; $('#inviteCodeRow').hidden=isLogin; $('#inviteCode').required=!isLogin; $('#authError').textContent=''; }
 async function submitAuth(event) { event.preventDefault(); const payload={ email:$('#authEmail').value, password:$('#authPassword').value }; if (authMode === 'register') { payload.name = $('#authName').value; payload.inviteCode = $('#inviteCode').value; } try { currentUser = authMode === 'login' ? await window.ExpensoAuth.login(payload) : await window.ExpensoAuth.register(payload); } catch (error) { $('#authError').textContent = error.message || 'Authentication failed'; return; } await syncPendingTransactions({ silent:true, skipReload:true }); await loadData(); updateCategoryOptions(); renderDashboard(); navigate(window.ExpensoRouter.pageFromLocation(), false); showAppShell(); maybeOpenMobileStartupTransactionModal(); toast(authMode==='login'?'Signed in':'Account created'); }
-async function logout() { try { await window.ExpensoAuth.logout(); } catch (error) { toast(error.message || 'Could not log out'); return; } currentUser = null; data = { transactions: [], schedules: [], categories: [], habits: [], habitLogs: [], stockTrades: [], creditCards: [], notes: [], settings:defaultSettings }; editingNoteId = null; $('#authForm').reset(); setAuthMode('login'); history.pushState({ page:'dashboard' }, '', '/dashboard'); showAuthGate(); toast('Logged out'); }
+async function logout() { try { await window.ExpensoAuth.logout(); } catch (error) { toast(error.message || 'Could not log out'); return; } currentUser = null; data = { transactions: [], schedules: [], categories: [], habits: [], habitLogs: [], stockTrades: [], creditCards: [], notes: [], timelineEvents: [], settings:defaultSettings }; $('#authForm').reset(); setAuthMode('login'); history.pushState({ page:'dashboard' }, '', '/dashboard'); showAuthGate(); toast('Logged out'); }
 
 function totals() {
   const transactions = dashboardMonthTransactions();
@@ -654,16 +654,17 @@ async function addTransaction(event) {
 }
 
 function toast(message) { const el = $('#toast'); el.textContent = message; el.classList.add('show'); setTimeout(() => el.classList.remove('show'), 2400); }
-const pageTitles = { transactions:'Your transactions', creditCard:'Credit cards', calendar:'Spend calendar', schedule:'Plan your payments', outflow:'Outflow report', investments:'Investments', insights:'Spend insights', profile:'Profile', settings:'Keep your data yours', habits:'Habit tracker', habitInsights:'Habit insights', habitManage:'Manage habits', habitCheckins:'Habit check-ins' };
+const pageTitles = { transactions:'Your transactions', creditCard:'Credit cards', calendar:'Spend calendar', schedule:'Plan your payments', outflow:'Outflow report', investments:'Investments', insights:'Spend insights', profile:'Profile', settings:'Keep your data yours', habits:'Habit tracker', habitInsights:'Habit insights', habitManage:'Manage habits', habitCheckins:'Habit check-ins', timeline:'Personal timeline' };
 
 function navigate(page, updateUrl = true) {
   transactionOpenMultiFilter = '';
-  activePage = page; activeWorkspace = ['habits','habitInsights','habitManage','habitCheckins'].includes(page) ? 'habits' : 'expense'; if (updateUrl) window.ExpensoRouter.push(page); document.body.classList.toggle('dashboard-mode', page === 'dashboard'); document.body.classList.toggle('habits-mode', activeWorkspace === 'habits'); $$('.nav-item').forEach(item => item.classList.toggle('active', item.dataset.page === page)); $$('[data-workspace]').forEach(item => item.classList.toggle('active', item.dataset.workspace === activeWorkspace));
+  activePage = page; activeWorkspace = page === 'timeline' ? 'timeline' : ['habits','habitInsights','habitManage','habitCheckins'].includes(page) ? 'habits' : 'expense'; if (updateUrl) window.ExpensoRouter.push(page); document.body.classList.toggle('dashboard-mode', page === 'dashboard'); document.body.classList.toggle('habits-mode', activeWorkspace === 'habits'); document.body.classList.toggle('timeline-mode', activeWorkspace === 'timeline'); $$('.nav-item').forEach(item => item.classList.toggle('active', item.dataset.page === page)); $$('[data-workspace]').forEach(item => item.classList.toggle('active', item.dataset.workspace === activeWorkspace));
   const dashboardSections = $$('.hero-row,.summary-grid,.view-switch-row,.content-grid,.bottom-grid'); const subPage = $('#subPageView');
   if (page === 'habits') { dashboardSections.forEach(section => section.hidden = true); subPage.hidden = false; subPage.innerHTML = renderHabitsMockPage(); initializeDatePickers(subPage); return; }
   if (page === 'habitInsights') { dashboardSections.forEach(section => section.hidden = true); subPage.hidden = false; subPage.innerHTML = renderHabitInsightsPage(); initializeDatePickers(subPage); return; }
   if (page === 'habitManage') { dashboardSections.forEach(section => section.hidden = true); subPage.hidden = false; subPage.innerHTML = renderHabitManagePage(); initializeDatePickers(subPage); return; }
   if (page === 'habitCheckins') { dashboardSections.forEach(section => section.hidden = true); subPage.hidden = false; subPage.innerHTML = renderHabitCheckinsPage(); initializeDatePickers(subPage); return; }
+  if (page === 'timeline') { dashboardSections.forEach(section => section.hidden = true); subPage.hidden = false; subPage.innerHTML = renderTimelinePage(); $('#pageTitle').textContent = pageTitles.timeline; return; }
   if (page === 'dashboard') { dashboardSections.forEach(section => section.hidden = false); subPage.hidden = true; $('#pageTitle').innerHTML = dashboardGreeting(); return; }
   dashboardSections.forEach(section => section.hidden = true); subPage.hidden = false; subPage.innerHTML = renderSubPage(page); $('#pageTitle').textContent = pageTitles[page] || pageTitles.settings; initializeDatePickers(subPage);
 }
@@ -676,6 +677,7 @@ function renderSubPage(page) {
   if (page === 'outflow') return renderOutflowReport();
   if (page === 'investments') return renderInvestmentsPage();
   if (page === 'insights') return renderInsightsPage();
+  if (page === 'timeline') return renderTimelinePage();
   if (page === 'profile') return renderProfilePage();
   return renderSettingsPage();
 }
@@ -995,28 +997,6 @@ async function submitProfile(event) {
   navigate('profile', false);
   toast('Name updated');
 }
-async function submitNote(event) {
-  event.preventDefault();
-  const form = new FormData(event.target);
-  const payload = { title:form.get('title'), body:form.get('body'), pinned:form.get('pinned') === 'on' };
-  const response = await fetch(editingNoteId ? `/api/notes/${editingNoteId}` : '/api/notes', { method:editingNoteId ? 'PUT' : 'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) });
-  const result = await response.json();
-  if (!response.ok) { toast(result.error || 'Could not save note'); return; }
-  editingNoteId = null;
-  await loadData();
-  navigate('profile', false);
-  toast('Note saved');
-}
-async function deleteNote(id) {
-  const note = (data.notes || []).find(item => item.id === id);
-  if (!note || !window.confirm(`Delete note "${note.title || 'Untitled note'}"?`)) return;
-  const response = await fetch(`/api/notes/${id}`, { method:'DELETE' });
-  if (!response.ok) { toast('Could not delete note'); return; }
-  if (editingNoteId === id) editingNoteId = null;
-  await loadData();
-  navigate('profile', false);
-  toast('Note deleted');
-}
 async function submitHabit(event) {
   event.preventDefault();
   const form = new FormData(event.target);
@@ -1099,6 +1079,7 @@ async function deletePendingSchedule() {
 }
 
 $('#heroAddButton').addEventListener('click', () => openModal()); $('#fabButton').addEventListener('click', () => openModal()); $('#topAddButton').addEventListener('click', () => openModal()); $('#closeModal').addEventListener('click', closeModal); $('#cancelModal').addEventListener('click', closeModal); $('#modalBackdrop').addEventListener('click', event => { if (event.target.id === 'modalBackdrop') closeModal(); }); $('#transactionForm').addEventListener('submit', addTransaction); $('#closeHabitModal').addEventListener('click', closeHabitModal); $('#cancelHabitModal').addEventListener('click', closeHabitModal); $('#habitModalBackdrop').addEventListener('click', event => { if (event.target.id === 'habitModalBackdrop') closeHabitModal(); }); $('#habitForm').addEventListener('submit', submitHabit); $('#closeCategoryModal').addEventListener('click', closeCategoryModal); $('#cancelCategoryModal').addEventListener('click', closeCategoryModal); $('#categoryModalBackdrop').addEventListener('click', event => { if (event.target.id === 'categoryModalBackdrop') closeCategoryModal(); }); $('#categoryForm').addEventListener('submit', submitCategory); $('#categoryForm select[name="kind"]').addEventListener('change', updateCategoryModalSpendVisibility); $('#closeStockTradeModal').addEventListener('click', closeStockTradeModal); $('#cancelStockTradeModal').addEventListener('click', closeStockTradeModal); $('#stockTradeModalBackdrop').addEventListener('click', event => { if (event.target.id === 'stockTradeModalBackdrop') closeStockTradeModal(); }); $('#stockTradeForm').addEventListener('submit', submitStockTrade); $('#closeCreditCardModal').addEventListener('click', closeCreditCardModal); $('#cancelCreditCardModal').addEventListener('click', closeCreditCardModal); $('#creditCardModalBackdrop').addEventListener('click', event => { if (event.target.id === 'creditCardModalBackdrop') closeCreditCardModal(); }); $('#creditCardForm').addEventListener('submit', submitCreditCard); $('#fetchCreditBenefitsButton').addEventListener('click', fetchCreditCardBenefits); $('#closeCreditCardBillModal').addEventListener('click', closeCreditCardBillModal); $('#cancelCreditCardBillModal').addEventListener('click', closeCreditCardBillModal); $('#creditCardBillModalBackdrop').addEventListener('click', event => { if (event.target.id === 'creditCardBillModalBackdrop') closeCreditCardBillModal(); }); $('#creditCardBillForm').addEventListener('submit', submitCreditCardBill); $('#closeHabitCheckinModal').addEventListener('click', closeHabitCheckinModal); $('#cancelHabitCheckinModal').addEventListener('click', closeHabitCheckinModal); $('#habitCheckinModalBackdrop').addEventListener('click', event => { if (event.target.id === 'habitCheckinModalBackdrop') closeHabitCheckinModal(); }); $('#habitCheckinForm').addEventListener('submit', submitHabitCheckin); $('#closeConfirmModal').addEventListener('click', closeConfirmModal); $('#cancelConfirmModal').addEventListener('click', closeConfirmModal); $('#confirmModalBackdrop').addEventListener('click', event => { if (event.target.id === 'confirmModalBackdrop') closeConfirmModal(); }); $('#confirmArchiveButton').addEventListener('click', archivePendingSchedule); $('#confirmDeleteButton').addEventListener('click', deletePendingSchedule); $('#refreshButton').addEventListener('click', refreshData); $('#privacyButton').addEventListener('click', togglePrivacy);
+$('#closeTimelineEventModal').addEventListener('click', closeTimelineEventModal); $('#cancelTimelineEventModal').addEventListener('click', closeTimelineEventModal); $('#timelineEventModalBackdrop').addEventListener('click', event => { if (event.target.id === 'timelineEventModalBackdrop') closeTimelineEventModal(); }); $('#timelineEventForm').addEventListener('submit', submitTimelineEvent);
 $('#accountMenuButton').addEventListener('click', event => { event.stopPropagation(); $('#accountMenuPanel').hidden = !$('#accountMenuPanel').hidden; });
 $('#accountMenuPanel').addEventListener('click', async event => { const target = event.target.closest('[data-account-page],[data-account-action]'); if (!target) return; $('#accountMenuPanel').hidden = true; if (target.dataset.accountPage) { navigate(target.dataset.accountPage); return; } if (target.dataset.accountAction === 'logout') await logout(); });
 document.addEventListener('click', event => {
@@ -1112,10 +1093,15 @@ $('#authForm').addEventListener('submit', submitAuth); $('#authToggle').addEvent
 $('#transactionForm input[name="recurring"]').addEventListener('change', () => updateDetailSections());
 $('#transactionForm select[name="frequency"]').addEventListener('change', () => updateDetailSections());
 $('#transactionForm select[name="paymentMode"]').addEventListener('change', updatePaymentSourceVisibility);
-$$('.type-tabs button').forEach(button => button.addEventListener('click', () => { setType(button.dataset.type); updateCategoryOptions(); })); $$('[data-workspace]').forEach(button => button.addEventListener('click', () => navigate(button.dataset.workspace === 'habits' ? 'habits' : 'dashboard'))); $$('.nav-item,[data-page]').forEach(button => button.addEventListener('click', async event => { if (button.matches('a')) event.preventDefault(); navigate(button.dataset.page); if (button.dataset.page === 'dashboard') await refreshData(); })); $$('.segmented-control button').forEach(button => button.addEventListener('click', () => { dashboardView = button.dataset.view; $$('.segmented-control button').forEach(b => b.classList.remove('active')); button.classList.add('active'); renderDashboard(); }));
+$$('.type-tabs button').forEach(button => button.addEventListener('click', () => { setType(button.dataset.type); updateCategoryOptions(); })); $$('[data-workspace]').forEach(button => button.addEventListener('click', () => navigate(button.dataset.workspace === 'habits' ? 'habits' : button.dataset.workspace === 'timeline' ? 'timeline' : 'dashboard'))); $$('.nav-item,[data-page]').forEach(button => button.addEventListener('click', async event => { if (button.matches('a')) event.preventDefault(); navigate(button.dataset.page); if (button.dataset.page === 'dashboard') await refreshData(); })); $$('.segmented-control button').forEach(button => button.addEventListener('click', () => { dashboardView = button.dataset.view; $$('.segmented-control button').forEach(b => b.classList.remove('active')); button.classList.add('active'); renderDashboard(); }));
 $$('[data-chart-range]').forEach(button => button.addEventListener('click', () => { chartRange = button.dataset.chartRange; $$('[data-chart-range]').forEach(b => b.classList.remove('active')); button.classList.add('active'); renderChart(dashboardView); }));
 let transactionFilterTimer;
 $('#subPageView').addEventListener('change', async event => {
+  if (event.target.matches('[data-timeline-filter]')) {
+    timelineCategory = event.target.value || 'all';
+    $('#subPageView').innerHTML = renderTimelinePage();
+    return;
+  }
   if (event.target.dataset.categorySpend) {
     const category = data.categories.find(item => item.id === event.target.dataset.categorySpend);
     if (!category) return;
@@ -1184,6 +1170,19 @@ $('#subPageView').addEventListener('click', event => {
   $('#subPageView').innerHTML = renderTransactionsPage();
 }, true);
 $('#subPageView').addEventListener('click', async event => {
+  const target = event.target.closest('[data-timeline-action],[data-timeline-view],[data-timeline-nav],[data-timeline-density]');
+  if (!target) return;
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  if (target.dataset.timelineView) { timelineView = target.dataset.timelineView; $('#subPageView').innerHTML = renderTimelinePage(); return; }
+  if (target.dataset.timelineNav) { shiftTimelinePeriod(target.dataset.timelineNav === 'next' ? 1 : -1); $('#subPageView').innerHTML = renderTimelinePage(); return; }
+  if (target.dataset.timelineDensity) { changeTimelineDensity(target.dataset.timelineDensity); $('#subPageView').innerHTML = renderTimelinePage(); return; }
+  if (target.dataset.timelineAction === 'add') { openTimelineEventModal(); return; }
+  const timelineEvent = (data.timelineEvents || []).find(item => item.id === target.dataset.id);
+  if (target.dataset.timelineAction === 'edit' && timelineEvent) { openTimelineEventModal(timelineEvent); return; }
+  if (target.dataset.timelineAction === 'delete') await deleteTimelineEvent(target.dataset.id);
+}, true);
+$('#subPageView').addEventListener('click', async event => {
   const target = event.target.closest('[data-action="toggle-schedule-archive"],[data-action="confirm-delete-schedule"]');
   if (!target) return;
   event.preventDefault();
@@ -1240,21 +1239,10 @@ $('#subPageView').addEventListener('click', event => {
   else if (target.dataset.action === 'edit-credit-card-bill') openCreditCardBillModal(card, creditCardBills(card).find(bill => bill.month === target.dataset.month));
   else openCreditCardModal(card);
 });
-$('#subPageView').addEventListener('click', async event => {
-  const target = event.target.closest('[data-action="edit-note"],[data-action="delete-note"],[data-action="cancel-note-edit"]');
-  if (!target) return;
-  event.preventDefault();
-  event.stopImmediatePropagation();
-  if (target.dataset.action === 'edit-note') editingNoteId = target.dataset.id || null;
-  if (target.dataset.action === 'cancel-note-edit') editingNoteId = null;
-  if (target.dataset.action === 'delete-note') { await deleteNote(target.dataset.id); return; }
-  navigate('profile', false);
-}, true);
 $('#subPageView').addEventListener('submit', async event => {
-  if (!['budgetSettingsForm','profileForm','noteForm'].includes(event.target.id)) return;
+  if (!['budgetSettingsForm','profileForm'].includes(event.target.id)) return;
   event.preventDefault();
   if (event.target.id === 'profileForm') { await submitProfile(event); return; }
-  if (event.target.id === 'noteForm') { await submitNote(event); return; }
   const form = new FormData(event.target);
   if (event.target.id === 'budgetSettingsForm') {
     const settings = normalizeSettings(data.settings);

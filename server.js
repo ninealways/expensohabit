@@ -222,7 +222,7 @@ async function ensureDatabase() {
   const client = new MongoClient(mongoUri);
   await client.connect();
   db = client.db(dbName);
-  const transactions = db.collection('transactions'); const schedules = db.collection('schedules'); const habits = db.collection('habits'); const habitLogs = db.collection('habitLogs'); const stockTrades = db.collection('stockTrades'); const creditCards = db.collection('creditCards');
+  const transactions = db.collection('transactions'); const schedules = db.collection('schedules'); const habits = db.collection('habits'); const habitLogs = db.collection('habitLogs'); const stockTrades = db.collection('stockTrades'); const creditCards = db.collection('creditCards'); const timelineEvents = db.collection('timelineEvents');
   await transactions.dropIndex('id_1').catch(error => { if (error.codeName !== 'IndexNotFound') throw error; });
   await schedules.dropIndex('id_1').catch(error => { if (error.codeName !== 'IndexNotFound') throw error; });
   await transactions.createIndex({ ownerId: 1, id: 1 }, { unique: true });
@@ -231,6 +231,8 @@ async function ensureDatabase() {
   await habitLogs.createIndex({ ownerId: 1, habitId: 1, date: 1 }, { unique: true });
   await stockTrades.createIndex({ ownerId: 1, id: 1 }, { unique: true });
   await creditCards.createIndex({ ownerId: 1, id: 1 }, { unique: true });
+  await timelineEvents.createIndex({ ownerId: 1, id: 1 }, { unique: true });
+  await timelineEvents.createIndex({ ownerId: 1, date: 1 });
   await db.collection('sessions').createIndex({ expiresAt:1 }, { expireAfterSeconds:0 });
   return db;
 }
@@ -274,8 +276,57 @@ async function processSchedules(userId) {
 }
 
 app.get('/api/data', requireAuth, async (req, res) => {
-  try { const database = await ensureDatabase(); await ensureUserData(req.user.id); await processSchedules(req.user.id); const [transactions, schedules, categories, settings, habits, habitLogs, stockTrades, creditCards, notes] = await Promise.all([database.collection('transactions').find({ ownerId:req.user.id }, { projection:{ _id:0, ownerId:0 } }).toArray(), database.collection('schedules').find({ ownerId:req.user.id }, { projection:{ _id:0, ownerId:0 } }).toArray(), database.collection('categories').find({ ownerId:req.user.id }, { projection:{ _id:0, ownerId:0 } }).toArray(), database.collection('settings').findOne({ ownerId:req.user.id }, { projection:{ _id:0, ownerId:0 } }), database.collection('habits').find({ ownerId:req.user.id }, { projection:{ _id:0, ownerId:0 } }).toArray(), database.collection('habitLogs').find({ ownerId:req.user.id }, { projection:{ _id:0, ownerId:0 } }).toArray(), database.collection('stockTrades').find({ ownerId:req.user.id }, { projection:{ _id:0, ownerId:0 } }).toArray(), database.collection('creditCards').find({ ownerId:req.user.id }, { projection:{ _id:0, ownerId:0 } }).toArray(), database.collection('notes').find({ ownerId:req.user.id }, { projection:{ _id:0, ownerId:0 } }).sort({ updatedAt:-1 }).toArray()]); res.json({ transactions, schedules, categories, settings:settings || defaultSettings, habits, habitLogs, stockTrades, creditCards, notes }); }
+  try { const database = await ensureDatabase(); await ensureUserData(req.user.id); await processSchedules(req.user.id); const [transactions, schedules, categories, settings, habits, habitLogs, stockTrades, creditCards, notes, timelineEvents] = await Promise.all([database.collection('transactions').find({ ownerId:req.user.id }, { projection:{ _id:0, ownerId:0 } }).toArray(), database.collection('schedules').find({ ownerId:req.user.id }, { projection:{ _id:0, ownerId:0 } }).toArray(), database.collection('categories').find({ ownerId:req.user.id }, { projection:{ _id:0, ownerId:0 } }).toArray(), database.collection('settings').findOne({ ownerId:req.user.id }, { projection:{ _id:0, ownerId:0 } }), database.collection('habits').find({ ownerId:req.user.id }, { projection:{ _id:0, ownerId:0 } }).toArray(), database.collection('habitLogs').find({ ownerId:req.user.id }, { projection:{ _id:0, ownerId:0 } }).toArray(), database.collection('stockTrades').find({ ownerId:req.user.id }, { projection:{ _id:0, ownerId:0 } }).toArray(), database.collection('creditCards').find({ ownerId:req.user.id }, { projection:{ _id:0, ownerId:0 } }).toArray(), database.collection('notes').find({ ownerId:req.user.id }, { projection:{ _id:0, ownerId:0 } }).sort({ updatedAt:-1 }).toArray(), database.collection('timelineEvents').find({ ownerId:req.user.id }, { projection:{ _id:0, ownerId:0 } }).sort({ date:1, createdAt:1 }).toArray()]); res.json({ transactions, schedules, categories, settings:settings || defaultSettings, habits, habitLogs, stockTrades, creditCards, notes, timelineEvents }); }
   catch (error) { res.status(500).json({ error:error.message }); }
+});
+
+const timelineCategories = new Set(['money', 'trading', 'investment', 'personal', 'memory', 'travel', 'reading', 'work', 'health', 'other']);
+const timelineAmountTypes = new Set(['none', 'out', 'in', 'neutral']);
+function cleanTimelineEvent(body = {}) {
+  const title = String(body.title || '').trim();
+  const date = String(body.date || '').trim();
+  const category = timelineCategories.has(body.category) ? body.category : 'personal';
+  const note = String(body.note || '').trim();
+  const amountValue = body.amount === '' || body.amount === null || body.amount === undefined ? null : Number(body.amount);
+  const amount = Number.isFinite(amountValue) && amountValue >= 0 ? amountValue : null;
+  const amountType = amount === null ? 'none' : timelineAmountTypes.has(body.amountType) ? body.amountType : 'neutral';
+  if (!title) return { error:'Event title is required.' };
+  const eventDate = new Date(`${date}T00:00:00`);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || Number.isNaN(eventDate.getTime()) || localDate(eventDate) !== date) return { error:'Choose a valid event date.' };
+  return { value:{ title, date, category, note, amount, amountType } };
+}
+
+app.post('/api/timeline-events', requireAuth, async (req, res) => {
+  try {
+    const cleaned = cleanTimelineEvent(req.body);
+    if (cleaned.error) return res.status(400).json({ error:cleaned.error });
+    const database = await ensureDatabase();
+    const event = { id:`te-${crypto.randomUUID()}`, ownerId:req.user.id, ...cleaned.value, createdAt:new Date(), updatedAt:new Date() };
+    await database.collection('timelineEvents').insertOne(event);
+    const { ownerId, _id, ...publicEvent } = event;
+    res.status(201).json(publicEvent);
+  } catch (error) { res.status(500).json({ error:error.message }); }
+});
+
+app.put('/api/timeline-events/:id', requireAuth, async (req, res) => {
+  try {
+    const cleaned = cleanTimelineEvent(req.body);
+    if (cleaned.error) return res.status(400).json({ error:cleaned.error });
+    const database = await ensureDatabase();
+    const result = await database.collection('timelineEvents').findOneAndUpdate({ id:req.params.id, ownerId:req.user.id }, { $set:{ ...cleaned.value, updatedAt:new Date() } }, { returnDocument:'after', projection:{ _id:0, ownerId:0 } });
+    const updated = result?.value || result;
+    if (!updated) return res.status(404).json({ error:'Timeline event not found.' });
+    res.json(updated);
+  } catch (error) { res.status(500).json({ error:error.message }); }
+});
+
+app.delete('/api/timeline-events/:id', requireAuth, async (req, res) => {
+  try {
+    const database = await ensureDatabase();
+    const result = await database.collection('timelineEvents').deleteOne({ id:req.params.id, ownerId:req.user.id });
+    if (!result.deletedCount) return res.status(404).json({ error:'Timeline event not found.' });
+    res.json({ ok:true });
+  } catch (error) { res.status(500).json({ error:error.message }); }
 });
 
 app.post('/api/notes', requireAuth, async (req, res) => {
@@ -607,7 +658,7 @@ app.put('/api/schedules/:id', requireAuth, async (req, res) => { try { const dat
 app.get('/api/schedules/:id', requireAuth, async (req, res) => { try { const database = await ensureDatabase(); const schedule = await database.collection('schedules').findOne({ id:req.params.id, ownerId:req.user.id }, { projection:{ _id:0, ownerId:0 } }); if (!schedule) return res.status(404).json({ error:'Schedule not found' }); res.json(schedule); } catch (error) { res.status(500).json({ error:error.message }); } });
 app.delete('/api/schedules/:id', requireAuth, async (req, res) => { try { const database = await ensureDatabase(); const result = await database.collection('schedules').deleteOne({ id:req.params.id, ownerId:req.user.id }); if (!result.deletedCount) return res.status(404).json({ error:'Schedule not found' }); res.json({ ok:true }); } catch (error) { res.status(500).json({ error:error.message }); } });
 
-app.get(['/dashboard', '/transactions', '/credit-card', '/calendar', '/schedule', '/settings', '/outflow', '/investments', '/insights', '/profile', '/habits', '/habit-insights', '/habit-manage', '/habit-checkins'], (_req, res) => {
+app.get(['/dashboard', '/transactions', '/credit-card', '/calendar', '/schedule', '/settings', '/outflow', '/investments', '/insights', '/profile', '/habits', '/habit-insights', '/habit-manage', '/habit-checkins', '/timeline'], (_req, res) => {
   res.setHeader('Cache-Control', 'no-store');
   res.sendFile(path.join(__dirname, 'index.html'));
 });
