@@ -5,12 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#8c64ff" />
     <title>ExpensoHabit</title>
+    <link rel="icon" href="assets/favicon.ico?v=20260928-01" sizes="32x32" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="vendor/flatpickr/flatpickr.min.css" />
     <link rel="stylesheet" href="vendor/flatpickr/plugins/monthSelect/style.css" />
-    <link rel="stylesheet" href="styles.css?v=20260902-03" />
+    <link rel="stylesheet" href="styles.css?v=20260929-01" />
   </head>
   <body class="app-booting">
     <svg class="icon-sprite" aria-hidden="true">
@@ -39,6 +40,7 @@
       <symbol id="icon-heart" viewBox="0 0 24 24"><path d="M20 8.5c0 5-8 10.5-8 10.5S4 13.5 4 8.5A4.2 4.2 0 0 1 12 6a4.2 4.2 0 0 1 8 2.5z"/></symbol>
       <symbol id="icon-tag" viewBox="0 0 24 24"><path d="M4.5 12.5 12 20l8-8-7.5-7.5h-8z"/><circle cx="9" cy="9" r="1"/></symbol>
       <symbol id="icon-habit" viewBox="0 0 24 24"><path d="M12 4a6 6 0 0 0-6 6c0 4.5 6 10 6 10s6-5.5 6-10a6 6 0 0 0-6-6z"/><circle cx="12" cy="10" r="2.2"/></symbol>
+      <symbol id="icon-timeline" viewBox="0 0 24 24"><path d="M12 3v18"/><circle cx="12" cy="6" r="2.2"/><circle cx="12" cy="12" r="2.2"/><circle cx="12" cy="18" r="2.2"/><path d="M5 6h4.5"/><path d="M14.5 12H19"/><path d="M5 18h4.5"/></symbol>
       <symbol id="icon-book" viewBox="0 0 24 24"><path d="M5 5.5A3.5 3.5 0 0 1 8.5 4H20v15H8.5A3.5 3.5 0 0 0 5 20.5z"/><path d="M5 5.5v15"/><path d="M9 8h7"/><path d="M9 12h6"/></symbol>
       <symbol id="icon-walk" viewBox="0 0 24 24"><circle cx="13" cy="5" r="2"/><path d="m10 21 2-6"/><path d="m16 21-3-6-3-2 2-5 4 2 2 3"/><path d="m11 8-3 3"/></symbol>
       <symbol id="icon-moon" viewBox="0 0 24 24"><path d="M20 15.5A8.5 8.5 0 0 1 8.5 4 7 7 0 1 0 20 15.5z"/></symbol>
@@ -53,7 +55,7 @@
     </svg>
     <div class="boot-gate" id="bootGate" aria-live="polite" aria-busy="true">
       <section class="boot-card">
-        <div class="brand-mark brand-logo"><svg class="svg-icon"><use href="#icon-expensohabit"></use></svg></div>
+        <img class="brand-wordmark standalone" src="assets/logo.png?v=20260928-01" alt="ExpensoHabit" />
         <span class="loader-spinner"></span>
         <strong>Loading ExpensoHabit</strong>
         <small>Checking your secure session...</small>
@@ -61,10 +63,8 @@
     </div>
     <div class="auth-gate" id="authGate" hidden>
       <section class="auth-card">
-        <div class="brand-mark brand-logo"><svg class="svg-icon"><use href="#icon-expensohabit"></use></svg></div>
-        <p class="panel-kicker">SECURE SYNC</p>
+        <img class="brand-wordmark standalone" src="assets/logo.png?v=20260928-01" alt="ExpensoHabit" />
         <h2 id="authTitle">Welcome back</h2>
-        <p class="subtitle" id="authSubtitle">Sign in to access your expense dashboard.</p>
         <form id="authForm">
           <label id="authNameRow" hidden>Name<input id="authName" type="text" autocomplete="name" placeholder="Your name" /></label>
           <label>Email<input id="authEmail" type="email" autocomplete="email" required placeholder="you@example.com" /></label>
@@ -79,10 +79,9 @@
     <div class="app-shell" id="appShell" hidden>
       <header class="topbar">
         <a class="brand-lockup" href="/dashboard" data-page="dashboard" aria-label="Go to ExpensoHabit home">
-          <div class="brand-mark brand-logo"><svg class="svg-icon"><use href="#icon-expensohabit"></use></svg></div>
-          <div>
-            <h1>ExpensoHabit</h1>
-            <p>Track money flows. Build better habits.</p>
+          <div class="brand-copy">
+            <img class="brand-wordmark" src="assets/logo.png?v=20260928-01" alt="ExpensoHabit" />
+            <p>Track money. Build habits. Capture life.</p>
           </div>
         </a>
         <nav class="top-nav" aria-label="Primary navigation">
@@ -96,6 +95,7 @@
           <div class="app-switcher" aria-label="Workspace switcher">
             <button class="active" type="button" data-workspace="expense"><svg class="svg-icon"><use href="#icon-rupee"></use></svg><span>Expenses</span></button>
             <button type="button" data-workspace="habits"><svg class="svg-icon"><use href="#icon-habit"></use></svg><span>Habits</span></button>
+            <button type="button" data-workspace="timeline"><svg class="svg-icon"><use href="#icon-timeline"></use></svg><span>Timeline</span></button>
           </div>
           <span class="sync-pill"><span class="status-dot"></span><span id="syncLabel">Synced</span></span>
           <button class="icon-button" id="refreshButton" aria-label="Refresh data" title="Refresh data"><svg class="svg-icon"><use href="#icon-refresh"></use></svg></button>
@@ -351,6 +351,20 @@
       </section>
     </div>
 
+    <div class="modal-backdrop" id="timelineEventModalBackdrop" hidden>
+      <section class="modal timeline-event-modal" role="dialog" aria-modal="true" aria-labelledby="timelineEventModalTitle">
+        <div class="modal-heading"><div><p class="panel-kicker">TIMELINE MOMENT</p><h3 id="timelineEventModalTitle">Add event</h3></div><button class="close-button" id="closeTimelineEventModal" type="button">×</button></div>
+        <form id="timelineEventForm">
+          <div class="form-row"><label>Date<input name="date" type="text" data-picker="date" placeholder="Select date" required /></label><label>Category<select name="category"><option value="personal">Personal</option><option value="memory">Memory</option><option value="money">Money</option><option value="trading">Trading</option><option value="investment">Investment</option><option value="travel">Travel</option><option value="reading">Reading</option><option value="work">Work</option><option value="health">Health</option><option value="other">Other</option></select></label></div>
+          <label>Event title<input name="title" maxlength="120" placeholder="What happened?" required /></label>
+          <div class="form-row"><label>Amount (optional)<input name="amount" type="number" min="0" step="0.01" placeholder="0" /></label><label>Money movement<select name="amountType"><option value="none">Not specified</option><option value="out">Money added / spent</option><option value="in">Money received / returned</option><option value="neutral">Show amount only</option></select></label></div>
+          <label>Note<textarea name="note" rows="3" maxlength="500" placeholder="Add a short detail or memory..."></textarea></label>
+          <p class="timeline-form-help">Timeline events are for your personal record and do not affect expenses, investments, or other totals.</p>
+          <div class="modal-actions"><button type="button" class="secondary-button" id="cancelTimelineEventModal">Cancel</button><button class="primary-button" type="submit">Save event</button></div>
+        </form>
+      </section>
+    </div>
+
     <div class="modal-backdrop" id="confirmModalBackdrop" hidden>
       <section class="modal confirm-modal" role="dialog" aria-modal="true" aria-labelledby="confirmModalTitle">
         <div class="modal-heading"><div><p class="panel-kicker">CONFIRMATION</p><h3 id="confirmModalTitle">Delete habit?</h3></div><button class="close-button" id="closeConfirmModal">×</button></div>
@@ -372,13 +386,14 @@
     <script src="js/api.js?v=20260712-31"></script>
     <script src="js/auth.js?v=20260712-31"></script>
     <script src="js/router.js?v=20260728-01"></script>
-    <script src="js/pages/basic.js?v=20260902-02"></script>
+    <script src="js/pages/basic.js?v=20260929-01"></script>
     <script src="js/pages/transactions.js?v=20260908-01"></script>
     <script src="js/pages/credit-card.js?v=20260729-01"></script>
     <script src="js/pages/schedule.js?v=20260719-01"></script>
     <script src="js/pages/habits.js?v=20260831-01"></script>
-    <script src="js/pages/insights.js?v=20260908-01"></script>
-    <script src="js/pages/calendar.js?v=20260910-01"></script>
-    <script src="app.js?v=20260908-01"></script>
+    <script src="js/pages/insights.js?v=20260929-02"></script>
+    <script src="js/pages/calendar.js?v=20260917-01"></script>
+    <script src="js/pages/timeline.js?v=20260923-05"></script>
+    <script src="app.js?v=20260929-01"></script>
   </body>
 </html>
