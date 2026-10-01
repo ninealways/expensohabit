@@ -27,6 +27,7 @@ let pendingScheduleDeleteId = null;
 let habitCheckinDate = '';
 let habitCheckinFocusId = '';
 let habitSleepRange = 'daily';
+let habitActivityRange = 'last7';
 let mobileStartupTransactionModalOpened = false;
 
 const $ = (selector) => document.querySelector(selector);
@@ -36,6 +37,7 @@ const hiddenMoney = () => '₹••••';
 const money = (value) => privacyMode ? hiddenMoney() : `₹${Math.round(value).toLocaleString('en-IN')}`;
 const compactMoney = (value) => privacyMode ? hiddenMoney() : value >= 100000 ? `₹${(value / 100000).toFixed(value % 100000 ? 1 : 0)}L` : value >= 1000 ? `₹${(value / 1000).toFixed(value % 1000 ? 1 : 0)}k` : money(value);
 const svgIcon = (name) => `<svg class="svg-icon" aria-hidden="true"><use href="#icon-${name}"></use></svg>`;
+const richIcon = (name) => `<img class="rich-icon" src="assets/icons/${name}.svg?v=20261001-02" alt="" aria-hidden="true" />`;
 const esc = (value = '') => String(value).replace(/[&<>"']/g, char => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[char]));
 const spendGroups = {
   need:{ label:'Need', color:'#7857f4', icon:'lock' },
@@ -383,11 +385,23 @@ function showAppShell() {
   $('#bootGate').hidden = true;
   $('#authGate').hidden = true;
   $('#appShell').hidden = false;
+  updateAccountAvatar();
   document.body.classList.remove('app-booting');
   document.body.classList.add('app-ready');
 }
 function displayName() { return currentUser?.name || currentUser?.email?.split('@')[0] || 'there'; }
-function dashboardGreeting() { return `Good morning, ${displayName()} <span class="title-icon">${svgIcon('insights')}</span>`; }
+function updateAccountAvatar() {
+  const source = String(currentUser?.name || currentUser?.email || 'U').trim();
+  const initial = source.charAt(0).toUpperCase() || 'U';
+  const avatar = $('#accountAvatarInitial');
+  const button = $('#accountMenuButton');
+  if (avatar) avatar.textContent = initial;
+  if (button) {
+    button.setAttribute('aria-label', `Open account menu for ${displayName()}`);
+    button.title = displayName();
+  }
+}
+function dashboardGreeting() { return `Good morning, ${displayName()} <span class="title-icon">${richIcon('insights')}</span>`; }
 function setAuthMode(mode) { authMode=mode; const isLogin=mode==='login'; $('#authTitle').textContent=isLogin?'Welcome back':'Create your account'; $('#authSubmit').textContent=isLogin?'Sign in':'Create account'; $('#authToggle').textContent=isLogin?'Create a new account':'I already have an account'; $('#authPassword').autocomplete=isLogin?'current-password':'new-password'; $('#authNameRow').hidden=isLogin; $('#authName').required=!isLogin; $('#inviteCodeRow').hidden=isLogin; $('#inviteCode').required=!isLogin; $('#authError').textContent=''; }
 async function submitAuth(event) { event.preventDefault(); const payload={ email:$('#authEmail').value, password:$('#authPassword').value }; if (authMode === 'register') { payload.name = $('#authName').value; payload.inviteCode = $('#inviteCode').value; } try { currentUser = authMode === 'login' ? await window.ExpensoAuth.login(payload) : await window.ExpensoAuth.register(payload); } catch (error) { $('#authError').textContent = error.message || 'Authentication failed'; return; } await syncPendingTransactions({ silent:true, skipReload:true }); await loadData(); updateCategoryOptions(); renderDashboard(); navigate(window.ExpensoRouter.pageFromLocation(), false); showAppShell(); maybeOpenMobileStartupTransactionModal(); toast(authMode==='login'?'Signed in':'Account created'); }
 async function logout() { try { await window.ExpensoAuth.logout(); } catch (error) { toast(error.message || 'Could not log out'); return; } currentUser = null; data = { transactions: [], schedules: [], categories: [], habits: [], habitLogs: [], stockTrades: [], creditCards: [], notes: [], timelineEvents: [], settings:defaultSettings }; $('#authForm').reset(); setAuthMode('login'); history.pushState({ page:'dashboard' }, '', '/dashboard'); showAuthGate(); toast('Logged out'); }
@@ -402,8 +416,12 @@ function totals() {
   return { expenseTotal, real, loan, investment, total: expenseTotal + loan + investment, expenses };
 }
 
-function monthTotals(month) {
-  const transactions = data.transactions.filter(t => t.date?.startsWith(month));
+function monthTotals(month, throughDay = null) {
+  const [year, monthNumber] = month.split('-').map(Number);
+  const lastDay = new Date(year, monthNumber, 0).getDate();
+  const cutoffDay = throughDay == null ? lastDay : Math.min(lastDay, Math.max(1, Number(throughDay) || 1));
+  const cutoff = `${month}-${String(cutoffDay).padStart(2, '0')}`;
+  const transactions = data.transactions.filter(t => t.date?.startsWith(month) && t.date <= cutoff);
   const expenses = transactions.filter(t => t.type === 'expense');
   const expenseTotal = expenses.reduce((sum, t) => sum + Number(t.amount || 0), 0);
   const real = expenses.filter(t => t.includeInReal !== false).reduce((sum, t) => sum + Number(t.amount || 0), 0);
@@ -412,19 +430,66 @@ function monthTotals(month) {
   return { expenseTotal, real, loan, investment, total:expenseTotal + loan + investment };
 }
 
+function summaryTrend(current, previous, positiveWhenUp = false) {
+  const change = Number(current || 0) - Number(previous || 0);
+  if (Math.abs(change) < 0.5) return { label:'→ 0%', tone:'neutral' };
+  const direction = change > 0 ? '↑' : '↓';
+  const label = previous > 0 ? `${direction} ${Math.round(Math.abs(change) / previous * 100)}%` : `${direction} New`;
+  const positive = positiveWhenUp ? change > 0 : change < 0;
+  return { label, tone:positive ? 'positive' : 'negative' };
+}
+
+function summarySparkline(values, color, id) {
+  const width = 112, height = 52, pad = 5;
+  const high = Math.max(...values, 1);
+  const low = Math.min(...values, 0);
+  const range = Math.max(1, high - low);
+  const points = values.map((value, index) => ({
+    x:pad + index * ((width - pad * 2) / Math.max(1, values.length - 1)),
+    y:pad + (high - value) / range * (height - pad * 2)
+  }));
+  const path = points.reduce((result, point, index) => {
+    if (!index) return `M ${point.x.toFixed(1)} ${point.y.toFixed(1)}`;
+    const previous = points[index - 1];
+    const middle = ((previous.x + point.x) / 2).toFixed(1);
+    return `${result} C ${middle} ${previous.y.toFixed(1)}, ${middle} ${point.y.toFixed(1)}, ${point.x.toFixed(1)} ${point.y.toFixed(1)}`;
+  }, '');
+  const area = `${path} L ${(width - pad).toFixed(1)} ${(height - pad).toFixed(1)} L ${pad} ${(height - pad).toFixed(1)} Z`;
+  return `<svg viewBox="0 0 ${width} ${height}" role="presentation"><defs><linearGradient id="${id}Fill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${color}" stop-opacity=".22"/><stop offset="1" stop-color="${color}" stop-opacity="0"/></linearGradient></defs><path class="summary-spark-area" d="${area}" fill="url(#${id}Fill)"/><path class="summary-spark-line" d="${path}" style="--spark-color:${color}"/><circle class="summary-spark-point" cx="${points.at(-1).x.toFixed(1)}" cy="${points.at(-1).y.toFixed(1)}" r="3" style="--spark-color:${color}"/></svg>`;
+}
+
+function renderSummaryCards(current, previous) {
+  const currentStart = new Date(`${currentMonthKey()}-01T00:00:00`);
+  const months = Array.from({ length:6 }, (_, index) => monthInputKey(addMonthsToDate(currentStart, index - 5)));
+  const rows = [
+    { value:'total', trend:'totalOutflowTrend', spark:'totalOutflowSparkline', current:current.total, previous:previous.total, color:'#ff6682' },
+    { value:'real', trend:'realExpensesTrend', spark:'realExpensesSparkline', current:current.real, previous:previous.real, color:'#7952ef' },
+    { value:'loan', trend:'loanTrend', spark:'loanSparkline', current:current.loan, previous:previous.loan, color:'#f0a328' },
+    { value:'investment', trend:'investmentTrend', spark:'investmentSparkline', current:current.investment, previous:previous.investment, color:'#18b990', positiveWhenUp:true }
+  ];
+  rows.forEach(row => {
+    const trend = summaryTrend(row.current, row.previous, row.positiveWhenUp);
+    const badge = $(`#${row.trend}`);
+    badge.textContent = trend.label;
+    badge.className = `summary-trend-badge ${trend.tone}`;
+    const values = months.map(month => monthTotals(month)[row.value]);
+    $(`#${row.spark}`).innerHTML = summarySparkline(values, row.color, row.spark);
+  });
+}
+
 function renderDashboard() {
   $('#currentDateLabel').textContent = longDateLabel();
   const t = totals();
+  const todayDate = new Date();
+  const elapsedDay = todayDate.getDate();
   const previousMonth = monthInputKey(addMonthsToDate(new Date(`${currentMonthKey()}-01T00:00:00`), -1));
-  const previous = monthTotals(previousMonth);
+  const previous = monthTotals(previousMonth, elapsedDay);
+  const [previousYear, previousMonthNumber] = previousMonth.split('-').map(Number);
+  const comparisonDay = Math.min(elapsedDay, new Date(previousYear, previousMonthNumber, 0).getDate());
+  const comparisonLabel = new Date(previousYear, previousMonthNumber - 1, comparisonDay).toLocaleDateString('en-IN', { day:'numeric', month:'short' });
   $('#totalOutflow').textContent = money(t.total); $('#realExpenses').textContent = money(t.real); $('#loanTotal').textContent = money(t.loan); $('#investmentTotal').textContent = money(t.investment);
-  $('#realExpensesLastMonth').textContent = `Last month ${money(previous.real)}`;
-  $('#loanLastMonth').textContent = `Last month ${money(previous.loan)}`;
-  $('#investmentLastMonth').textContent = `Last month ${money(previous.investment)}`;
-  $('#summaryExpense').textContent = money(t.expenseTotal); $('#summaryLoan').textContent = money(t.loan); $('#summaryInvestment').textContent = money(t.investment);
-  $('#summaryExpensePct').textContent = `${percent(t.expenseTotal, t.total)}%`;
-  $('#summaryLoanPct').textContent = `${percent(t.loan, t.total)}%`;
-  $('#summaryInvestmentPct').textContent = `${percent(t.investment, t.total)}%`;
+  renderSummaryCards(t, previous);
+  $$('.summary-trend small').forEach(label => { label.textContent = `vs ${comparisonLabel}`; });
   $('#formulaExpense').textContent = money(t.expenseTotal); $('#formulaLoan').textContent = money(t.loan); $('#formulaInvestment').textContent = money(t.investment); $('#formulaTotal').textContent = money(t.total);
   const realMode = dashboardView === 'real';
   $$('.segmented-control button').forEach(button => button.classList.toggle('active', button.dataset.view === dashboardView));
@@ -432,10 +497,10 @@ function renderDashboard() {
     ? 'Showing real expenses only in the category list and outflow chart.'
     : 'All outflow chart includes loans & investments. Top categories stay expense-only.';
   $('#categoryPanelKicker').textContent = realMode ? 'REAL EXPENSES' : 'THIS MONTH';
-  $('#categoryPanelTitle').textContent = realMode ? 'Top real-expense categories' : 'Top expense categories';
+  $('#categoryPanelTitle').textContent = realMode ? 'Real expense breakdown' : 'Expense breakdown';
   $('#categoryPanelSubtitle').textContent = realMode
-    ? 'Excludes loans, investments, and expense items marked out of real spend.'
-    : 'Expenses only. Loans and investments excluded.';
+    ? 'Day-to-day expense categories only.'
+    : 'Where your money goes this month.';
   renderCategories(dashboardView); renderUpcoming(); renderChart(dashboardView); renderHomeVelocity(t.real);
 }
 
@@ -492,15 +557,35 @@ function renderCategories(view = dashboardView) {
   const transactions = view === 'real' ? dashboardTransactions('real', monthTransactions) : monthTransactions.filter(t => t.type === 'expense');
   const denominator = transactions.reduce((sum, t) => sum + t.amount, 0) || 1;
   const totalsByCategory = transactions.reduce((acc, t) => { acc[t.category] = (acc[t.category] || 0) + t.amount; return acc; }, {});
-  const list = Object.entries(totalsByCategory).sort((a, b) => b[1] - a[1]); const max = list[0]?.[1] || 1;
+  const list = Object.entries(totalsByCategory).sort((a, b) => b[1] - a[1]);
+  const primary = list.slice(0, 6);
+  const other = list.slice(6).reduce((sum, [, value]) => sum + value, 0);
+  const rows = other ? [...primary, ['Others', other]] : primary;
+  const max = rows[0]?.[1] || 1;
+  const palette = ['#8054ef','#f45f9d','#ff9d2e','#19bca6','#ef4778','#5590ed','#8795c5'];
   const icons = {'Food & Dining':'fork','Transport':'car','Shopping':'shopping','Bills & Utilities':'bolt','Entertainment':'film','Health':'heart'};
-  $('#categoryList').innerHTML = list.slice(0, 6).map(([name, value], index) => `<div class="category-item"><span class="category-icon ${index % 2 ? 'teal-bg' : 'purple-bg'}">${svgIcon(icons[name] || 'tag')}</span><div><div class="category-name"><span>${name}</span><span>${money(value)}</span></div><div class="category-bar"><i style="width:${Math.max(15, value / max * 100)}%"></i></div></div><span class="category-percent">${Math.round(value / denominator * 100)}%</span></div>`).join('') || '<p class="subtitle">Add an expense to see categories.</p>';
+  if (!rows.length) {
+    $('#categoryDonut').innerHTML = '<div class="home-category-donut empty"><div><strong>₹0</strong><small>No expenses</small></div></div>';
+    $('#categoryList').innerHTML = '<p class="subtitle">Add an expense to see categories.</p>';
+    return;
+  }
+  let angle = 0;
+  const segments = rows.map(([, value], index) => {
+    const start = angle;
+    angle += value / denominator * 360;
+    return `${palette[index % palette.length]} ${start.toFixed(1)}deg ${angle.toFixed(1)}deg`;
+  }).join(',');
+  $('#categoryDonut').innerHTML = `<div class="home-category-donut" style="background:conic-gradient(${segments})"><div><strong>${money(denominator)}</strong><small>Total expenses</small></div></div>`;
+  $('#categoryList').innerHTML = rows.map(([name, value], index) => {
+    const color = palette[index % palette.length];
+    return `<div class="home-category-item" style="--category-color:${color}"><i class="home-category-dot"></i><span class="category-icon">${svgIcon(icons[name] || 'tag')}</span><div class="home-category-copy"><b>${name}</b><span><i style="width:${Math.max(10, value / max * 100)}%"></i></span></div><strong>${money(value)}</strong><em>${Math.round(value / denominator * 100)}%</em></div>`;
+  }).join('');
 }
 
 function renderUpcoming() {
-  const icon = { loan:'receipt', investment:'pie', expense:'bag' };
   const color = { loan:'amber-bg', investment:'teal-bg', expense:'purple-bg' };
-  $('#upcomingList').innerHTML = data.schedules.filter(s => s.archived !== true).slice(0, 4).map(s => `<div class="upcoming-item"><span class="upcoming-icon ${color[s.type]}">${svgIcon(icon[s.type])}</span><div class="upcoming-text"><b>${s.subcategory}</b><small>${scheduleWhen(s)}</small></div><div class="upcoming-right"><b>${money(s.amount)}</b><span class="tag">${s.autoAdd ? 'Auto-add' : 'Manual'}</span></div></div>`).join('');
+  const rich = { expense:'real-expenses', loan:'loans', investment:'investments' };
+  $('#upcomingList').innerHTML = data.schedules.filter(s => s.archived !== true).slice(0, 4).map(s => `<div class="upcoming-item"><span class="upcoming-icon ${color[s.type]}">${richIcon(rich[s.type] || 'schedule')}</span><div class="upcoming-text"><b>${s.subcategory}</b><small>${scheduleWhen(s)}</small></div><div class="upcoming-right"><b>${money(s.amount)}</b><span class="tag">${s.autoAdd ? 'Auto-add' : 'Manual'}</span></div></div>`).join('');
 }
 
 function chartBuckets(range = chartRange) {
@@ -654,14 +739,14 @@ async function addTransaction(event) {
 }
 
 function toast(message) { const el = $('#toast'); el.textContent = message; el.classList.add('show'); setTimeout(() => el.classList.remove('show'), 2400); }
-const pageTitles = { transactions:'Your transactions', creditCard:'Credit cards', calendar:'Spend calendar', schedule:'Plan your payments', outflow:'Outflow report', investments:'Investments', insights:'Spend insights', profile:'Profile', settings:'Keep your data yours', habits:'Habit tracker', habitInsights:'Habit insights', habitManage:'Manage habits', habitCheckins:'Habit check-ins', timeline:'Personal timeline' };
+const pageTitles = { transactions:'Your transactions', creditCard:'Credit cards', calendar:'Spend calendar', schedule:'Plan your payments', outflow:'Outflow report', investments:'Investments', insights:'Spend insights', profile:'Profile', settings:'Keep your data yours', habits:'Habit tracker', habitManage:'Manage habits', habitCheckins:'Habit check-ins', timeline:'Personal timeline' };
 
 function navigate(page, updateUrl = true) {
+  if (page === 'habitInsights') page = 'habits';
   transactionOpenMultiFilter = '';
-  activePage = page; activeWorkspace = page === 'timeline' ? 'timeline' : ['habits','habitInsights','habitManage','habitCheckins'].includes(page) ? 'habits' : 'expense'; if (updateUrl) window.ExpensoRouter.push(page); document.body.classList.toggle('dashboard-mode', page === 'dashboard'); document.body.classList.toggle('habits-mode', activeWorkspace === 'habits'); document.body.classList.toggle('timeline-mode', activeWorkspace === 'timeline'); $$('.nav-item').forEach(item => item.classList.toggle('active', item.dataset.page === page)); $$('[data-workspace]').forEach(item => item.classList.toggle('active', item.dataset.workspace === activeWorkspace));
+  activePage = page; activeWorkspace = page === 'timeline' ? 'timeline' : ['habits','habitManage','habitCheckins'].includes(page) ? 'habits' : 'expense'; if (updateUrl) window.ExpensoRouter.push(page); document.body.classList.toggle('dashboard-mode', page === 'dashboard'); document.body.classList.toggle('habits-mode', activeWorkspace === 'habits'); document.body.classList.toggle('timeline-mode', activeWorkspace === 'timeline'); $$('.nav-item').forEach(item => item.classList.toggle('active', item.dataset.page === page)); $$('[data-workspace]').forEach(item => item.classList.toggle('active', item.dataset.workspace === activeWorkspace));
   const dashboardSections = $$('.hero-row,.summary-grid,.view-switch-row,.content-grid,.bottom-grid'); const subPage = $('#subPageView');
-  if (page === 'habits') { dashboardSections.forEach(section => section.hidden = true); subPage.hidden = false; subPage.innerHTML = renderHabitsMockPage(); initializeDatePickers(subPage); return; }
-  if (page === 'habitInsights') { dashboardSections.forEach(section => section.hidden = true); subPage.hidden = false; subPage.innerHTML = renderHabitInsightsPage(); initializeDatePickers(subPage); return; }
+  if (page === 'habits') { dashboardSections.forEach(section => section.hidden = true); subPage.hidden = false; subPage.innerHTML = renderHabitsPage(); initializeDatePickers(subPage); return; }
   if (page === 'habitManage') { dashboardSections.forEach(section => section.hidden = true); subPage.hidden = false; subPage.innerHTML = renderHabitManagePage(); initializeDatePickers(subPage); return; }
   if (page === 'habitCheckins') { dashboardSections.forEach(section => section.hidden = true); subPage.hidden = false; subPage.innerHTML = renderHabitCheckinsPage(); initializeDatePickers(subPage); return; }
   if (page === 'timeline') { dashboardSections.forEach(section => section.hidden = true); subPage.hidden = false; subPage.innerHTML = renderTimelinePage(); $('#pageTitle').textContent = pageTitles.timeline; return; }
@@ -994,6 +1079,7 @@ async function submitProfile(event) {
   const result = await response.json();
   if (!response.ok) { toast(result.error || 'Could not save name'); return; }
   currentUser = result;
+  updateAccountAvatar();
   navigate('profile', false);
   toast('Name updated');
 }
@@ -1214,6 +1300,12 @@ $('#subPageView').addEventListener('click', async event => {
 }, true);
 $('#subPageView').addEventListener('click', async event => { const target = event.target.closest('[data-action],[data-page],[data-range],[data-insight-preset],[data-insight-category],[data-insight-back],[data-money-flow-history-nav],[data-transaction-preset],[data-investment-tab],[data-calendar-view],[data-calendar-type],[data-calendar-date],[data-calendar-nav]'); if (!target) return; if (target.dataset.calendarView) { calendarFilter.view = target.dataset.calendarView; calendarFilter.month = calendarFilter.month || currentMonthKey(); calendarFilter.selectedDate = calendarFilter.selectedDate || today(); $('#subPageView').innerHTML = renderCalendarPage(); return; } if (target.dataset.calendarType) { calendarFilter.type = target.dataset.calendarType; $('#subPageView').innerHTML = renderCalendarPage(); return; } if (target.dataset.calendarDate) { calendarFilter.selectedDate = target.dataset.calendarDate; calendarFilter.month = target.dataset.calendarDate.slice(0, 7); $('#subPageView').innerHTML = renderCalendarPage(); return; } if (target.dataset.calendarNav) { const current = new Date(`${calendarFilter.view === 'week' ? (calendarFilter.selectedDate || today()) : `${calendarFilter.month || currentMonthKey()}-01`}T00:00:00`); const direction = target.dataset.calendarNav === 'next' ? 1 : -1; const nextDate = calendarFilter.view === 'week' ? addDays(current, direction * 7) : addMonthsToDate(current, direction); calendarFilter.selectedDate = dateKey(nextDate); calendarFilter.month = monthInputKey(nextDate); $('#subPageView').innerHTML = renderCalendarPage(); return; } if (target.dataset.moneyFlowHistoryNav) { moneyFlowHistoryOffset = target.dataset.moneyFlowHistoryNav === 'back' ? Math.min(8, moneyFlowHistoryOffset + 3) : Math.max(0, moneyFlowHistoryOffset - 3); $('#subPageView').innerHTML = renderInsightsPage(); return; } if (target.dataset.insightCategory) { insightCategoryDrill = target.dataset.insightCategory; $('#subPageView').innerHTML = renderInsightsPage(); return; } if (target.dataset.insightBack) { insightCategoryDrill = ''; $('#subPageView').innerHTML = renderInsightsPage(); return; } if (target.dataset.insightPreset === 'thisMonth') { insightFilter = { mode:'thisMonth' }; insightCategoryDrill = ''; moneyFlowHistoryOffset = 0; $('#subPageView').innerHTML = renderInsightsPage(); return; } if (target.dataset.investmentTab) { investmentTab = target.dataset.investmentTab; $('#subPageView').innerHTML = renderInvestmentsPage(); return; } if (target.dataset.transactionPreset === 'thisMonth') { const form = $('#transactionFilters'); transactionFilter = { ...transactionFilter, mode:'thisMonth', fromMonth:currentMonthKey(), toMonth:currentMonthKey(), fromYear:currentYear(), toYear:currentYear(), search:form?.search?.value || transactionFilter.search, type:form?.type?.value || transactionFilter.type, category:selectedTransactionFilterValues(form, 'category'), spendGroup:selectedTransactionFilterValues(form, 'spendGroup'), payment:form?.payment?.value || transactionFilter.payment || 'all', sort:form?.sort?.value || transactionFilter.sort }; $('#subPageView').innerHTML = renderTransactionsPage(); return; } if (target.dataset.page) { navigate(target.dataset.page); if (target.dataset.page === 'dashboard') await refreshData(); return; } const action = target.dataset.action; if (!action) return; if (action === 'open-credit-card-modal') { openCreditCardModal(); return; } if (action === 'credit-card-view-all') { $('#creditCardHistoryPanel')?.scrollIntoView({ behavior:'smooth', block:'start' }); $('#creditCardHistoryPanel')?.classList.add('panel-highlight'); setTimeout(() => $('#creditCardHistoryPanel')?.classList.remove('panel-highlight'), 1200); return; } if (action === 'credit-card-manage') { openCreditCardModal(); return; } if (action === 'toggle-credit-card-active') { const card = data.creditCards.find(item => item.id === target.dataset.id); if (!card) return; const response = await fetch(`/api/credit-cards/${card.id}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ active:card.active === false }) }); if (!response.ok) { toast('Could not update card'); return; } await loadData(); navigate('creditCard', false); toast(card.active === false ? 'Card activated' : 'Card deactivated'); return; } if (action === 'sleep-range') { habitSleepRange = target.dataset.range || 'daily'; $('#subPageView').innerHTML = renderHabitInsightsPage(); return; } if (action === 'open-habit-modal') { openHabitModal(); return; } if (action === 'open-habit-checkin') { openHabitCheckinModal(target.dataset.date || today(), target.dataset.id || ''); return; } if (action === 'edit-habit') { const habit = data.habits.find(item => item.id === target.dataset.id); if (habit) openHabitModal(habit); return; } if (action === 'toggle-habit-active') { const habit = data.habits.find(item => item.id === target.dataset.id); if (!habit) return; const response = await fetch(`/api/habits/${habit.id}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ active:habit.active === false }) }); if (!response.ok) { toast('Could not update habit'); return; } await loadData(); navigate('habitManage', false); toast(habit.active === false ? 'Habit activated' : 'Habit paused'); return; } if (action === 'confirm-delete-habit') { const habit = data.habits.find(item => item.id === target.dataset.id); if (habit) openConfirmDeleteHabit(habit); return; } if (action === 'delete-habit-log') { const response = await fetch(`/api/habit-logs/${target.dataset.id}/${target.dataset.date}`, { method:'DELETE' }); if (!response.ok) { toast('Could not delete check-in'); return; } await loadData(); navigate('habitCheckins', false); toast('Check-in deleted'); return; } if (action === 'toggle-habit') { const habit = data.habits.find(item => item.id === target.dataset.id); if (!habit) return; const done = habitCompleted(habit); await saveHabitLog(habit, done ? 0 : Number(habit.target || 1), !done); return; } if (action === 'log-habit') { const habit = data.habits.find(item => item.id === target.dataset.id); if (!habit) return; const current = habitLog(habit.id)?.value || ''; const value = window.prompt(`Enter ${habit.name} value (${habit.unit || 'value'})`, current); if (value === null) return; await saveHabitLog(habit, value); return; } if (action === 'open-stock-trade') { openStockTradeModal({ symbol:target.dataset.symbol || '', companyName:target.dataset.company || '', tradeType:target.dataset.tradeType || 'buy', currentPrice:target.dataset.currentPrice || '' }); return; } if (action === 'delete-stock-trade') { if (!window.confirm('Delete this stock trade?')) return; const response = await fetch(`/api/stock-trades/${target.dataset.id}`, { method:'DELETE' }); if (!response.ok) { toast('Could not delete stock trade'); return; } await loadData(); investmentTab='stocks'; navigate('investments', false); toast('Stock trade deleted'); return; } if (action === 'schedule-tab') { scheduleTab = target.dataset.tab || 'expense'; $('#subPageView').innerHTML = renderSubPage('schedule'); return; } if (action === 'logout') { await logout(); return; } if (action === 'refresh-profile') { await refreshData(); return; } if (action === 'open-add' || action === 'open-schedule') { openModal(activePage === 'investments' ? 'investment' : activePage === 'schedule' ? scheduleTab : 'expense'); if (activePage === 'investments' || action === 'open-schedule') { $('[name="recurring"]').checked = true; updateDetailSections(); } } if (action === 'export') exportData(); if (action === 'skip-schedule') toast('This schedule was skipped once'); if (action === 'edit') { const transaction = data.transactions.find(item => item.id === target.dataset.id); if (transaction) openModal(transaction.type, transaction); } if (action === 'delete') { const transaction = data.transactions.find(item => item.id === target.dataset.id); if (!transaction || !window.confirm(`Delete ${transaction.subcategory || transaction.category} for ${money(transaction.amount)}?`)) return; const response = await fetch(`/api/transactions/${transaction.id}`, { method:'DELETE' }); if (!response.ok) { toast('Could not delete transaction'); return; } data = await (await fetch('/api/data')).json(); navigate('transactions', false); toast('Transaction deleted'); } if (action === 'edit-schedule') { const response = await fetch(`/api/schedules/${target.dataset.id}`); if (!response.ok) { toast('Could not load the latest schedule'); return; } openScheduleModal(await response.json()); } if (action === 'open-category-modal') { openCategoryModal(); return; } if (action === 'edit-category') { const category = data.categories.find(item => item.id === target.dataset.id); if (category) openCategoryModal(category); return; } });
 $('#subPageView').addEventListener('click', event => {
+  const target = event.target.closest('[data-action="habit-activity-range"]');
+  if (!target) return;
+  habitActivityRange = ['last7','last30','all'].includes(target.dataset.range) ? target.dataset.range : 'last7';
+  $('#subPageView').innerHTML = renderHabitsPage();
+});
+$('#subPageView').addEventListener('click', event => {
   const target = event.target.closest('[data-action="credit-card-view-all"]');
   if (!target) return;
   event.preventDefault();
@@ -1267,6 +1359,10 @@ $('#subPageView').addEventListener('click', event => { const target = event.targ
 $('#subPageView').addEventListener('submit', event => { if (!['outflowFilters','insightFilters','transactionFilters'].includes(event.target.id)) return; event.preventDefault(); const form = new FormData(event.target); if (event.target.id === 'transactionFilters') { applyTransactionFiltersFromForm(event.target, event.submitter?.dataset.transactionMode || transactionFilter.mode || 'thisMonth'); return; } if (event.target.id === 'insightFilters') { const mode = event.submitter?.dataset.insightMode || 'monthRange'; const fromMonth = form.get('fromMonth'); const toMonth = form.get('toMonth'); const fromYear = form.get('fromYear'); const toYear = form.get('toYear'); insightFilter = mode === 'yearRange' ? { mode, fromYear, toYear, fromMonth, toMonth } : { mode, fromMonth, toMonth, fromYear, toYear }; insightCategoryDrill = ''; moneyFlowHistoryOffset = 0; $('#subPageView').innerHTML = renderInsightsPage(); return; } $('#subPageView').innerHTML = renderOutflowReport(form.get('from'), form.get('to')); });
 new MutationObserver(() => initializeDatePickers($('#subPageView'))).observe($('#subPageView'), { childList:true, subtree:true });
 window.addEventListener('popstate', () => navigate(window.ExpensoRouter.pageFromLocation(), false));
+const topbar = document.querySelector('.topbar');
+function updateTopbarScrollState() { topbar?.classList.toggle('is-scrolled', window.scrollY > 12); }
+window.addEventListener('scroll', updateTopbarScrollState, { passive:true });
+updateTopbarScrollState();
 window.addEventListener('online', async () => {
   await syncPendingTransactions();
   if (activePage === 'dashboard') renderDashboard();

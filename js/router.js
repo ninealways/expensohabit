@@ -11,7 +11,6 @@
     insights:'/insights',
     profile:'/profile',
     habits:'/habits',
-    habitInsights:'/habit-insights',
     habitManage:'/habit-manage',
     habitCheckins:'/habit-checkins',
     timeline:'/timeline'
@@ -22,6 +21,10 @@
   }, { '/':'dashboard' });
 
   function pageFromLocation() {
+    if (window.location.pathname === '/habit-insights') {
+      window.history.replaceState({ page:'habits' }, '', routeForPage.habits);
+      return 'habits';
+    }
     return pageForRoute[window.location.pathname] || 'dashboard';
   }
 

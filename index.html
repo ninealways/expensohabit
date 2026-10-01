@@ -8,10 +8,15 @@
     <link rel="icon" href="assets/favicon.ico?v=20260928-01" sizes="32x32" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="vendor/flatpickr/flatpickr.min.css" />
     <link rel="stylesheet" href="vendor/flatpickr/plugins/monthSelect/style.css" />
-    <link rel="stylesheet" href="styles.css?v=20260929-01" />
+    <link rel="stylesheet" href="styles.css?v=20261001-03" />
+    <link rel="stylesheet" href="design-system.css?v=20261001-11" />
+    <link rel="stylesheet" href="habits-redesign.css?v=20261001-09" />
+    <link rel="stylesheet" href="credit-card-redesign.css?v=20261001-02" />
+    <link rel="stylesheet" href="finance-pages-redesign.css?v=20261001-05" />
+    <link rel="stylesheet" href="timeline-redesign.css?v=20261001-01" />
   </head>
   <body class="app-booting">
     <svg class="icon-sprite" aria-hidden="true">
@@ -84,32 +89,36 @@
             <p>Track money. Build habits. Capture life.</p>
           </div>
         </a>
-        <nav class="top-nav" aria-label="Primary navigation">
-          <button class="nav-item active" data-page="dashboard"><span><svg class="svg-icon"><use href="#icon-home"></use></svg></span><small>Home</small></button>
-          <button class="nav-item" data-page="transactions"><span><svg class="svg-icon"><use href="#icon-list"></use></svg></span><small>Transactions</small></button>
-          <button class="top-add-button" id="topAddButton" aria-label="Add transaction"><svg class="svg-icon"><use href="#icon-plus"></use></svg></button>
-          <button class="nav-item" data-page="schedule"><span><svg class="svg-icon"><use href="#icon-calendar"></use></svg></span><small>Schedule</small></button>
-          <button class="nav-item" data-page="insights"><span><svg class="svg-icon"><use href="#icon-insights"></use></svg></span><small>Insights</small></button>
-        </nav>
+        <div class="app-switcher" aria-label="Workspace switcher">
+          <button class="active" type="button" data-workspace="expense"><img class="rich-icon" src="assets/icons/expenses.svg?v=20261001-02" alt="" /><span>Expenses</span></button>
+          <button type="button" data-workspace="habits"><img class="rich-icon" src="assets/icons/habits.svg?v=20261001-02" alt="" /><span>Habits</span></button>
+          <button type="button" data-workspace="timeline"><img class="rich-icon" src="assets/icons/timeline.svg?v=20261001-02" alt="" /><span>Timeline</span></button>
+        </div>
         <div class="topbar-actions">
-          <div class="app-switcher" aria-label="Workspace switcher">
-            <button class="active" type="button" data-workspace="expense"><svg class="svg-icon"><use href="#icon-rupee"></use></svg><span>Expenses</span></button>
-            <button type="button" data-workspace="habits"><svg class="svg-icon"><use href="#icon-habit"></use></svg><span>Habits</span></button>
-            <button type="button" data-workspace="timeline"><svg class="svg-icon"><use href="#icon-timeline"></use></svg><span>Timeline</span></button>
-          </div>
           <span class="sync-pill"><span class="status-dot"></span><span id="syncLabel">Synced</span></span>
-          <button class="icon-button" id="refreshButton" aria-label="Refresh data" title="Refresh data"><svg class="svg-icon"><use href="#icon-refresh"></use></svg></button>
-          <button class="icon-button" id="privacyButton" aria-label="Hide amounts" title="Hide amounts"><svg class="svg-icon"><use href="#icon-eye"></use></svg></button>
+          <button class="icon-button" id="refreshButton" aria-label="Refresh data" title="Refresh data"><img class="rich-icon header-action-icon" src="assets/icons/refresh.svg?v=20261001-01" alt="" /></button>
+          <button class="icon-button" id="privacyButton" aria-label="Hide amounts" title="Hide amounts"><img class="rich-icon header-action-icon" src="assets/icons/privacy.svg?v=20261001-01" alt="" /></button>
           <div class="account-menu">
-            <button class="icon-button" id="accountMenuButton" aria-label="Account menu" title="Account"><svg class="svg-icon"><use href="#icon-user"></use></svg></button>
+            <button class="account-menu-trigger" id="accountMenuButton" aria-label="Account menu" title="Account">
+              <span class="account-avatar-initial" id="accountAvatarInitial" aria-hidden="true">U</span>
+              <svg class="account-menu-chevron" aria-hidden="true" viewBox="0 0 20 20"><path d="m6 8 4 4 4-4" /></svg>
+            </button>
             <div class="account-menu-panel" id="accountMenuPanel" hidden>
-              <button type="button" data-account-page="profile"><svg class="svg-icon"><use href="#icon-user"></use></svg><span>Profile</span></button>
-              <button type="button" data-account-page="settings"><svg class="svg-icon"><use href="#icon-menu"></use></svg><span>Settings</span></button>
-              <button type="button" data-account-action="logout"><svg class="svg-icon"><use href="#icon-logout"></use></svg><span>Logout</span></button>
+              <button type="button" data-account-page="profile"><img class="rich-icon" src="assets/icons/profile.svg?v=20261001-01" alt="" /><span>Profile</span></button>
+              <button type="button" data-account-page="settings"><img class="rich-icon" src="assets/icons/settings.svg?v=20261001-01" alt="" /><span>Settings</span></button>
+              <button type="button" data-account-action="logout"><img class="rich-icon" src="assets/icons/logout.svg?v=20261001-01" alt="" /><span>Logout</span></button>
             </div>
           </div>
         </div>
       </header>
+
+      <nav class="top-nav expense-sidebar" aria-label="Expenses navigation">
+        <button class="nav-item active" data-page="dashboard"><span><img class="rich-icon" src="assets/icons/home.svg?v=20261001-02" alt="" /></span><small>Home</small></button>
+        <button class="nav-item" data-page="transactions"><span><img class="rich-icon" src="assets/icons/transactions.svg?v=20261001-02" alt="" /></span><small>Transactions</small></button>
+        <button class="top-add-button" id="topAddButton" aria-label="Add transaction"><svg class="svg-icon"><use href="#icon-plus"></use></svg></button>
+        <button class="nav-item" data-page="schedule"><span><img class="rich-icon" src="assets/icons/schedule.svg?v=20261001-02" alt="" /></span><small>Schedule</small></button>
+        <button class="nav-item" data-page="insights"><span><img class="rich-icon" src="assets/icons/insights.svg?v=20261001-02" alt="" /></span><small>Insights</small></button>
+      </nav>
 
       <main class="page-wrap">
         <section class="hero-row">
@@ -126,32 +135,28 @@
 
         <section class="summary-grid" aria-label="Monthly summary">
           <article class="summary-card total-card">
-            <div class="card-icon"><svg class="svg-icon"><use href="#icon-rupee"></use></svg></div>
-            <p>Total outflow</p>
-            <strong id="totalOutflow">₹0</strong>
-            <div class="summary-breakdown"><span>● Expenses <b id="summaryExpense">₹0</b><em id="summaryExpensePct">0%</em></span><span>● Loans <b id="summaryLoan">₹0</b><em id="summaryLoanPct">0%</em></span><span>● Investments <b id="summaryInvestment">₹0</b><em id="summaryInvestmentPct">0%</em></span></div>
+            <div class="card-icon"><img class="rich-icon" src="assets/icons/outflow.svg?v=20261001-02" alt="" /></div>
+            <div class="summary-copy"><p>Total outflow</p><strong id="totalOutflow">₹0</strong><div class="summary-trend"><span class="summary-trend-badge" id="totalOutflowTrend">→ 0%</span><small>vs last month</small></div></div>
+            <div class="summary-sparkline" id="totalOutflowSparkline" aria-hidden="true"></div>
+            <button class="summary-card-action" type="button" data-page="outflow" aria-label="View total outflow">›</button>
           </article>
           <article class="summary-card expense-card">
-            <div class="card-icon"><svg class="svg-icon"><use href="#icon-bag"></use></svg></div>
-            <p>Real expenses</p>
-            <strong id="realExpenses">₹0</strong>
-            <small>Day-to-day spending only</small>
-            <span class="last-month-value" id="realExpensesLastMonth">Last month ₹0</span>
+            <div class="card-icon"><img class="rich-icon" src="assets/icons/real-expenses.svg?v=20261001-02" alt="" /></div>
+            <div class="summary-copy"><p>Real expenses</p><strong id="realExpenses">₹0</strong><div class="summary-trend"><span class="summary-trend-badge" id="realExpensesTrend">→ 0%</span><small>vs last month</small></div></div>
+            <div class="summary-sparkline" id="realExpensesSparkline" aria-hidden="true"></div>
+            <button class="summary-card-action" type="button" data-page="transactions" aria-label="View real expenses">›</button>
           </article>
           <article class="summary-card loan-card">
-            <div class="card-icon"><svg class="svg-icon"><use href="#icon-receipt"></use></svg></div>
-            <p>Loans</p>
-            <strong id="loanTotal">₹0</strong>
-            <small>Loan outflow · excluded</small>
-            <span class="last-month-value" id="loanLastMonth">Last month ₹0</span>
+            <div class="card-icon"><img class="rich-icon" src="assets/icons/loans.svg?v=20261001-02" alt="" /></div>
+            <div class="summary-copy"><p>Loans</p><strong id="loanTotal">₹0</strong><div class="summary-trend"><span class="summary-trend-badge" id="loanTrend">→ 0%</span><small>vs last month</small></div></div>
+            <div class="summary-sparkline" id="loanSparkline" aria-hidden="true"></div>
+            <button class="summary-card-action" type="button" data-page="outflow" aria-label="View loan outflow">›</button>
           </article>
           <article class="summary-card investment-card">
-            <div class="card-icon"><svg class="svg-icon"><use href="#icon-pie"></use></svg></div>
-            <p>Investments</p>
-            <strong id="investmentTotal">₹0</strong>
-            <small>Investment outflow · excluded</small>
-            <span class="last-month-value" id="investmentLastMonth">Last month ₹0</span>
-            <button class="card-link" data-page="investments">View investments</button>
+            <div class="card-icon"><img class="rich-icon" src="assets/icons/investments.svg?v=20261001-02" alt="" /></div>
+            <div class="summary-copy"><p>Investments</p><strong id="investmentTotal">₹0</strong><div class="summary-trend"><span class="summary-trend-badge" id="investmentTrend">→ 0%</span><small>vs last month</small></div></div>
+            <div class="summary-sparkline" id="investmentSparkline" aria-hidden="true"></div>
+            <button class="summary-card-action" type="button" data-page="investments" aria-label="View investments">›</button>
           </article>
         </section>
 
@@ -165,8 +170,8 @@
 
         <section class="content-grid">
           <article class="panel category-panel">
-            <div class="panel-heading"><div><p class="panel-kicker" id="categoryPanelKicker">THIS MONTH</p><h3 id="categoryPanelTitle">Top expense categories</h3><p class="panel-caption" id="categoryPanelSubtitle">Expenses only. Loans and investments excluded.</p></div><button class="ghost-button" data-page="transactions">View all</button></div>
-            <div id="categoryList" class="category-list"></div>
+            <div class="panel-heading"><div><p class="panel-kicker" id="categoryPanelKicker">THIS MONTH</p><h3 id="categoryPanelTitle">Expense breakdown</h3><p class="panel-caption" id="categoryPanelSubtitle">Where your money goes this month.</p></div><button class="ghost-button" data-page="transactions">View all</button></div>
+            <div class="expense-breakdown"><div id="categoryDonut" class="home-category-donut-wrap"></div><div id="categoryList" class="category-list home-category-list"></div></div>
           </article>
           <article class="panel upcoming-panel">
             <div class="panel-heading"><div><p class="panel-kicker">AUTO-ADDED ON DUE DATE</p><h3>Upcoming</h3></div><button class="ghost-button" data-page="schedule">Manage</button></div>
@@ -186,7 +191,7 @@
           </article>
           <article class="panel logic-panel">
             <div class="panel-heading"><div><p class="panel-kicker">HOW TOTALS WORK</p><h3>Money map</h3></div><button class="ghost-button" data-page="outflow">View report</button></div>
-            <div class="money-map"><div class="map-step expense-step"><span class="map-icon purple-bg"><svg class="svg-icon"><use href="#icon-bag"></use></svg></span><b>Regular expenses</b><small>Included in real expenses</small></div><span class="map-arrow">→</span><div class="map-step loan-step"><span class="map-icon amber-bg"><svg class="svg-icon"><use href="#icon-receipt"></use></svg></span><b>Loans</b><small>Separate loan outflow</small></div><span class="map-arrow">→</span><div class="map-step investment-step"><span class="map-icon teal-bg"><svg class="svg-icon"><use href="#icon-pie"></use></svg></span><b>Investments</b><small>Separate investment outflow</small></div></div>
+            <div class="money-map"><div class="map-step expense-step"><span class="map-icon purple-bg"><img class="rich-icon" src="assets/icons/real-expenses.svg?v=20261001-02" alt="" /></span><b>Regular expenses</b><small>Included in real expenses</small></div><span class="map-arrow">→</span><div class="map-step loan-step"><span class="map-icon amber-bg"><img class="rich-icon" src="assets/icons/loans.svg?v=20261001-02" alt="" /></span><b>Loans</b><small>Separate loan outflow</small></div><span class="map-arrow">→</span><div class="map-step investment-step"><span class="map-icon teal-bg"><img class="rich-icon" src="assets/icons/investments.svg?v=20261001-02" alt="" /></span><b>Investments</b><small>Separate investment outflow</small></div></div>
             <div class="formula"><span id="formulaExpense">₹0</span><b>+</b><span id="formulaLoan">₹0</span><b>+</b><span id="formulaInvestment">₹0</span><b>=</b><strong id="formulaTotal">₹0</strong></div>
           </article>
         </section>
@@ -194,11 +199,11 @@
       </main>
 
       <nav class="bottom-nav" aria-label="Primary navigation">
-        <button class="nav-item active" data-page="dashboard"><span><svg class="svg-icon"><use href="#icon-home"></use></svg></span><small>Home</small></button>
-        <button class="nav-item" data-page="transactions"><span><svg class="svg-icon"><use href="#icon-list"></use></svg></span><small>Transactions</small></button>
+        <button class="nav-item active" data-page="dashboard"><span><img class="rich-icon" src="assets/icons/home.svg?v=20261001-02" alt="" /></span><small>Home</small></button>
+        <button class="nav-item" data-page="transactions"><span><img class="rich-icon" src="assets/icons/transactions.svg?v=20261001-02" alt="" /></span><small>Transactions</small></button>
         <button class="add-fab" id="fabButton" aria-label="Add transaction"><svg class="svg-icon"><use href="#icon-plus"></use></svg></button>
-        <button class="nav-item" data-page="schedule"><span><svg class="svg-icon"><use href="#icon-calendar"></use></svg></span><small>Schedule</small></button>
-        <button class="nav-item" data-page="insights"><span><svg class="svg-icon"><use href="#icon-insights"></use></svg></span><small>Insights</small></button>
+        <button class="nav-item" data-page="schedule"><span><img class="rich-icon" src="assets/icons/schedule.svg?v=20261001-02" alt="" /></span><small>Schedule</small></button>
+        <button class="nav-item" data-page="insights"><span><img class="rich-icon" src="assets/icons/insights.svg?v=20261001-02" alt="" /></span><small>Insights</small></button>
       </nav>
     </div>
 
@@ -385,15 +390,15 @@
     <script src="vendor/flatpickr/plugins/monthSelect/index.js"></script>
     <script src="js/api.js?v=20260712-31"></script>
     <script src="js/auth.js?v=20260712-31"></script>
-    <script src="js/router.js?v=20260728-01"></script>
-    <script src="js/pages/basic.js?v=20260929-01"></script>
+    <script src="js/router.js?v=20261001-01"></script>
+    <script src="js/pages/basic.js?v=20261001-01"></script>
     <script src="js/pages/transactions.js?v=20260908-01"></script>
-    <script src="js/pages/credit-card.js?v=20260729-01"></script>
-    <script src="js/pages/schedule.js?v=20260719-01"></script>
-    <script src="js/pages/habits.js?v=20260831-01"></script>
-    <script src="js/pages/insights.js?v=20260929-02"></script>
-    <script src="js/pages/calendar.js?v=20260917-01"></script>
-    <script src="js/pages/timeline.js?v=20260923-05"></script>
-    <script src="app.js?v=20260929-01"></script>
+    <script src="js/pages/credit-card.js?v=20261001-01"></script>
+    <script src="js/pages/schedule.js?v=20261001-02"></script>
+    <script src="js/pages/habits.js?v=20261001-05"></script>
+    <script src="js/pages/insights.js?v=20261001-02"></script>
+    <script src="js/pages/calendar.js?v=20260930-01"></script>
+    <script src="js/pages/timeline.js?v=20261001-01"></script>
+    <script src="app.js?v=20261001-11"></script>
   </body>
 </html>

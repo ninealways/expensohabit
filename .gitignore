@@ -16,6 +16,7 @@ pids
 *.pid.lock
 
 # Coverage and build artifacts
+.build/
 lib-cov
 coverage
 *.lcov
