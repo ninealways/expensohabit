@@ -658,7 +658,7 @@ app.put('/api/schedules/:id', requireAuth, async (req, res) => { try { const dat
 app.get('/api/schedules/:id', requireAuth, async (req, res) => { try { const database = await ensureDatabase(); const schedule = await database.collection('schedules').findOne({ id:req.params.id, ownerId:req.user.id }, { projection:{ _id:0, ownerId:0 } }); if (!schedule) return res.status(404).json({ error:'Schedule not found' }); res.json(schedule); } catch (error) { res.status(500).json({ error:error.message }); } });
 app.delete('/api/schedules/:id', requireAuth, async (req, res) => { try { const database = await ensureDatabase(); const result = await database.collection('schedules').deleteOne({ id:req.params.id, ownerId:req.user.id }); if (!result.deletedCount) return res.status(404).json({ error:'Schedule not found' }); res.json({ ok:true }); } catch (error) { res.status(500).json({ error:error.message }); } });
 
-app.get(['/dashboard', '/transactions', '/credit-card', '/calendar', '/schedule', '/settings', '/outflow', '/investments', '/insights', '/profile', '/habits', '/habit-insights', '/habit-manage', '/habit-checkins', '/timeline'], (_req, res) => {
+app.get(['/dashboard', '/transactions', '/credit-card', '/calendar', '/schedule', '/settings', '/outflow', '/investments', '/insights', '/profile', '/guide', '/habits', '/habit-insights', '/habit-manage', '/habit-checkins', '/timeline'], (_req, res) => {
   res.setHeader('Cache-Control', 'no-store');
   res.sendFile(path.join(__dirname, 'index.html'));
 });

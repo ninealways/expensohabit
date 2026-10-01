@@ -739,7 +739,7 @@ async function addTransaction(event) {
 }
 
 function toast(message) { const el = $('#toast'); el.textContent = message; el.classList.add('show'); setTimeout(() => el.classList.remove('show'), 2400); }
-const pageTitles = { transactions:'Your transactions', creditCard:'Credit cards', calendar:'Spend calendar', schedule:'Plan your payments', outflow:'Outflow report', investments:'Investments', insights:'Spend insights', profile:'Profile', settings:'Keep your data yours', habits:'Habit tracker', habitManage:'Manage habits', habitCheckins:'Habit check-ins', timeline:'Personal timeline' };
+const pageTitles = { transactions:'Your transactions', creditCard:'Credit cards', calendar:'Spend calendar', schedule:'Plan your payments', outflow:'Outflow report', investments:'Investments', insights:'Spend insights', profile:'Profile', settings:'Keep your data yours', guide:'App guide', habits:'Habit tracker', habitManage:'Manage habits', habitCheckins:'Habit check-ins', timeline:'Personal timeline' };
 
 function navigate(page, updateUrl = true) {
   if (page === 'habitInsights') page = 'habits';
@@ -764,6 +764,7 @@ function renderSubPage(page) {
   if (page === 'insights') return renderInsightsPage();
   if (page === 'timeline') return renderTimelinePage();
   if (page === 'profile') return renderProfilePage();
+  if (page === 'guide') return renderGuidePage();
   return renderSettingsPage();
 }
 
