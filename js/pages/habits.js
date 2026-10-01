@@ -65,6 +65,7 @@ function renderHabitDashboardConsistency(rows, dates) {
 
 function renderHabitsPage() {
   const habits = activeStartedHabits();
+  const habitColorById = new Map(habits.map((habit, index) => [habit.id, habitDashboardPalette[index % habitDashboardPalette.length]]));
   const week = weekDates();
   const scoringWeek = habitScoringDates(week);
   const monthDates = Array.from({ length:30 }, (_, index) => dateKey(addDays(new Date(), -29 + index)));
@@ -74,8 +75,8 @@ function renderHabitsPage() {
   const weekTotal = habits.reduce((sum, habit) => sum + habitDatesInRange(habit, scoringWeek).length, 0);
   const weekDone = habits.reduce((sum, habit) => sum + habitDatesInRange(habit, scoringWeek).filter(date => habitCompleted(habit, date)).length, 0);
   const weekRate = weekTotal ? Math.round(weekDone / weekTotal * 100) : 0;
-  const monthRows = habitDashboardRows(habits.filter(habit => habitDatesInRange(habit, scoringMonth).length), scoringMonth).sort((a, b) => b.rate - a.rate || b.streak - a.streak);
-  const consistencyRows = habits.map((habit, index) => ({ habit, color:monthRows.find(row => row.habit.id === habit.id)?.color || habitDashboardPalette[index % habitDashboardPalette.length] }));
+  const monthRows = habitDashboardRows(habits.filter(habit => habitDatesInRange(habit, scoringMonth).length), scoringMonth).map(row => ({ ...row, color:habitColorById.get(row.habit.id) })).sort((a, b) => b.rate - a.rate || b.streak - a.streak);
+  const consistencyRows = habits.map(habit => ({ habit, color:habitColorById.get(habit.id) }));
   const consistencyEligible = habits.reduce((sum, habit) => sum + habitDatesInRange(habit, scoringMonth).length, 0);
   const consistencyCompleted = habits.reduce((sum, habit) => sum + habitDatesInRange(habit, scoringMonth).filter(date => habitCompleted(habit, date)).length, 0);
   const bestStreak = habits.map(habit => ({ habit, streak:habitStreak(habit) })).sort((a, b) => b.streak - a.streak)[0];
@@ -116,7 +117,7 @@ function renderHabitsPage() {
       values[bucket] += Number(log.value || 0);
     });
     const total = habitLogs.reduce((sum, log) => sum + Number(log.value || 0), 0);
-    return { habit, total, values, color:monthRows.find(item => item.habit.id === habit.id)?.color || habitDashboardPalette[index % habitDashboardPalette.length] };
+    return { habit, total, values, color:habitColorById.get(habit.id) || habitDashboardPalette[index % habitDashboardPalette.length] };
   });
   const activityRangeLabel = activityRangeLabels[habitActivityRange] || activityRangeLabels.last7;
   const walkingHabit = habits.find(habit => habitDashboardIconName(habit) === 'habit-walking');
@@ -156,7 +157,7 @@ function renderHabitsPage() {
     <section class="habit-dashboard-primary-grid">
       <article class="panel habit-dashboard-checkin-panel"><div class="panel-heading"><div><p class="panel-kicker">TODAY · ${new Date().toLocaleDateString('en-IN', { weekday:'short', day:'2-digit', month:'short', year:'numeric' })}</p><h3>Daily check-in</h3></div><button class="mini-button" data-action="open-habit-checkin" type="button">Check in all</button></div><div class="habit-dashboard-checkins">${habits.map(habit => { const log = habitLog(habit.id); const done = habitCompleted(habit); return `<div class="habit-dashboard-checkin ${done ? 'done' : ''}"><span class="habit-dashboard-habit-icon">${richIcon(habitDashboardIconName(habit))}</span><div><b>${esc(habit.name)}</b><small>${habitValueText(habit, log)} · Goal ${habitTargetText(habit)}</small></div><button class="habit-toggle" data-action="toggle-habit" data-id="${habit.id}" type="button">${done ? 'Done' : 'Mark'}</button><button class="habit-dashboard-more" data-action="open-habit-checkin" data-date="${today()}" data-id="${habit.id}" type="button" aria-label="Update ${esc(habit.name)}">•••</button></div>`; }).join('') || '<p class="empty-state">Add your first habit to start tracking.</p>'}</div></article>
 
-      <article class="panel habit-dashboard-week-panel"><div class="panel-heading"><div><p class="panel-kicker">THIS WEEK</p><h3>Consistency grid</h3></div><span class="habit-dashboard-rate">${weekRate}%</span></div><div class="habit-dashboard-grid-head"><span></span>${dayLabels.map(day => `<b>${day}</b>`).join('')}</div>${habits.map(habit => `<div class="habit-dashboard-grid-row"><b>${esc(habit.name)}</b>${week.map(date => `<span title="${esc(habit.name)} · ${date}" class="${!habitIsStarted(habit, date) ? 'muted' : habitCompleted(habit, date) ? 'filled' : ''} ${date === today() ? 'today' : ''}"></span>`).join('')}</div>`).join('') || '<p class="empty-state">The weekly grid appears after you add habits.</p>'}</article>
+      <article class="panel habit-dashboard-week-panel"><div class="panel-heading"><div><p class="panel-kicker">THIS WEEK</p><h3>Consistency grid</h3></div><span class="habit-dashboard-rate">${weekRate}%</span></div><div class="habit-dashboard-grid-head"><span></span>${dayLabels.map(day => `<b>${day}</b>`).join('')}</div>${habits.map(habit => `<div class="habit-dashboard-grid-row" style="--habit-chart-color:${habitColorById.get(habit.id)}"><b>${esc(habit.name)}</b>${week.map(date => `<span title="${esc(habit.name)} · ${date}" class="${!habitIsStarted(habit, date) ? 'muted' : habitCompleted(habit, date) ? 'filled' : ''} ${date === today() ? 'today' : ''}"></span>`).join('')}</div>`).join('') || '<p class="empty-state">The weekly grid appears after you add habits.</p>'}</article>
 
       <article class="panel habit-dashboard-active-panel"><div class="panel-heading"><div><p class="panel-kicker">HABIT CARDS</p><h3>Active habits</h3></div><button class="mini-button" data-page="habitManage" type="button">Manage</button></div><div class="habit-dashboard-active-grid">${habits.map(habit => { const milestone = habitMilestoneProgress(habit); const streak = habitStreak(habit); return `<div class="habit-dashboard-active-card"><span class="habit-dashboard-habit-icon">${richIcon(habitDashboardIconName(habit))}</span><div><b>${esc(habit.name)}</b><small>${habitTargetText(habit)} daily</small></div><strong>${streak}d</strong><i><em style="width:${milestone.pct}%"></em></i><small>Milestone: ${milestone.label}</small></div>`; }).join('') || '<p class="empty-state">No active habits yet.</p>'}</div></article>
     </section>
@@ -505,18 +506,34 @@ function renderReadingSummary(summary, currentMonth, previousMonth) {
 
 function renderHabitManagePage() {
   const habits = (data.habits || []).slice().sort((a, b) => Number(b.active !== false) - Number(a.active !== false) || a.name.localeCompare(b.name));
-  return `<section class="habits-shell">
-    <article class="panel habits-hero">
-      <div><p class="panel-kicker">HABIT ADMIN</p><h3>Manage habits</h3><p class="subtitle">Edit targets, pause tracking, or delete habits.</p></div>
+  const activeCount = habits.filter(habit => habit.active !== false).length;
+  const pausedCount = habits.length - activeCount;
+  const checkinCount = (data.habitLogs || []).length;
+  return `<section class="habits-shell habit-manager-page">
+    <article class="panel habits-hero habit-manager-hero">
+      <div class="habit-manager-hero-copy"><span class="habit-manager-hero-icon">${richIcon('habit-patterns')}</span><div><p class="panel-kicker">HABIT ADMIN</p><h3>Manage habits</h3><p class="subtitle">Shape your routines, adjust goals and pause habits without losing history.</p></div></div>
       <div class="habit-hero-actions"><button class="ghost-button" data-page="habits" type="button">Back to habits</button><button class="primary-button" data-action="open-habit-modal" type="button">＋ Add habit</button></div>
     </article>
-    <article class="panel">
-      <div class="panel-heading"><div><p class="panel-kicker">ALL HABITS</p><h3>Habit settings</h3></div><span class="tag">${habits.length} total</span></div>
-      <div class="habit-manage-list">${habits.map(habit => `<div class="habit-manage-card ${habit.active === false ? 'inactive' : ''}">
-        <span class="map-icon ${habit.color}">${svgIcon(habit.icon)}</span>
-        <div><b>${esc(habit.name)}</b><small>${habitTargetText(habit)} · starts ${habitStartDate(habit)} · ${habit.active === false ? 'Inactive' : 'Active'}</small>${habit.description ? `<p>${esc(habit.description)}</p>` : ''}</div>
-        <div class="habit-actions"><button class="mini-button" data-action="edit-habit" data-id="${habit.id}" type="button">Edit</button><button class="mini-button" data-action="toggle-habit-active" data-id="${habit.id}" type="button">${habit.active === false ? 'Activate' : 'Pause'}</button><button class="mini-button warn" data-action="confirm-delete-habit" data-id="${habit.id}" type="button">Delete</button></div>
-      </div>`).join('') || '<p class="empty-state">No habits yet.</p>'}</div>
+
+    <section class="habit-manager-summary" aria-label="Habit management summary">
+      <article><span>${richIcon('habits')}</span><div><p>Total habits</p><strong>${habits.length}</strong><small>Created routines</small></div></article>
+      <article><span class="teal">${richIcon('habit-progress')}</span><div><p>Active</p><strong>${activeCount}</strong><small>Currently tracking</small></div></article>
+      <article><span class="amber">${richIcon('habit-history')}</span><div><p>Paused</p><strong>${pausedCount}</strong><small>History preserved</small></div></article>
+      <article><span class="blue">${richIcon('habit-weekly')}</span><div><p>Check-ins</p><strong>${checkinCount}</strong><small>All recorded entries</small></div></article>
+    </section>
+
+    <article class="panel habit-manager-panel">
+      <div class="panel-heading"><div><p class="panel-kicker">ALL HABITS</p><h3>Habit settings</h3><p class="subtitle">Update goals, milestones, appearance and tracking status.</p></div><span class="tag">${habits.length} total</span></div>
+      <div class="habit-manager-grid">${habits.map(habit => {
+        const active = habit.active !== false;
+        const milestoneTarget = Number(habit.milestoneTarget || 30);
+        const milestoneLabel = habit.milestoneType === 'total' ? `${milestoneTarget.toLocaleString('en-IN')} ${esc(habit.unit || 'total')}` : `${milestoneTarget} completed days`;
+        return `<article class="habit-manager-card ${active ? '' : 'inactive'}">
+          <header><span class="habit-manager-icon ${habit.color || 'purple-bg'}">${richIcon(habitDashboardIconName(habit))}</span><div><b>${esc(habit.name)}</b><small>${esc(habit.description || 'Daily routine')}</small></div><em class="${active ? 'active' : 'paused'}">${active ? 'Active' : 'Paused'}</em></header>
+          <div class="habit-manager-details"><span><small>Daily goal</small><b>${esc(habitTargetText(habit))}</b></span><span><small>Starts</small><b>${esc(habitStartDate(habit))}</b></span><span><small>Milestone</small><b>${milestoneLabel}</b></span></div>
+          <footer><button class="mini-button" data-action="edit-habit" data-id="${habit.id}" type="button">${richIcon('timeline-edit')}<span>Edit</span></button><button class="mini-button" data-action="toggle-habit-active" data-id="${habit.id}" type="button">${richIcon('habit-history')}<span>${active ? 'Pause' : 'Activate'}</span></button><button class="mini-button warn" data-action="confirm-delete-habit" data-id="${habit.id}" type="button">${richIcon('timeline-delete')}<span>Delete</span></button></footer>
+        </article>`;
+      }).join('') || `<div class="habit-manager-empty"><span>${richIcon('habits')}</span><b>No habits yet</b><p>Add a habit to begin building your routine.</p><button class="primary-button" data-action="open-habit-modal" type="button">＋ Add habit</button></div>`}</div>
     </article>
   </section>`;
 }

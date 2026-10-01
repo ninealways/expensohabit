@@ -13,10 +13,11 @@
     <link rel="stylesheet" href="vendor/flatpickr/plugins/monthSelect/style.css" />
     <link rel="stylesheet" href="styles.css?v=20261001-03" />
     <link rel="stylesheet" href="design-system.css?v=20261001-11" />
-    <link rel="stylesheet" href="habits-redesign.css?v=20261001-09" />
-    <link rel="stylesheet" href="credit-card-redesign.css?v=20261001-02" />
+    <link rel="stylesheet" href="habits-redesign.css?v=20261001-11" />
+    <link rel="stylesheet" href="credit-card-redesign.css?v=20261001-11" />
     <link rel="stylesheet" href="finance-pages-redesign.css?v=20261001-05" />
     <link rel="stylesheet" href="timeline-redesign.css?v=20261001-01" />
+    <link rel="stylesheet" href="account-pages.css?v=20261001-02" />
   </head>
   <body class="app-booting">
     <svg class="icon-sprite" aria-hidden="true">
@@ -278,7 +279,10 @@
             <label>Unit<input name="unit" placeholder="min, pages, steps, hrs" /></label>
             <label>Icon<select name="icon"><option value="habit">Habit</option><option value="book">Book</option><option value="walk">Walk</option><option value="moon">Sleep</option><option value="heart">Health</option><option value="bolt">Energy</option><option value="flame">Streak</option></select></label>
           </div>
-          <label>Color<select name="color"><option value="purple-bg">Purple</option><option value="amber-bg">Amber</option><option value="teal-bg">Teal</option><option value="blue-bg">Blue</option></select></label>
+          <div class="form-row habit-appearance-row">
+            <label>Color<select name="color"><option value="purple-bg">Purple</option><option value="amber-bg">Amber</option><option value="teal-bg">Teal</option><option value="blue-bg">Blue</option><option value="coral-bg">Coral</option><option value="pink-bg">Pink</option><option value="indigo-bg">Indigo</option><option value="cyan-bg">Cyan</option><option value="lime-bg">Lime</option><option value="slate-bg">Slate</option></select></label>
+            <div class="habit-appearance-preview" aria-live="polite"><span class="map-icon purple-bg" id="habitAppearancePreviewIcon"><svg class="svg-icon" aria-hidden="true"><use href="#icon-habit"></use></svg></span><p><b>Appearance preview</b><small id="habitAppearancePreviewLabel">Purple · Habit</small></p></div>
+          </div>
           <label class="switch-line"><span>Active habit<small>Turn off to pause tracking without deleting history.</small></span><input name="active" type="checkbox" class="switch" checked /></label>
           <div class="modal-actions"><button type="button" class="secondary-button" id="cancelHabitModal">Cancel</button><button class="primary-button" type="submit">Save habit</button></div>
         </form>
@@ -348,7 +352,7 @@
         <form id="creditCardBillForm" class="credit-card-form">
           <input name="cardId" type="hidden" />
           <div class="form-row"><label>Card<input name="cardName" readonly /></label><label>Cycle month<input name="month" type="text" data-picker="month" placeholder="Select month" required /></label></div>
-          <div class="form-row"><label>Outstanding / spent<input name="outstanding" type="number" min="0" step="1" placeholder="0" required /></label><label>Paid amount<input name="paid" type="number" min="0" step="1" placeholder="0" /></label></div>
+          <div class="form-row"><label>Outstanding / spent<input name="outstanding" type="number" min="0" step="0.01" placeholder="0" required /></label><label>Paid amount<input name="paid" type="number" min="0" step="0.01" placeholder="0" /></label></div>
           <div class="form-row"><label>Bill date<input name="billDate" type="text" data-picker="date" placeholder="Bill generated date" /></label><label>Payment date<input name="paymentDate" type="text" data-picker="date" placeholder="When paid" /></label></div>
           <label>Status<select name="status"><option value="Upcoming">Upcoming</option><option value="Partial">Partial</option><option value="Paid">Paid</option></select></label>
           <div class="modal-actions"><button type="button" class="secondary-button" id="cancelCreditCardBillModal">Cancel</button><button class="primary-button" type="submit">Save bill</button></div>
@@ -391,14 +395,14 @@
     <script src="js/api.js?v=20260712-31"></script>
     <script src="js/auth.js?v=20260712-31"></script>
     <script src="js/router.js?v=20261001-01"></script>
-    <script src="js/pages/basic.js?v=20261001-01"></script>
+    <script src="js/pages/basic.js?v=20261001-02"></script>
     <script src="js/pages/transactions.js?v=20260908-01"></script>
-    <script src="js/pages/credit-card.js?v=20261001-01"></script>
+    <script src="js/pages/credit-card.js?v=20261001-04"></script>
     <script src="js/pages/schedule.js?v=20261001-02"></script>
-    <script src="js/pages/habits.js?v=20261001-05"></script>
+    <script src="js/pages/habits.js?v=20261001-07"></script>
     <script src="js/pages/insights.js?v=20261001-02"></script>
     <script src="js/pages/calendar.js?v=20260930-01"></script>
     <script src="js/pages/timeline.js?v=20261001-01"></script>
-    <script src="app.js?v=20261001-11"></script>
+    <script src="app.js?v=20261001-12"></script>
   </body>
 </html>
