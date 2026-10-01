@@ -163,6 +163,53 @@ function renderProfilePage() {
   </section>`;
 }
 
+function renderGuidePage() {
+  const workspaceCards = [
+    {
+      className:'expenses', icon:'expenses', eyebrow:'MONEY', title:'Expenses',
+      copy:'Record everyday spending, loans and investments, then understand where the money went.',
+      preview:`<div class="guide-money-preview"><span><i></i><b>Real expenses</b><strong>₹24,850</strong></span><span><i></i><b>Loans</b><strong>₹8,500</strong></span><span><i></i><b>Investments</b><strong>₹12,000</strong></span></div>`,
+      links:[['dashboard','Dashboard'],['transactions','Transactions'],['schedule','Schedule'],['insights','Insights']]
+    },
+    {
+      className:'habits', icon:'habits', eyebrow:'ROUTINES', title:'Habits',
+      copy:'Check in daily, review consistency and adjust goals without losing your history.',
+      preview:`<div class="guide-habit-preview"><span class="done"></span><span class="done"></span><span class="done"></span><span class="today"></span><span></span><span></span><span></span></div>`,
+      links:[['habits','Habit tracker'],['habitCheckins','History'],['habitManage','Manage']]
+    },
+    {
+      className:'timeline', icon:'timeline', eyebrow:'LIFE', title:'Timeline',
+      copy:'Keep financial milestones, trips, celebrations and personal memories together by date.',
+      preview:`<div class="guide-timeline-preview"><span><i></i><b>Added investment</b></span><span><i></i><b>Weekend trip</b></span><span><i></i><b>Personal milestone</b></span></div>`,
+      links:[['timeline','Open timeline']]
+    }
+  ];
+  return `<section class="account-page guide-page">
+    <article class="panel account-page-hero guide-hero">
+      <div class="account-hero-copy"><span class="account-hero-icon">${richIcon('guide')}</span><div><p class="panel-kicker">EXPENSOHABIT GUIDE</p><h3>Start simple. Build from there.</h3><p class="subtitle">A quick tour of the app, with direct links to every step. Nothing on this page changes your data.</p></div></div>
+      <button class="primary-button" data-page="dashboard" type="button">Open dashboard</button>
+    </article>
+
+    <section class="guide-quickstart" aria-label="Quick start">
+      <article class="guide-start-card"><span class="guide-step-number">1</span><span class="guide-start-icon purple">${richIcon('transactions')}</span><div><p>Start with money</p><h3>Add your first transaction</h3><small>Choose Expense, Loan or Investment and record the amount, date and category.</small></div><button class="mini-button" data-action="open-add" type="button">Add transaction</button></article>
+      <article class="guide-start-card"><span class="guide-step-number">2</span><span class="guide-start-icon teal">${richIcon('habits')}</span><div><p>Build a routine</p><h3>Create or check in a habit</h3><small>Set a daily target, mark progress and let the consistency views build automatically.</small></div><button class="mini-button" data-page="habits" type="button">Open habits</button></article>
+      <article class="guide-start-card"><span class="guide-step-number">3</span><span class="guide-start-icon amber">${richIcon('timeline')}</span><div><p>Capture context</p><h3>Save a meaningful moment</h3><small>Add money moves, milestones, trips or memories to your personal timeline.</small></div><button class="mini-button" data-page="timeline" type="button">Open timeline</button></article>
+    </section>
+
+    <article class="panel guide-workspaces-panel">
+      <div class="panel-heading"><div><p class="panel-kicker">THREE CONNECTED WORKSPACES</p><h3>Where everything lives</h3><p class="subtitle">Use the header switcher anytime to move between money, routines and life events.</p></div></div>
+      <div class="guide-workspace-grid">${workspaceCards.map(item => `<section class="guide-workspace-card ${item.className}"><header><span>${richIcon(item.icon)}</span><div><p>${item.eyebrow}</p><h3>${item.title}</h3></div></header><p>${item.copy}</p>${item.preview}<footer>${item.links.map(([page, label]) => `<button type="button" data-page="${page}">${label}<b>›</b></button>`).join('')}</footer></section>`).join('')}</div>
+    </article>
+
+    <section class="guide-flow-grid">
+      <article class="panel guide-flow-card"><div class="account-card-heading"><div><p class="panel-kicker">COMMON MONEY FLOW</p><h3>Record → plan → review</h3></div><span class="guide-flow-icon">${richIcon('insight-flow')}</span></div><div class="guide-flow-steps"><div><span>1</span><p><b>Record transactions</b><small>Capture spending when it happens.</small></p></div><i></i><div><span>2</span><p><b>Schedule repeats</b><small>Turn regular payments into commitments.</small></p></div><i></i><div><span>3</span><p><b>Review Insights</b><small>See patterns, alerts and spending pace.</small></p></div></div><button class="ghost-button" data-page="transactions" type="button">View transactions</button></article>
+      <article class="panel guide-flow-card"><div class="account-card-heading"><div><p class="panel-kicker">DAILY HABIT FLOW</p><h3>Set → check in → improve</h3></div><span class="guide-flow-icon teal">${richIcon('habit-progress')}</span></div><div class="guide-flow-steps"><div><span>1</span><p><b>Set a measurable goal</b><small>Minutes, pages, steps, hours or a checkbox.</small></p></div><i></i><div><span>2</span><p><b>Check in daily</b><small>Mark the value you completed.</small></p></div><i></i><div><span>3</span><p><b>Review consistency</b><small>Use the grid and 30-day view to adjust.</small></p></div></div><button class="ghost-button" data-page="habits" type="button">View habits</button></article>
+    </section>
+
+    <article class="panel guide-tips-panel"><div class="panel-heading"><div><p class="panel-kicker">GOOD TO KNOW</p><h3>Useful shortcuts</h3></div></div><div class="guide-tip-grid"><div><span>${richIcon('credit-card')}</span><p><b>Credit cards stay separate</b><small>Statements help you track card spend and payments without changing expense totals.</small></p><button data-page="creditCard" type="button">Open</button></div><div><span>${richIcon('schedule')}</span><p><b>Use Schedule for repeats</b><small>Insurance, bills, EMIs and recurring investments belong in Schedule.</small></p><button data-page="schedule" type="button">Open</button></div><div><span>${richIcon('privacy')}</span><p><b>Hide amounts anytime</b><small>Use the eye button in the header when sharing your screen.</small></p></div><div><span>${richIcon('settings')}</span><p><b>Back up your data</b><small>Settings lets you export a portable JSON copy whenever needed.</small></p><button data-page="settings" type="button">Open</button></div></div></article>
+  </section>`;
+}
+
 function exportData() {
   const blob = new Blob([JSON.stringify(data, null, 2)], { type:'application/json' });
   const url = URL.createObjectURL(blob);
