@@ -1,16 +1,48 @@
 function renderSettingsPage() {
+  const settings = normalizeSettings(data.settings);
   const categoryRows = ['expense','loan','investment'].map(kind => {
     const categories = data.categories.filter(c => c.kind === kind).sort((a, b) => a.name.localeCompare(b.name));
-    return `<div class="category-group"><div class="category-group-heading"><b>${kind === 'expense' ? 'Expense categories' : kind === 'loan' ? 'Loan categories' : 'Investment categories'}</b><span>${categories.length}</span></div><div class="category-chip-grid">${categories.map(category => { const group = kind === 'expense' ? spendGroups[category.spendGroup || defaultSpendGroup(category.name)] : null; return `<div class="category-chip ${category.active === false ? 'inactive' : ''}"><span>${esc(category.name)}</span>${group ? `<small class="category-group-badge" style="--badge-color:${group.color}">${group.label}</small>` : ''}<button class="mini-button" data-action="edit-category" data-id="${category.id}">Edit</button></div>`; }).join('') || '<p class="empty-state">No categories yet.</p>'}</div></div>`;
+    const title = kind === 'expense' ? 'Expense categories' : kind === 'loan' ? 'Loan categories' : 'Investment categories';
+    const icon = kind === 'expense' ? 'real-expenses' : kind === 'loan' ? 'loans' : 'investments';
+    const description = kind === 'expense' ? 'Used to organize daily spending' : kind === 'loan' ? 'Tracked separately from real expenses' : 'Tracked as wealth-building outflow';
+    return `<section class="account-category-group"><div class="account-category-heading"><span class="account-category-icon">${richIcon(icon)}</span><div><b>${title}</b><small>${description}</small></div><em>${categories.length}</em></div><div class="category-chip-grid">${categories.map(category => { const group = kind === 'expense' ? spendGroups[category.spendGroup || defaultSpendGroup(category.name)] : null; return `<div class="category-chip ${category.active === false ? 'inactive' : ''}"><span>${esc(category.name)}</span>${group ? `<small class="category-group-badge" style="--badge-color:${group.color}">${group.label}</small>` : ''}<button class="mini-button" data-action="edit-category" data-id="${category.id}" type="button">Edit</button></div>`; }).join('') || '<p class="empty-state">No categories yet.</p>'}</div></section>`;
   }).join('');
-  return `<article class="panel"><div class="panel-heading"><div><p class="panel-kicker">SECURE SYNC</p><h3>Settings &amp; data</h3></div></div><div class="setting-row"><div><b>Storage</b><small>Your transactions, schedules, categories, and budget targets are saved to your account.</small></div><span class="tag">Synced</span></div>${renderBudgetSettings()}<div class="setting-row"><div><b>Backup</b><small>Export a JSON backup anytime and restore it later.</small></div><button class="mini-button" data-action="export">Export data</button></div><div class="category-editor"><div class="category-group-heading"><b>Manage categories</b><span>Add, rename, and classify expense categories</span></div><button class="primary-button category-add-button" data-action="open-category-modal" type="button">＋ Add category</button><p class="budget-help">Spend groups apply only to expense categories. Loans and investments stay excluded from this priority analysis.</p>${categoryRows}</div><div class="setting-row"><div><b>Sync status</b><small>Latest data is loaded from your account when the app opens.</small></div><span class="tag">Synced</span></div></article>`;
+  return `<section class="account-page settings-page">
+    <article class="panel account-page-hero">
+      <div class="account-hero-copy"><span class="account-hero-icon">${richIcon('settings')}</span><div><p class="panel-kicker">PREFERENCES &amp; DATA</p><h3>Settings &amp; data</h3><p class="subtitle">Manage budgets, backups, sync status and the categories that organize your money.</p></div></div>
+      <span class="account-sync-badge"><i></i>Everything synced</span>
+    </article>
+
+    <section class="account-status-grid" aria-label="Settings summary">
+      <article class="account-status-card"><span class="purple">${richIcon('refresh')}</span><div><p>Storage</p><strong>Synced</strong><small>Account data is up to date</small></div></article>
+      <article class="account-status-card"><span class="amber">${richIcon('insight-pace')}</span><div><p>Monthly target</p><strong>${money(settings.monthlyExpenseBudget)}</strong><small>Default expense budget</small></div></article>
+      <article class="account-status-card"><span class="teal">${richIcon('insight-category')}</span><div><p>Categories</p><strong>${data.categories.length}</strong><small>Across expenses, loans and investments</small></div></article>
+    </section>
+
+    <section class="account-settings-grid">
+      ${renderBudgetSettings()}
+      <article class="panel account-data-panel">
+        <div class="account-card-heading"><div><p class="panel-kicker">ACCOUNT DATA</p><h3>Sync &amp; backup</h3></div></div>
+        <div class="account-data-list">
+          <div><span class="account-action-icon teal">${richIcon('refresh')}</span><p><b>Live sync</b><small>Your latest transactions, schedules and categories load when the app opens.</small></p><span class="tag">Synced</span></div>
+          <div><span class="account-action-icon amber">${richIcon('privacy')}</span><p><b>Portable backup</b><small>Download a JSON copy of the data currently loaded in the app.</small></p><button class="mini-button" data-action="export" type="button">Export data</button></div>
+        </div>
+      </article>
+    </section>
+
+    <article class="panel account-category-panel">
+      <div class="account-card-heading account-category-panel-heading"><div class="account-heading-copy"><span class="account-heading-icon">${richIcon('insight-category')}</span><div><p class="panel-kicker">ORGANIZATION</p><h3>Manage categories</h3><p class="subtitle">Add, rename and classify the labels used throughout your money views.</p></div></div><button class="primary-button" data-action="open-category-modal" type="button">＋ Add category</button></div>
+      <p class="account-category-note">Spend groups apply only to expense categories. Loans and investments remain separate from spending-priority analysis.</p>
+      <div class="account-category-list">${categoryRows}</div>
+    </article>
+  </section>`;
 }
 
 function renderBudgetSettings() {
   const settings = normalizeSettings(data.settings);
   const overrides = Object.entries(settings.monthlyBudgetOverrides || {}).sort((a, b) => b[0].localeCompare(a[0]));
   const currentOverride = settings.monthlyBudgetOverrides?.[currentMonthKey()] || '';
-  return `<div class="budget-editor"><div class="category-group-heading"><b>Monthly expense target</b><span>Used for Insights spend velocity</span></div><form id="budgetSettingsForm" class="budget-form"><label>Default monthly expense target<input name="monthlyExpenseBudget" type="number" min="0" step="1" value="${settings.monthlyExpenseBudget}" required /></label><label>Override month<input name="overrideMonth" type="text" data-picker="month" value="${currentMonthKey()}" /></label><label>Override amount<input name="overrideAmount" type="number" min="0" step="1" value="${currentOverride}" placeholder="Optional" /></label><button class="primary-button" type="submit">Save target</button></form><p class="budget-help">Insights compares real expenses against this target. Month overrides replace the default only for that month.</p>${overrides.length ? `<div class="budget-chip-grid">${overrides.map(([month, value]) => `<span class="budget-chip">${month}<b>${money(value)}</b></span>`).join('')}</div>` : '<p class="empty-state">No monthly overrides yet.</p>'}</div>`;
+  return `<article class="panel budget-editor account-budget-panel"><div class="account-card-heading"><div class="account-heading-copy"><span class="account-heading-icon amber">${richIcon('insight-pace')}</span><div><p class="panel-kicker">SPENDING PLAN</p><h3>Monthly expense target</h3><p class="subtitle">Set the baseline used by Insights to measure your spending pace.</p></div></div></div><form id="budgetSettingsForm" class="budget-form"><label>Default monthly expense target<input name="monthlyExpenseBudget" type="number" min="0" step="1" value="${settings.monthlyExpenseBudget}" required /></label><label>Override month<input name="overrideMonth" type="text" data-picker="month" value="${currentMonthKey()}" /></label><label>Override amount<input name="overrideAmount" type="number" min="0" step="1" value="${currentOverride}" placeholder="Optional" /></label><button class="primary-button" type="submit">Save target</button></form><p class="budget-help">A month override replaces the default target only for that month.</p>${overrides.length ? `<div class="budget-chip-grid">${overrides.map(([month, value]) => `<span class="budget-chip">${month}<b>${money(value)}</b></span>`).join('')}</div>` : '<p class="empty-state">No monthly overrides yet.</p>'}</article>`;
 }
 
 function renderOutflowReport(from = reportDates().from, to = reportDates().to) {
@@ -97,7 +129,38 @@ function stockHoldings() {
 function renderProfilePage() {
   const user = currentUser || {};
   const joined = user.createdAt ? new Date(user.createdAt).toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' }) : 'Current session';
-  return `<article class="panel"><div class="panel-heading"><div><p class="panel-kicker">ACCOUNT</p><h3>Your profile</h3></div><button class="mini-button warn" data-action="logout">Logout</button></div><div class="profile-card"><div class="profile-avatar">${svgIcon('user')}</div><div><h4>${displayName()}</h4><p>${user.email || 'Signed-in user'} · Member since ${joined}</p></div></div><form id="profileForm" class="profile-form"><label>Display name<input name="name" value="${displayName()}" required /></label><button class="primary-button" type="submit">Save name</button></form><div class="profile-grid"><div class="outflow-metric"><p>Transactions</p><strong>${data.transactions.length}</strong></div><div class="outflow-metric"><p>Schedules</p><strong>${data.schedules.length}</strong></div><div class="outflow-metric"><p>Categories</p><strong>${data.categories.length}</strong></div><div class="outflow-metric total"><p>Storage</p><strong>Synced</strong></div></div><div class="setting-row"><div><b>Data sync</b><small>Refresh pulls the latest transactions, schedules, and categories from your account.</small></div><button class="mini-button" data-action="refresh-profile">Refresh</button></div><div class="setting-row"><div><b>Categories</b><small>Add or rename expense, loan, and investment categories.</small></div><button class="mini-button" data-page="settings">Settings</button></div><div class="setting-row"><div><b>Backup</b><small>Download a JSON backup of the data currently loaded in the app.</small></div><button class="mini-button" data-action="export">Export</button></div></article>`;
+  return `<section class="account-page profile-page">
+    <article class="panel account-page-hero">
+      <div class="account-hero-copy"><span class="account-hero-icon">${richIcon('profile')}</span><div><p class="panel-kicker">YOUR ACCOUNT</p><h3>Profile</h3><p class="subtitle">Manage your identity and keep your ExpensoHabit data within reach.</p></div></div>
+      <button class="account-danger-button" data-action="logout" type="button">${richIcon('logout')}<span>Log out</span></button>
+    </article>
+
+    <section class="account-profile-grid">
+      <article class="panel account-identity-card">
+        <div class="account-identity-main"><span class="account-avatar">${richIcon('profile')}</span><div><p class="panel-kicker">SIGNED IN AS</p><h4>${esc(displayName())}</h4><p>${esc(user.email || 'Signed-in user')}</p><small>Member since ${esc(joined)}</small></div></div>
+        <form id="profileForm" class="profile-form account-profile-form"><label><span>Display name</span><input name="name" value="${esc(displayName())}" required /></label><button class="primary-button" type="submit">Save name</button></form>
+      </article>
+
+      <article class="panel account-overview-panel">
+        <div class="account-card-heading"><div><p class="panel-kicker">AT A GLANCE</p><h3>Your workspace</h3></div><span class="account-sync-badge compact"><i></i>Synced</span></div>
+        <div class="account-metric-grid">
+          <div><span class="purple">${richIcon('transactions')}</span><p>Transactions<strong>${data.transactions.length}</strong></p></div>
+          <div><span class="amber">${richIcon('schedule')}</span><p>Schedules<strong>${data.schedules.length}</strong></p></div>
+          <div><span class="teal">${richIcon('insight-category')}</span><p>Categories<strong>${data.categories.length}</strong></p></div>
+          <div><span class="blue">${richIcon('refresh')}</span><p>Storage<strong>Synced</strong></p></div>
+        </div>
+      </article>
+    </section>
+
+    <article class="panel account-actions-panel">
+      <div class="account-card-heading"><div><p class="panel-kicker">ACCOUNT TOOLS</p><h3>Data &amp; preferences</h3><p class="subtitle">Quick access to the controls that keep your workspace organized.</p></div></div>
+      <div class="account-action-grid">
+        <div class="account-action-card"><span class="account-action-icon purple">${richIcon('refresh')}</span><p><b>Refresh account data</b><small>Pull the latest transactions, schedules and categories.</small></p><button class="mini-button" data-action="refresh-profile" type="button">Refresh</button></div>
+        <div class="account-action-card"><span class="account-action-icon teal">${richIcon('settings')}</span><p><b>Categories &amp; budgets</b><small>Manage categories and monthly expense targets.</small></p><button class="mini-button" data-page="settings" type="button">Open settings</button></div>
+        <div class="account-action-card"><span class="account-action-icon amber">${richIcon('privacy')}</span><p><b>Export a backup</b><small>Download a portable JSON copy of your loaded data.</small></p><button class="mini-button" data-action="export" type="button">Export</button></div>
+      </div>
+    </article>
+  </section>`;
 }
 
 function exportData() {

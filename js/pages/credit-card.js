@@ -52,14 +52,96 @@ function latestCreditCardBill(card = {}) {
   return creditCardBills(card)[0] || null;
 }
 
-function creditCardTrendRows(bills = []) {
-  const months = [...new Set(bills.map(bill => bill.month).filter(Boolean))].sort().slice(-6);
-  const maxValue = Math.max(...months.map(month => sumAmount(bills.filter(bill => bill.month === month).map(bill => ({ amount:bill.outstanding || 0 })))), 0);
-  return months.map(month => {
-    const total = sumAmount(bills.filter(bill => bill.month === month).map(bill => ({ amount:bill.outstanding || 0 })));
-    const label = new Date(`${month}-01T00:00:00`).toLocaleDateString('en-IN', { month:'short' });
-    return { month, label, total, height:maxValue ? Math.max(18, Math.round((total / maxValue) * 108)) : 18 };
+function creditCardExactMoney(value = 0) {
+  if (privacyMode) return hiddenMoney();
+  const amount = Number(value || 0);
+  return `₹${amount.toLocaleString('en-IN', {
+    minimumFractionDigits:Number.isInteger(amount) ? 0 : 2,
+    maximumFractionDigits:2
+  })}`;
+}
+
+function creditCardDateLabel(value = '') {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(value))) return '';
+  return new Date(`${value}T00:00:00`).toLocaleDateString('en-IN', { day:'numeric', month:'short', year:'numeric' });
+}
+
+function creditCardShortName(name = '') {
+  const value = String(name);
+  if (/hdfc/i.test(value)) return 'HDFC';
+  if (/kotak/i.test(value)) return 'Kotak';
+  if (/\bau\b/i.test(value)) return 'AU KOSMO';
+  if (/one\s*card/i.test(value)) return 'One Card';
+  if (/amazon/i.test(value)) return 'Amazon';
+  return value.split(/\s+/).slice(0, 2).join(' ');
+}
+
+function creditCardChartColor(index = 0) {
+  return ['#7651ef','#ff6f91','#18bba6','#ffad43','#5a86f7','#9b61e9','#31a7d8'][index % 7];
+}
+
+function creditCardSpendChartData(cards = [], limit = 6) {
+  const months = [...new Set(cards.flatMap(card => creditCardBills(card).map(bill => bill.month)).filter(Boolean))].sort().slice(-limit);
+  const series = cards.map((card, index) => ({
+    id:card.id || card.name || `card-${index}`,
+    name:card.name || 'Credit card',
+    color:creditCardChartColor(index),
+    values:Object.fromEntries(months.map(month => {
+      const bill = creditCardBills(card).find(item => item.month === month);
+      return [month, bill ? Number(bill.outstanding || 0) : null];
+    }))
+  }));
+  const rows = months.map(month => {
+    const values = series.map(item => item.values[month]);
+    return {
+      month,
+      label:new Date(`${month}-01T00:00:00`).toLocaleDateString('en-IN', { month:'short', year:'2-digit' }),
+      values,
+      total:values.reduce((sum, value) => sum + (value === null ? 0 : value), 0)
+    };
   });
+  return { months, series, rows, maxTotal:Math.max(...rows.map(row => row.total), 0) };
+}
+
+function renderCreditCardSpendChart(cards = []) {
+  const chart = creditCardSpendChartData(cards);
+  if (!chart.rows.length || !chart.maxTotal) return '';
+  const width = 860;
+  const height = 286;
+  const pad = { top:42, right:22, bottom:45, left:67 };
+  const plotWidth = width - pad.left - pad.right;
+  const plotHeight = height - pad.top - pad.bottom;
+  const baseline = height - pad.bottom;
+  const step = plotWidth / chart.rows.length;
+  const barWidth = Math.min(82, step * .5);
+  const y = value => baseline - ((Number(value || 0) / chart.maxTotal) * plotHeight);
+  const ticks = [0,.25,.5,.75,1].map(ratio => {
+    const value = chart.maxTotal * ratio;
+    const tickY = baseline - (plotHeight * ratio);
+    return `<g class="credit-card-chart-grid"><line x1="${pad.left}" y1="${tickY.toFixed(1)}" x2="${width - pad.right}" y2="${tickY.toFixed(1)}"></line><text x="${pad.left - 10}" y="${(tickY + 4).toFixed(1)}" text-anchor="end">${ratio ? compactMoney(value) : '₹0'}</text></g>`;
+  }).join('');
+  const bars = chart.rows.map((row, rowIndex) => {
+    const x = pad.left + (rowIndex * step) + ((step - barWidth) / 2);
+    let cursor = baseline;
+    const segments = row.values.map((value, seriesIndex) => {
+      if (value === null || value <= 0) return '';
+      const segmentHeight = (value / chart.maxTotal) * plotHeight;
+      cursor -= segmentHeight;
+      const series = chart.series[seriesIndex];
+      return `<rect x="${x.toFixed(1)}" y="${cursor.toFixed(1)}" width="${barWidth.toFixed(1)}" height="${segmentHeight.toFixed(1)}" rx="3" fill="${series.color}"><title>${esc(series.name)} · ${esc(row.label)}: ${creditCardExactMoney(value)}</title></rect>`;
+    }).join('');
+    const center = x + (barWidth / 2);
+    return `<g>${segments}<text class="credit-card-chart-total" x="${center.toFixed(1)}" y="${Math.max(16, y(row.total) - 11).toFixed(1)}" text-anchor="middle">${compactMoney(row.total)}</text><text class="credit-card-chart-month" x="${center.toFixed(1)}" y="${height - 15}" text-anchor="middle">${esc(row.label)}</text></g>`;
+  }).join('');
+  const totalPoints = chart.rows.map((row, index) => {
+    const center = pad.left + (index * step) + (step / 2);
+    return `${center.toFixed(1)},${y(row.total).toFixed(1)}`;
+  }).join(' ');
+  const totalDots = chart.rows.map((row, index) => {
+    const center = pad.left + (index * step) + (step / 2);
+    return `<circle cx="${center.toFixed(1)}" cy="${y(row.total).toFixed(1)}" r="4"><title>${esc(row.label)} total: ${creditCardExactMoney(row.total)}</title></circle>`;
+  }).join('');
+  return `<div class="credit-card-spend-chart-wrap"><svg class="credit-card-spend-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="Monthly recorded credit card spend stacked by card with an overall total line">${ticks}${bars}<polyline class="credit-card-total-line" points="${totalPoints}"></polyline><g class="credit-card-total-dots">${totalDots}</g></svg></div><div class="credit-card-spend-legend">${chart.series.map(item => `<span><i style="--series-color:${item.color}"></i>${esc(item.name)}</span>`).join('')}<span class="total"><i></i>Overall monthly total</span></div>`;
 }
 
 function creditCardWaiverProgress(card = {}) {
@@ -120,7 +202,8 @@ function renderCreditCardPage() {
   const topSpendCard = summaryCards.slice().sort((a, b) => sumAmount(creditCardBills(b).map(bill => ({ amount:bill.outstanding || 0 }))) - sumAmount(creditCardBills(a).map(bill => ({ amount:bill.outstanding || 0 }))))[0];
   const waiverCards = summaryCards.map(card => ({ card, progress:creditCardWaiverProgress(card) })).filter(item => item.progress);
   const completedWaivers = waiverCards.filter(item => item.progress.done).length;
-  const trendRows = creditCardTrendRows(allBills);
+  const historyMonths = [...new Set(allBills.map(bill => bill.month).filter(Boolean))].sort().reverse();
+  const spendChart = renderCreditCardSpendChart(summaryCards);
   const dueCards = summaryCards.slice().sort((a, b) => Number(a.dueDay || String(creditCardDueText(a)).match(/\d+/)?.[0] || 99) - Number(b.dueDay || String(creditCardDueText(b)).match(/\d+/)?.[0] || 99));
   const cardBreakdown = latestBills.slice().sort((a, b) => Number(b.bill.outstanding || 0) - Number(a.bill.outstanding || 0)).slice(0, 3);
 
@@ -172,19 +255,33 @@ function renderCreditCardPage() {
       </aside>
     </section>
 
-    <section class="panel credit-card-history-panel" id="creditCardHistoryPanel">
-      <div class="panel-heading"><div><p class="panel-kicker">CARD HISTORY</p><h3>Monthly statements</h3></div><span class="tag">${allBills.length} records</span></div>
-      <div class="credit-card-history-list">${summaryCards.map(card => {
-        const bills = creditCardBills(card);
-        const cardTotal = sumAmount(bills.map(bill => ({ amount:bill.outstanding || 0 })));
-        return `<article class="credit-card-history-card"><header><span>${richIcon('credit-card')}</span><div><b>${esc(card.name)}</b><small>${bills.length} statements · ${money(cardTotal)} recorded spend</small></div><button class="mini-action neutral" type="button" data-action="update-credit-card-bill" data-id="${esc(card.id)}">Add bill</button></header><div class="credit-card-history-months">${bills.map(bill => { const remaining = creditCardRemaining(bill); return `<div><header><b>${esc(creditCardMonthLabel(bill.month || ''))}</b><em class="${remaining ? 'due' : 'clear'}">${remaining ? `${money(remaining)} due` : 'Paid'}</em></header><span><small>Statement</small><strong>${money(bill.outstanding || 0)}</strong></span><span><small>Paid</small><strong>${money(bill.paid || 0)}</strong></span><p>${esc(bill.billDate || 'No bill date')}${bill.paymentDate ? ` · paid ${esc(bill.paymentDate)}` : ''}</p><button class="mini-action neutral" type="button" data-action="edit-credit-card-bill" data-id="${esc(card.id)}" data-month="${esc(bill.month || '')}">Edit statement</button></div>`; }).join('') || '<p class="empty-state">No statement history yet.</p>'}</div></article>`;
-      }).join('') || `<div class="credit-card-dashboard-empty compact"><span>${richIcon('credit-spend')}</span><b>No statement history yet</b><p>Add a card, then record its monthly statements.</p></div>`}</div>
+    <section class="credit-card-history-suite" id="creditCardHistoryPanel">
+      <section class="panel credit-card-spend-panel">
+        <div class="panel-heading"><div><p class="panel-kicker">SPEND TREND</p><h3>Monthly card spend</h3><p class="credit-card-chart-subtitle">Stacked by card from saved statements; the line shows the combined monthly total.</p></div><span class="tag">Last 6 recorded months</span></div>
+        ${spendChart || `<div class="credit-card-dashboard-empty compact"><span>${richIcon('credit-spend')}</span><b>No trend yet</b><p>Add monthly statements to build this chart.</p></div>`}
+      </section>
+
+      <section class="panel credit-card-history-panel">
+        <div class="panel-heading"><div><p class="panel-kicker">CARD HISTORY</p><h3>Monthly statements</h3><p class="credit-card-chart-subtitle">Compare every saved statement by month. Missing cells mean no statement is recorded.</p></div><span class="tag">${allBills.length} records</span></div>
+        ${historyMonths.length ? `<div class="credit-card-history-table-wrap"><table class="credit-card-history-table"><thead><tr><th scope="col">Month</th>${summaryCards.map((card, cardIndex) => {
+          const bills = creditCardBills(card);
+          return `<th scope="col"><div class="credit-card-history-card-head" style="--card-accent:${creditCardChartColor(cardIndex)}"><i></i><div><b title="${esc(card.name)}">${esc(creditCardShortName(card.name))}</b><small>${bills.length} saved</small></div><button class="mini-action neutral" type="button" data-action="update-credit-card-bill" data-id="${esc(card.id)}" aria-label="Add ${esc(card.name)} bill">＋</button></div></th>`;
+        }).join('')}<th scope="col" class="total">Overall</th></tr></thead><tbody>${historyMonths.map(month => {
+          const monthBills = summaryCards.map(card => creditCardBills(card).find(bill => bill.month === month) || null);
+          const monthTotal = monthBills.reduce((sum, bill) => sum + Number(bill?.outstanding || 0), 0);
+          return `<tr><th scope="row"><b>${esc(creditCardMonthLabel(month))}</b><small>${monthBills.filter(Boolean).length} of ${summaryCards.length} cards recorded</small></th>${summaryCards.map((card, index) => {
+            const bill = monthBills[index];
+            if (!bill) return '<td><span class="credit-card-history-empty">No statement</span></td>';
+            const remaining = creditCardRemaining(bill);
+            const paymentLabel = creditCardDateLabel(bill.paymentDate);
+            return `<td><div class="credit-card-history-entry"><header><strong>${creditCardExactMoney(bill.outstanding || 0)}</strong><em class="${remaining ? 'due' : 'clear'}">${remaining ? `${creditCardExactMoney(remaining)} due` : 'Paid'}</em></header><small>Paid ${creditCardExactMoney(bill.paid || 0)}</small><footer><span>${paymentLabel ? `Paid ${esc(paymentLabel)}` : 'No payment date'}</span><button class="mini-action neutral" type="button" data-action="edit-credit-card-bill" data-id="${esc(card.id)}" data-month="${esc(bill.month || '')}">Edit</button></footer></div></td>`;
+          }).join('')}<td class="total"><strong>${creditCardExactMoney(monthTotal)}</strong><small>Recorded total</small></td></tr>`;
+        }).join('')}</tbody></table></div>` : `<div class="credit-card-dashboard-empty compact"><span>${richIcon('credit-spend')}</span><b>No statement history yet</b><p>Add a card, then record its monthly statements.</p></div>`}
+      </section>
     </section>
 
     <section class="credit-card-dashboard-bottom">
       <article class="panel credit-card-health-panel"><div class="panel-heading"><div><p class="panel-kicker">PAYMENT HEALTH</p><h3>Status check</h3></div><span class="credit-card-status-pill ${amountDue ? 'due' : 'clear'}">${amountDue ? 'Needs attention' : 'All clear'}</span></div><div class="credit-card-health-main"><span>${richIcon(amountDue ? 'credit-due' : 'credit-paid')}</span><div><b>${amountDue ? `${attentionCount} card${attentionCount === 1 ? '' : 's'} still have a balance` : 'All current statements are paid'}</b><small>${amountDue ? `${money(amountDue)} remains across active cards` : `${money(paidThisCycle)} recorded as paid this cycle`}</small></div></div><div class="credit-card-health-metrics"><span><small>Paid history</small><b>${money(lifetimeCardPaid)}</b></span><span><small>Amount due</small><b class="${amountDue ? 'due' : 'clear'}">${money(amountDue)}</b></span><span><small>Statement total</small><b>${money(statementTotal)}</b></span></div></article>
-
-      <article class="panel credit-card-trend-panel"><div class="panel-heading"><div><p class="panel-kicker">SAVED STATEMENTS</p><h3>Monthly card spend</h3></div><span class="tag">Last 6 months</span></div>${trendRows.length ? `<div class="credit-card-trend-chart">${trendRows.map(row => `<div><strong>${money(row.total)}</strong><i><span style="height:${row.height}px"></span></i><b>${esc(row.label)}</b></div>`).join('')}</div>` : `<div class="credit-card-dashboard-empty compact"><span>${richIcon('credit-spend')}</span><b>No trend yet</b><p>Add monthly statements to build this chart.</p></div>`}</article>
 
       <article class="panel credit-card-signal-panel"><div class="panel-heading"><div><p class="panel-kicker">INSIGHTS</p><h3>Useful signals</h3></div></div><div class="credit-card-signal-list"><div><span>${richIcon('credit-insights')}</span><p><b>${esc(largest?.card?.name || 'Top card')}</b><small>${largestPct}% of the current statement total.</small></p></div><div><span>${richIcon('credit-spend')}</span><p><b>${esc(topSpendCard?.name || 'Top card')}</b><small>Highest recorded card spend history.</small></p></div><div><span>${richIcon('credit-paid')}</span><p><b>${completedWaivers}/${waiverCards.length || 0} waivers reached</b><small>Annual-fee waiver milestones completed.</small></p></div><div><span>${richIcon('credit-card')}</span><p><b>${cards.filter(card => card.active === false).length} inactive cards</b><small>Inactive cards are excluded from totals.</small></p></div></div></article>
     </section>

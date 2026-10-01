@@ -146,10 +146,7 @@
 .habit-dashboard-grid-row { margin:7px 0; }
 .habit-dashboard-grid-row b { overflow:hidden;color:#26335f;font-size:9px;text-overflow:ellipsis;white-space:nowrap; }
 .habit-dashboard-grid-row span { aspect-ratio:1.2;min-height:23px;border-radius:7px;background:#f0f1f6; }
-.habit-dashboard-grid-row span.filled { background:linear-gradient(145deg,#b776f5,#7750ee);box-shadow:0 6px 13px rgba(117,73,239,.14); }
-.habit-dashboard-grid-row:nth-of-type(4n + 2) span.filled { background:linear-gradient(145deg,#ffd278,#f5a338); }
-.habit-dashboard-grid-row:nth-of-type(4n + 3) span.filled { background:linear-gradient(145deg,#65dfc3,#19b994); }
-.habit-dashboard-grid-row:nth-of-type(4n + 4) span.filled { background:linear-gradient(145deg,#83aaff,#507fee); }
+.habit-dashboard-grid-row span.filled { background:linear-gradient(145deg,color-mix(in srgb,var(--habit-chart-color) 62%,white),var(--habit-chart-color));box-shadow:0 6px 13px color-mix(in srgb,var(--habit-chart-color) 14%,transparent); }
 .habit-dashboard-grid-row span.muted { opacity:.35; }
 .habit-dashboard-grid-row span.today { outline:2px solid rgba(117,73,239,.24);outline-offset:2px; }
 
@@ -560,4 +557,110 @@
   .habit-history-entry .habit-dashboard-habit-icon { width:38px;height:38px; }
   .habit-history-value { grid-column:2;text-align:left; }
   .habit-history-value strong { max-width:none; }
+}
+
+/* Habit management */
+.coral-bg { color:#df654f;background:#fff0ea; }
+.pink-bg { color:#d94f94;background:#ffedf7; }
+.indigo-bg { color:#5d4cdb;background:#eeebff; }
+.cyan-bg { color:#169ab5;background:#e3f8ff; }
+.lime-bg { color:#709c2d;background:#f0f9df; }
+.slate-bg { color:#5d6b82;background:#edf1f6; }
+
+.habit-manager-page { gap:14px; }
+.habit-manager-hero { min-height:112px;padding:20px 22px;background:linear-gradient(118deg,rgba(255,255,255,.98),rgba(248,246,255,.96) 60%,rgba(255,244,239,.94)); }
+.habit-manager-hero:after { right:10%;top:-120px;width:210px;height:210px;background:rgba(139,98,246,.08); }
+.habit-manager-hero-copy { min-width:0;display:flex;align-items:center;gap:14px; }
+.habit-manager-hero-icon { width:64px;height:64px;flex:0 0 auto;display:grid;place-items:center;border-radius:21px;background:linear-gradient(145deg,#efe7ff,#fff);box-shadow:0 13px 28px rgba(92,62,181,.13),inset 0 1px 0 #fff; }
+.habit-manager-hero-icon .rich-icon { width:51px;height:51px; }
+.habit-manager-hero h3 { font-size:25px; }
+.habit-manager-hero .subtitle { max-width:590px; }
+
+.habit-manager-summary { display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:11px; }
+.habit-manager-summary > article { min-width:0;display:grid;grid-template-columns:54px minmax(0,1fr);gap:12px;align-items:center;padding:14px 15px;border:1px solid rgba(232,234,244,.94);border-radius:19px;background:rgba(255,255,255,.96);box-shadow:0 13px 30px rgba(50,58,115,.075); }
+.habit-manager-summary > article > span { width:54px;height:54px;display:grid;place-items:center;border-radius:18px;background:linear-gradient(145deg,#f0eaff,#fff);box-shadow:0 10px 23px rgba(85,57,170,.1); }
+.habit-manager-summary > article > span.teal { background:linear-gradient(145deg,#dcfaf2,#fff); }
+.habit-manager-summary > article > span.amber { background:linear-gradient(145deg,#fff1d5,#fff); }
+.habit-manager-summary > article > span.blue { background:linear-gradient(145deg,#e5eeff,#fff); }
+.habit-manager-summary .rich-icon { width:41px;height:41px; }
+.habit-manager-summary p { color:#6f7c9e;font-size:9px;font-weight:850; }
+.habit-manager-summary strong { display:block;margin-top:2px;color:var(--ink);font-size:21px;letter-spacing:-.4px; }
+.habit-manager-summary small { display:block;margin-top:2px;color:#8993ad;font-size:8px;line-height:1.25; }
+
+.habit-manager-panel { padding:20px; }
+.habit-manager-panel .panel-heading { align-items:center; }
+.habit-manager-panel .panel-heading .subtitle { margin-top:4px;font-size:10px; }
+.habit-manager-grid { display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px; }
+.habit-manager-card { min-width:0;display:flex;flex-direction:column;gap:13px;padding:14px;border:1px solid #eceef6;border-radius:19px;background:linear-gradient(145deg,#fff,#fbfbff);box-shadow:0 11px 26px rgba(49,57,108,.055);transition:transform .18s ease,box-shadow .18s ease; }
+.habit-manager-card:hover { transform:translateY(-1px);box-shadow:0 16px 31px rgba(49,57,108,.085); }
+.habit-manager-card.inactive { border-style:dashed;background:#f8f9fc;box-shadow:none; }
+.habit-manager-card > header { min-width:0;display:grid;grid-template-columns:52px minmax(0,1fr) auto;gap:11px;align-items:center; }
+.habit-manager-icon { width:52px;height:52px;display:grid;place-items:center;border-radius:17px;box-shadow:0 10px 22px rgba(72,55,140,.1),inset 0 1px 0 rgba(255,255,255,.8); }
+.habit-manager-icon .rich-icon { width:42px;height:42px; }
+.habit-manager-card > header > div { min-width:0; }
+.habit-manager-card > header b,
+.habit-manager-card > header small { display:block; }
+.habit-manager-card > header b { overflow:hidden;color:var(--ink);font-size:13px;text-overflow:ellipsis;white-space:nowrap; }
+.habit-manager-card > header small { overflow:hidden;margin-top:4px;color:#7c87a5;font-size:9px;line-height:1.3;text-overflow:ellipsis;white-space:nowrap; }
+.habit-manager-card > header em { padding:5px 8px;border-radius:999px;font-size:8px;font-style:normal;font-weight:900;white-space:nowrap; }
+.habit-manager-card > header em.active { color:#118d73;background:#def8f0; }
+.habit-manager-card > header em.paused { color:#758099;background:#edf0f5; }
+.habit-manager-details { display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px; }
+.habit-manager-details > span { min-width:0;padding:9px;border:1px solid #eff0f6;border-radius:13px;background:rgba(255,255,255,.76); }
+.habit-manager-details small,
+.habit-manager-details b { display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
+.habit-manager-details small { color:#8a94ae;font-size:7.5px;font-weight:850;text-transform:uppercase;letter-spacing:.05em; }
+.habit-manager-details b { margin-top:4px;color:#28345f;font-size:9px; }
+.habit-manager-card > footer { display:flex;align-items:center;gap:7px;margin-top:auto;padding-top:1px; }
+.habit-manager-card > footer .mini-button { min-height:31px;display:inline-flex;align-items:center;gap:5px;padding:6px 9px;border:1px solid #ece9f8;border-radius:10px;background:#faf8ff;font-size:8.5px; }
+.habit-manager-card > footer .mini-button.warn { margin-left:auto;border-color:#ffe7e9;background:#fff7f8; }
+.habit-manager-card > footer .rich-icon { width:19px;height:19px; }
+.habit-manager-empty { grid-column:1 / -1;display:grid;justify-items:center;gap:7px;padding:42px 20px;color:#7b86a6;text-align:center; }
+.habit-manager-empty > span { width:64px;height:64px;display:grid;place-items:center;border-radius:21px;background:#f0ebff; }
+.habit-manager-empty .rich-icon { width:52px;height:52px; }
+.habit-manager-empty b { color:var(--ink);font-size:14px; }
+.habit-manager-empty p { font-size:10px; }
+
+.habit-modal { width:min(680px,100%);max-height:92vh;overflow:auto; }
+.habit-appearance-row { align-items:stretch; }
+.habit-appearance-preview { min-width:0;display:flex;align-items:center;gap:11px;padding:10px 12px;border:1px solid #ebeaf4;border-radius:14px;background:linear-gradient(145deg,#fff,#faf9ff); }
+.habit-appearance-preview .map-icon { width:44px;height:44px;flex:0 0 auto;border-radius:15px; }
+.habit-appearance-preview .svg-icon { width:22px;height:22px; }
+.habit-appearance-preview b,
+.habit-appearance-preview small { display:block; }
+.habit-appearance-preview b { color:var(--ink);font-size:10px; }
+.habit-appearance-preview small { margin-top:3px;color:#7c87a5;font-size:8.5px; }
+
+@media (max-width:900px) {
+  .habit-manager-summary { grid-template-columns:repeat(2,minmax(0,1fr)); }
+}
+
+@media (max-width:700px) {
+  .habit-manager-hero { align-items:flex-start;flex-direction:column; }
+  .habit-manager-hero .habit-hero-actions { width:100%;justify-content:flex-start; }
+  .habit-manager-grid { grid-template-columns:1fr; }
+}
+
+@media (max-width:540px) {
+  .habit-manager-page { gap:10px; }
+  .habit-manager-hero { min-height:0;padding:15px; }
+  .habit-manager-hero-copy { align-items:flex-start; }
+  .habit-manager-hero-icon { width:54px;height:54px;border-radius:17px; }
+  .habit-manager-hero-icon .rich-icon { width:43px;height:43px; }
+  .habit-manager-hero h3 { font-size:23px; }
+  .habit-manager-hero .habit-hero-actions { align-items:stretch;flex-direction:column; }
+  .habit-manager-hero .primary-button,
+  .habit-manager-hero .ghost-button { width:100%;justify-content:center; }
+  .habit-manager-summary { grid-template-columns:1fr;gap:8px; }
+  .habit-manager-summary > article { min-height:78px;padding:11px 12px; }
+  .habit-manager-panel { padding:13px; }
+  .habit-manager-panel .panel-heading { align-items:flex-start; }
+  .habit-manager-card { padding:12px; }
+  .habit-manager-card > header { grid-template-columns:47px minmax(0,1fr) auto;gap:9px; }
+  .habit-manager-icon { width:47px;height:47px;border-radius:15px; }
+  .habit-manager-icon .rich-icon { width:38px;height:38px; }
+  .habit-manager-details { grid-template-columns:1fr; }
+  .habit-manager-card > footer { flex-wrap:wrap; }
+  .habit-manager-card > footer .mini-button.warn { margin-left:0; }
+  .habit-appearance-row { grid-template-columns:1fr; }
 }
