@@ -1,0 +1,267 @@
+/* Credit card workspace using the shared illustrated dashboard design language. */
+.credit-card-dashboard { gap:12px; }
+.credit-card-dashboard .panel { min-width:0; }
+
+.credit-card-dashboard-hero {
+  min-height:108px;
+  padding:19px 20px;
+  border-color:rgba(255,255,255,.9);
+  background:
+    radial-gradient(circle at 34% -25%,rgba(126,169,255,.12) 0 58px,transparent 59px),
+    radial-gradient(circle at 78% 132%,rgba(255,139,112,.13) 0 76px,transparent 77px),
+    linear-gradient(118deg,rgba(255,255,255,.96),rgba(250,248,255,.93) 58%,rgba(255,249,246,.92));
+}
+.credit-card-dashboard-hero:after { content:'';position:absolute;right:-75px;top:-92px;width:220px;height:220px;border-radius:50%;background:radial-gradient(circle,rgba(117,73,239,.09),transparent 68%); }
+.credit-card-dashboard-hero > * { position:relative;z-index:1; }
+.credit-card-dashboard-hero h3 { margin-top:4px;font-size:28px;line-height:1.08;letter-spacing:-.9px; }
+
+.credit-card-kpi-grid { display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px; }
+.credit-card-kpi {
+  min-width:0;
+  min-height:134px;
+  display:grid;
+  grid-template-columns:58px minmax(0,1fr);
+  grid-template-rows:1fr auto;
+  gap:11px 13px;
+  align-items:center;
+  padding:17px;
+  overflow:hidden;
+  border:1px solid var(--border);
+  border-radius:20px;
+  background:rgba(255,255,255,.96);
+  box-shadow:var(--shadow);
+}
+.credit-card-kpi.featured {
+  color:#fff;
+  border-color:transparent;
+  background:radial-gradient(circle at 96% 105%,rgba(255,255,255,.17) 0 52px,transparent 53px),linear-gradient(118deg,#684bed,#a654ea 57%,#ff8b70 118%);
+  box-shadow:0 15px 34px rgba(106,76,236,.2);
+}
+.credit-card-kpi-icon,
+.credit-card-account-icon {
+  display:grid;
+  place-items:center;
+  flex:0 0 auto;
+  border:1px solid rgba(255,255,255,.9);
+  background:linear-gradient(145deg,#efe8ff,#fbf9ff);
+  box-shadow:0 9px 22px rgba(94,72,186,.1);
+}
+.credit-card-kpi-icon { width:58px;height:58px;border-radius:18px; }
+.credit-card-kpi-icon.amber { background:linear-gradient(145deg,#fff0d8,#fffaf1); }
+.credit-card-kpi-icon.teal { background:linear-gradient(145deg,#ddfaf3,#f4fffb); }
+.credit-card-kpi-icon.blue { background:linear-gradient(145deg,#e7efff,#f7faff); }
+.credit-card-kpi.featured .credit-card-kpi-icon { background:rgba(255,255,255,.18);box-shadow:inset 0 1px 0 rgba(255,255,255,.28); }
+.credit-card-kpi-icon .rich-icon { width:47px;height:47px; }
+.credit-card-kpi > div { min-width:0; }
+.credit-card-kpi p,.credit-card-kpi strong,.credit-card-kpi small { display:block; }
+.credit-card-kpi p { color:#69769e;font-size:10px;font-weight:800; }
+.credit-card-kpi strong { margin-top:5px;color:var(--ink);font-size:clamp(22px,2vw,29px);line-height:1;letter-spacing:-.75px;white-space:nowrap; }
+.credit-card-kpi small { margin-top:8px;color:#7c87a7;font-size:8.5px;font-weight:700;line-height:1.35; }
+.credit-card-kpi.featured p,.credit-card-kpi.featured strong { color:#fff; }
+.credit-card-kpi.featured small { color:rgba(255,255,255,.8); }
+.credit-card-kpi-breakdown { grid-column:1 / -1;display:flex;gap:6px;min-width:0;overflow:hidden; }
+.credit-card-kpi-breakdown span { min-width:0;display:flex;align-items:center;gap:5px;padding:5px 7px;border-radius:999px;color:rgba(255,255,255,.86);background:rgba(255,255,255,.14);font-size:7px;font-weight:750;white-space:nowrap; }
+.credit-card-kpi-breakdown b { color:#fff;font-size:7px; }
+
+.credit-card-dashboard-main { display:grid;grid-template-columns:minmax(0,1.55fr) minmax(310px,.75fr);gap:12px;align-items:start; }
+.credit-card-dashboard .panel-heading { align-items:center;margin-bottom:13px; }
+.credit-card-dashboard .panel-heading h3 { font-size:16px; }
+.credit-card-dashboard .panel-kicker { margin-bottom:3px;font-size:8px; }
+.credit-card-dashboard .ghost-button { min-height:31px;padding:7px 11px;border-color:#eeeaf9;color:var(--purple);background:#faf8ff;font-size:9px;font-weight:850; }
+
+.credit-card-account-grid { display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px; }
+.credit-card-account {
+  min-width:0;
+  display:flex;
+  flex-direction:column;
+  padding:13px;
+  border:1px solid #eeedf6;
+  border-radius:17px;
+  background:linear-gradient(145deg,#fff,#fdfcff);
+  box-shadow:0 9px 24px rgba(43,50,105,.045);
+}
+.credit-card-account.inactive { opacity:.68;background:linear-gradient(145deg,#fafbff,#f3f5fa); }
+.credit-card-account > header { display:grid;grid-template-columns:42px minmax(0,1fr) auto;gap:10px;align-items:center; }
+.credit-card-account-icon { width:42px;height:42px;border-radius:14px; }
+.credit-card-account-icon .rich-icon { width:34px;height:34px; }
+.credit-card-account header div { min-width:0; }
+.credit-card-account header b,.credit-card-account header small { display:block; }
+.credit-card-account header b { overflow:hidden;font-size:11px;text-overflow:ellipsis;white-space:nowrap; }
+.credit-card-account header small { margin-top:3px;color:#7b86a6;font-size:8px; }
+.credit-card-account header em { padding:5px 7px;border-radius:999px;color:#6741dc;background:#f0ebff;font-size:7px;font-style:normal;font-weight:900;white-space:nowrap; }
+.credit-card-account.green header em { color:#08856c;background:#dff8ef; }
+.credit-card-account.red header em { color:#d34c61;background:#ffeaee; }
+.credit-card-account.inactive header em { color:#717b99;background:#edf0f6; }
+.credit-card-cycle { margin:10px 0 0;color:#7480a2;font-size:8px;line-height:1.4; }
+.credit-card-account-values { display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin-top:11px; }
+.credit-card-account-values span { min-width:0;padding:8px;border:1px solid #f0eff7;border-radius:12px;background:#faf9fd; }
+.credit-card-account-values small,.credit-card-account-values strong { display:block; }
+.credit-card-account-values small { color:#8490ac;font-size:7px;font-weight:800; }
+.credit-card-account-values strong { margin-top:4px;overflow:hidden;color:var(--ink);font-size:10px;text-overflow:ellipsis;white-space:nowrap; }
+.credit-card-account-values strong.due { color:#d44d61; }
+.credit-card-account-values strong.clear { color:#0c9276; }
+.credit-card-waiver { margin-top:10px;padding:9px;border:1px solid #eee9fb;border-radius:13px;background:#faf8ff; }
+.credit-card-waiver b,.credit-card-waiver small { display:block; }
+.credit-card-waiver b { font-size:9px; }
+.credit-card-waiver small { margin-top:3px;color:#7884a3;font-size:7px;line-height:1.3; }
+.credit-card-waiver i { display:block;height:5px;margin-top:7px;overflow:hidden;border-radius:999px;background:#eceaf4; }
+.credit-card-waiver i span { display:block;height:100%;border-radius:inherit;background:linear-gradient(90deg,#7549ef,#d260d7,#ff8b70); }
+.credit-card-fee { margin:10px 0 0;color:#7480a2;font-size:8px;line-height:1.35; }
+.credit-card-perks { display:flex;flex-wrap:wrap;gap:5px;margin-top:9px; }
+.credit-card-perks span { padding:5px 7px;border-radius:999px;color:#6844dd;background:#f2eeff;font-size:7px;font-weight:850; }
+.credit-card-source { display:inline-block;margin-top:8px;overflow:hidden;color:var(--purple);font-size:7px;font-weight:800;text-decoration:none;text-overflow:ellipsis;white-space:nowrap; }
+.credit-card-account footer { display:flex;flex-wrap:wrap;gap:6px;margin-top:auto;padding-top:11px; }
+.credit-card-account footer .mini-action { padding:6px 8px;font-size:7.5px; }
+
+/* Keep the information-dense card overview comfortably readable. */
+.credit-card-accounts-panel .panel-heading h3 { font-size:18px; }
+.credit-card-accounts-panel .credit-card-account header b { font-size:13px; }
+.credit-card-accounts-panel .credit-card-account header small { font-size:9.5px; }
+.credit-card-accounts-panel .credit-card-account header em { font-size:8px; }
+.credit-card-accounts-panel .credit-card-cycle { font-size:9.5px; }
+.credit-card-accounts-panel .credit-card-account-values small { font-size:8.5px; }
+.credit-card-accounts-panel .credit-card-account-values strong { font-size:12px; }
+.credit-card-accounts-panel .credit-card-waiver b { font-size:10.5px; }
+.credit-card-accounts-panel .credit-card-waiver small { font-size:8.5px; }
+.credit-card-accounts-panel .credit-card-fee { font-size:9.5px; }
+.credit-card-accounts-panel .credit-card-perks span { font-size:8.5px;line-height:1.35; }
+.credit-card-accounts-panel .credit-card-source { font-size:8.5px; }
+.credit-card-accounts-panel .credit-card-account footer .mini-action { font-size:8.5px; }
+
+.credit-card-due-panel { min-height:100%; }
+.credit-card-due-list { display:grid;gap:8px; }
+.credit-card-due-item { display:grid;grid-template-columns:42px minmax(0,1fr) auto;gap:9px;align-items:center;padding:9px;border:1px solid #efedf7;border-radius:14px;background:#fff; }
+.credit-card-due-item > span { width:42px;height:42px;display:grid;place-items:center;border-radius:13px;color:#6841dc;background:linear-gradient(145deg,#f0e9ff,#fbf9ff); }
+.credit-card-due-item > span b,.credit-card-due-item > span small { display:block;text-align:center; }
+.credit-card-due-item > span b { font-size:12px;line-height:1; }
+.credit-card-due-item > span small { margin-top:-7px;font-size:6px;text-transform:uppercase; }
+.credit-card-due-item.green > span { color:#07876d;background:linear-gradient(145deg,#dcf9f1,#f5fffb); }
+.credit-card-due-item.red > span { color:#d34d61;background:linear-gradient(145deg,#ffe8ec,#fff7f8); }
+.credit-card-due-item div { min-width:0; }
+.credit-card-due-item div b,.credit-card-due-item div small { display:block; }
+.credit-card-due-item div b { overflow:hidden;font-size:9px;text-overflow:ellipsis;white-space:nowrap; }
+.credit-card-due-item div small { margin-top:3px;color:#7d88a7;font-size:7px; }
+.credit-card-due-item > strong { font-size:9px;white-space:nowrap; }
+.credit-card-due-item > strong.due { color:#d44d61; }
+.credit-card-due-item > strong.clear { color:#0b9075; }
+.credit-card-recommendation { display:grid;grid-template-columns:42px minmax(0,1fr);gap:10px;align-items:center;margin-top:12px;padding:11px;border:1px solid #e9e3fb;border-radius:15px;background:linear-gradient(145deg,#f8f5ff,#fff9f6); }
+.credit-card-recommendation > span { width:42px;height:42px;display:grid;place-items:center;border-radius:13px;background:#fff; }
+.credit-card-recommendation .rich-icon { width:34px;height:34px; }
+.credit-card-recommendation small,.credit-card-recommendation b { display:block; }
+.credit-card-recommendation small { color:#7c87a6;font-size:6.5px;font-weight:900;text-transform:uppercase;letter-spacing:.08em; }
+.credit-card-recommendation b { margin-top:4px;font-size:8px;line-height:1.35; }
+
+.credit-card-history-list { display:grid;gap:9px; }
+.credit-card-history-card { padding:11px;border:1px solid #efedf7;border-radius:16px;background:linear-gradient(145deg,#fff,#fdfcff); }
+.credit-card-history-card > header { display:grid;grid-template-columns:38px minmax(0,1fr) auto;gap:9px;align-items:center; }
+.credit-card-history-card > header > span { width:38px;height:38px;display:grid;place-items:center;border-radius:12px;background:#f1edff; }
+.credit-card-history-card > header .rich-icon { width:31px;height:31px; }
+.credit-card-history-card header div { min-width:0; }
+.credit-card-history-card header b,.credit-card-history-card header small { display:block; }
+.credit-card-history-card header b { font-size:10px; }
+.credit-card-history-card header small { margin-top:3px;color:#7d88a7;font-size:7.5px; }
+.credit-card-history-card > header .mini-action { padding:6px 8px;font-size:7.5px; }
+.credit-card-history-months { display:grid;grid-template-columns:repeat(auto-fit,minmax(165px,1fr));gap:7px;margin-top:10px; }
+.credit-card-history-months > div { min-width:0;padding:9px;border:1px solid #eeeaf8;border-radius:13px;background:#faf8ff; }
+.credit-card-history-months > div > header { display:flex;align-items:center;justify-content:space-between;gap:8px; }
+.credit-card-history-months > div > header b { font-size:8.5px; }
+.credit-card-history-months em { padding:4px 6px;border-radius:999px;font-size:6.5px;font-style:normal;font-weight:900;white-space:nowrap; }
+.credit-card-history-months em.due { color:#d34d61;background:#ffe8ec; }
+.credit-card-history-months em.clear { color:#07876d;background:#ddf8ef; }
+.credit-card-history-months > div > span { display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:6px; }
+.credit-card-history-months span small { color:#7d88a7;font-size:7px; }
+.credit-card-history-months span strong { font-size:8px; }
+.credit-card-history-months p { margin:6px 0 0;color:#8490ad;font-size:6.5px;line-height:1.3; }
+.credit-card-history-months .mini-action { margin-top:7px;padding:5px 7px;font-size:7px; }
+
+.credit-card-dashboard-bottom { display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px; }
+.credit-card-status-pill { padding:6px 8px;border-radius:999px;font-size:7px;font-weight:900; }
+.credit-card-status-pill.due { color:#d34d61;background:#ffe8ec; }
+.credit-card-status-pill.clear { color:#07876d;background:#ddf8ef; }
+.credit-card-health-main { display:grid;grid-template-columns:45px minmax(0,1fr);gap:10px;align-items:center;padding:10px;border:1px solid #efedf7;border-radius:14px;background:#faf9fd; }
+.credit-card-health-main > span { width:45px;height:45px;display:grid;place-items:center;border-radius:14px;background:#fff; }
+.credit-card-health-main .rich-icon { width:37px;height:37px; }
+.credit-card-health-main b,.credit-card-health-main small { display:block; }
+.credit-card-health-main b { font-size:9px; }
+.credit-card-health-main small { margin-top:4px;color:#7884a4;font-size:7px;line-height:1.35; }
+.credit-card-health-metrics { display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin-top:9px; }
+.credit-card-health-metrics span { min-width:0;padding:8px;border:1px solid #efedf7;border-radius:12px;background:#fff; }
+.credit-card-health-metrics small,.credit-card-health-metrics b { display:block; }
+.credit-card-health-metrics small { color:#7d88a7;font-size:6.5px; }
+.credit-card-health-metrics b { margin-top:4px;overflow:hidden;font-size:8px;text-overflow:ellipsis;white-space:nowrap; }
+.credit-card-health-metrics b.due { color:#d34d61; }
+.credit-card-health-metrics b.clear { color:#07876d; }
+
+.credit-card-trend-chart { height:160px;display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:7px;align-items:end;padding-top:8px; }
+.credit-card-trend-chart > div { min-width:0;display:flex;flex-direction:column;align-items:center; }
+.credit-card-trend-chart strong { max-width:100%;margin-bottom:6px;overflow:hidden;color:#6744dc;font-size:7px;text-overflow:ellipsis;white-space:nowrap; }
+.credit-card-trend-chart i { width:100%;height:112px;display:flex;align-items:end;overflow:hidden;border-radius:8px 8px 2px 2px;background:#f0edf7; }
+.credit-card-trend-chart i span { display:block;width:100%;min-height:8px;border-radius:8px 8px 2px 2px;background:linear-gradient(180deg,#bd74f7,#7549ef); }
+.credit-card-trend-chart b { margin-top:6px;color:#7d88a7;font-size:7px; }
+
+.credit-card-signal-list { display:grid;gap:7px; }
+.credit-card-signal-list > div { display:grid;grid-template-columns:35px minmax(0,1fr);gap:9px;align-items:center;padding:8px;border:1px solid #efedf7;border-radius:13px;background:#fff; }
+.credit-card-signal-list > div > span { width:35px;height:35px;display:grid;place-items:center;border-radius:12px;background:#f1edff; }
+.credit-card-signal-list .rich-icon { width:29px;height:29px; }
+.credit-card-signal-list b,.credit-card-signal-list small { display:block; }
+.credit-card-signal-list b { font-size:8.5px; }
+.credit-card-signal-list small { margin-top:3px;color:#7b86a5;font-size:7px;line-height:1.3; }
+
+.credit-card-dashboard-empty { grid-column:1 / -1;min-height:190px;display:grid;place-items:center;gap:7px;padding:22px;border:1px dashed #dcd5f3;border-radius:17px;color:#7b86a5;background:linear-gradient(145deg,#fff,#faf8ff);text-align:center; }
+.credit-card-dashboard-empty.compact { min-height:150px; }
+.credit-card-dashboard-empty > span { width:54px;height:54px;display:grid;place-items:center;border-radius:18px;background:#f1edff; }
+.credit-card-dashboard-empty .rich-icon { width:44px;height:44px; }
+.credit-card-dashboard-empty b { color:var(--ink);font-size:13px; }
+.credit-card-dashboard-empty p { max-width:340px;font-size:9px;line-height:1.45; }
+
+#creditCardModalBackdrop,
+#creditCardBillModalBackdrop { z-index:60;overflow-y:auto; }
+#creditCardModalBackdrop .credit-card-modal,
+#creditCardBillModalBackdrop .credit-card-modal {
+  max-height:calc(100dvh - 40px);
+  overflow-y:auto;
+  overscroll-behavior:contain;
+}
+
+@media (max-width:1250px) {
+  .credit-card-kpi-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .credit-card-dashboard-main { grid-template-columns:1fr; }
+  .credit-card-due-list { grid-template-columns:repeat(2,minmax(0,1fr)); }
+}
+
+@media (max-width:900px) {
+  .credit-card-dashboard-bottom { grid-template-columns:1fr 1fr; }
+  .credit-card-signal-panel { grid-column:1 / -1; }
+  .credit-card-signal-list { grid-template-columns:repeat(2,minmax(0,1fr)); }
+}
+
+@media (max-width:700px) {
+  .credit-card-dashboard-hero { align-items:flex-start;flex-direction:column; }
+  .credit-card-dashboard-hero .primary-button { width:100%; }
+  .credit-card-kpi-grid,
+  .credit-card-account-grid,
+  .credit-card-dashboard-bottom { grid-template-columns:1fr; }
+  .credit-card-due-list { grid-template-columns:1fr; }
+  .credit-card-signal-panel { grid-column:auto; }
+  .credit-card-signal-list { grid-template-columns:1fr; }
+  .credit-card-history-card > header { grid-template-columns:36px minmax(0,1fr); }
+  .credit-card-history-card > header .mini-action { grid-column:2;justify-self:start; }
+}
+
+@media (max-width:430px) {
+  #creditCardModalBackdrop,
+  #creditCardBillModalBackdrop { align-items:start;padding:10px; }
+  #creditCardModalBackdrop .credit-card-modal,
+  #creditCardBillModalBackdrop .credit-card-modal { max-height:calc(100dvh - 20px);margin:0 auto;padding:18px; }
+  #creditCardModalBackdrop .modal-heading,
+  #creditCardBillModalBackdrop .modal-heading { position:sticky;top:-18px;z-index:2;margin-bottom:10px;padding:18px 0 12px;background:#fff; }
+  #creditCardModalBackdrop .modal-actions,
+  #creditCardBillModalBackdrop .modal-actions { position:sticky;bottom:-18px;z-index:2;margin:10px 0 0;padding:12px 0 18px;background:linear-gradient(180deg,rgba(255,255,255,.82),#fff 28%); }
+  .credit-card-dashboard-hero { min-height:0;padding:16px; }
+  .credit-card-dashboard-hero h3 { font-size:25px; }
+  .credit-card-kpi { min-height:122px;padding:14px; }
+  .credit-card-account-values { grid-template-columns:1fr 1fr; }
+  .credit-card-account-values span:last-child { grid-column:1 / -1; }
+  .credit-card-history-months { grid-template-columns:1fr; }
+  .credit-card-health-metrics { grid-template-columns:1fr; }
+}

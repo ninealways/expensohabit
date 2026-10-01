@@ -1,63 +1,180 @@
-function renderHabitsMockPage() {
+const habitDashboardPalette = ['#7549ef', '#f2a62f', '#20b99a', '#4f86ed', '#eb668c', '#8a6fd7'];
+
+function habitDashboardIconName(habit = {}) {
+  if (isSleepHabit(habit)) return 'habit-sleep';
+  if (isReadingHabit(habit)) return 'habit-reading';
+  const label = `${habit.name || ''} ${habit.icon || ''}`.toLowerCase();
+  if (/walk|step|run/.test(label)) return 'habit-walking';
+  if (/meditat|mind|brain|lotus/.test(label)) return 'habit-meditation';
+  return 'habits';
+}
+
+function habitDashboardRows(habits, dates) {
+  return habits.map((habit, index) => {
+    const validDates = habitDatesInRange(habit, dates);
+    const done = validDates.filter(date => habitCompleted(habit, date)).length;
+    const logs = validDates.map(date => habitLog(habit.id, date)).filter(Boolean);
+    const average = logs.length && habit.goalType !== 'checkbox' ? logs.reduce((sum, log) => sum + Number(log.value || 0), 0) / logs.length : 0;
+    return { habit, validDates, done, missed:validDates.length - done, rate:validDates.length ? Math.round(done / validDates.length * 100) : 0, average, streak:habitStreak(habit), color:habitDashboardPalette[index % habitDashboardPalette.length] };
+  });
+}
+
+function habitDashboardWeeklyBlocks(habits) {
+  return Array.from({ length:4 }, (_, index) => {
+    const anchor = addDays(new Date(), (index - 3) * 7);
+    const dates = weekDates(anchor);
+    const scoredDates = habitScoringDates(dates);
+    const total = habits.reduce((sum, habit) => sum + habitDatesInRange(habit, scoredDates).length, 0);
+    const done = habits.reduce((sum, habit) => sum + habitDatesInRange(habit, scoredDates).filter(date => habitCompleted(habit, date)).length, 0);
+    const start = new Date(`${dates[0]}T00:00:00`);
+    const end = new Date(`${dates[6]}T00:00:00`);
+    return { rate:total ? Math.round(done / total * 100) : 0, done, total, label:`${start.getDate()}–${end.getDate()} ${end.toLocaleDateString('en-IN', { month:'short' })}` };
+  });
+}
+
+function renderHabitDashboardSparkline(values, color = '#4f86ed') {
+  if (!values.length) return '<span class="habit-dashboard-no-chart">No logs yet</span>';
+  const width = 130, height = 54, pad = 5;
+  const min = Math.min(...values);
+  const max = Math.max(...values, min + 1);
+  const x = index => pad + index * ((width - pad * 2) / Math.max(1, values.length - 1));
+  const y = value => pad + (max - value) / (max - min) * (height - pad * 2);
+  const points = values.map((value, index) => `${x(index).toFixed(1)},${y(value).toFixed(1)}`).join(' ');
+  return `<svg class="habit-dashboard-sparkline" viewBox="0 0 ${width} ${height}" role="img" aria-label="Recent values"><polyline points="${points}" style="--habit-chart-color:${color}" />${values.map((value, index) => `<circle cx="${x(index).toFixed(1)}" cy="${y(value).toFixed(1)}" r="2" style="--habit-chart-color:${color}"><title>${value.toFixed(1)}</title></circle>`).join('')}</svg>`;
+}
+
+function renderHabitDashboardBars(values, color = '#7549ef', rangeLabel = 'selected period') {
+  const max = Math.max(...values, 1);
+  return `<div class="habit-dashboard-tiny-bars" role="img" aria-label="Activity values across ${esc(rangeLabel.toLowerCase())}">${values.map(value => `<i title="${Number(value || 0).toLocaleString('en-IN', { maximumFractionDigits:1 })}" style="height:${value ? Math.max(16, Math.round(Number(value) / max * 100)) : 7}%;--habit-chart-color:${color}"></i>`).join('')}</div>`;
+}
+
+function renderHabitDashboardConsistency(rows, dates) {
+  if (!rows.length || !dates.length) return '<p class="empty-state">Check in for a few days to build the consistency view.</p>';
+  const shortDate = date => new Date(`${date}T00:00:00`).toLocaleDateString('en-IN', { day:'numeric', month:'short' });
+  return `<div class="habit-dashboard-consistency" role="img" aria-label="Daily completion status by habit for the last 30 days">
+    <div class="habit-dashboard-consistency-axis"><span>Habit</span><div><span>${shortDate(dates[0])}</span><span>${shortDate(dates[dates.length - 1])}</span></div><span>Rate</span></div>
+    ${rows.map(row => {
+      const eligible = dates.filter(date => habitIsStarted(row.habit, date) && habitDayClosed(date));
+      const completed = eligible.filter(date => habitCompleted(row.habit, date)).length;
+      const rate = eligible.length ? Math.round(completed / eligible.length * 100) : 0;
+      return `<div class="habit-dashboard-consistency-row" style="--habit-chart-color:${row.color}"><b title="${esc(row.habit.name)}">${esc(row.habit.name)}</b><div>${dates.map(date => { const state = !habitIsStarted(row.habit, date) ? 'inactive' : !habitDayClosed(date) ? 'pending' : habitCompleted(row.habit, date) ? 'completed' : 'missed'; return `<span class="${state}" title="${esc(row.habit.name)} · ${shortDate(date)} · ${state === 'completed' ? 'Completed' : state === 'missed' ? 'Missed' : state === 'pending' ? 'Not due yet' : 'Not started'}"></span>`; }).join('')}</div><strong>${rate}%</strong></div>`;
+    }).join('')}
+    <div class="habit-dashboard-consistency-legend"><span><i class="completed"></i>Completed</span><span><i class="missed"></i>Missed</span><span><i class="pending"></i>Not due yet</span></div>
+  </div>`;
+}
+
+function renderHabitsPage() {
   const habits = activeStartedHabits();
-  const dates = weekDates();
-  const weeklyHabits = activeHabits().filter(habit => habitDatesInRange(habit, dates).length);
-  const scoringWeekDates = habitScoringDates(dates);
-  const dayLabels = dates.map(date => new Date(`${date}T00:00:00`).toLocaleDateString('en-IN', { weekday:'short' }));
-  const completed = habits.filter(habit => habitCompleted(habit)).length;
-  const weeklyChecks = weeklyHabits.reduce((sum, habit) => sum + habitDatesInRange(habit, scoringWeekDates).length, 0);
-  const weeklyCompleted = weeklyHabits.reduce((sum, habit) => sum + habitDatesInRange(habit, scoringWeekDates).filter(date => habitCompleted(habit, date)).length, 0);
-  const streakRows = habits.map(habit => ({ habit, streak:habitStreak(habit) })).sort((a, b) => b.streak - a.streak);
-  const best = streakRows[0];
-  const sleep = weeklyHabits.find(habit => habit.name.toLowerCase().includes('sleep'));
-  const sleepLogs = sleep ? habitDatesInRange(sleep, dates).map(date => habitLog(sleep.id, date)).filter(Boolean) : [];
+  const week = weekDates();
+  const scoringWeek = habitScoringDates(week);
+  const monthDates = Array.from({ length:30 }, (_, index) => dateKey(addDays(new Date(), -29 + index)));
+  const scoringMonth = habitScoringDates(monthDates);
+  const completedToday = habits.filter(habit => habitCompleted(habit)).length;
+  const todayRate = habits.length ? Math.round(completedToday / habits.length * 100) : 0;
+  const weekTotal = habits.reduce((sum, habit) => sum + habitDatesInRange(habit, scoringWeek).length, 0);
+  const weekDone = habits.reduce((sum, habit) => sum + habitDatesInRange(habit, scoringWeek).filter(date => habitCompleted(habit, date)).length, 0);
+  const weekRate = weekTotal ? Math.round(weekDone / weekTotal * 100) : 0;
+  const monthRows = habitDashboardRows(habits.filter(habit => habitDatesInRange(habit, scoringMonth).length), scoringMonth).sort((a, b) => b.rate - a.rate || b.streak - a.streak);
+  const consistencyRows = habits.map((habit, index) => ({ habit, color:monthRows.find(row => row.habit.id === habit.id)?.color || habitDashboardPalette[index % habitDashboardPalette.length] }));
+  const consistencyEligible = habits.reduce((sum, habit) => sum + habitDatesInRange(habit, scoringMonth).length, 0);
+  const consistencyCompleted = habits.reduce((sum, habit) => sum + habitDatesInRange(habit, scoringMonth).filter(date => habitCompleted(habit, date)).length, 0);
+  const bestStreak = habits.map(habit => ({ habit, streak:habitStreak(habit) })).sort((a, b) => b.streak - a.streak)[0];
+  const weakest = monthRows.slice().sort((a, b) => a.rate - b.rate || a.streak - b.streak)[0];
+  const sleepHabit = habits.find(habit => isSleepHabit(habit));
+  const sleepLogs = sleepHabit ? scoringMonth.map(date => habitLog(sleepHabit.id, date)).filter(log => log && Number(log.value || 0) > 0) : [];
   const sleepAverage = sleepLogs.length ? sleepLogs.reduce((sum, log) => sum + Number(log.value || 0), 0) / sleepLogs.length : 0;
-  const weakest = weeklyHabits.map(habit => { const validDates = habitDatesInRange(habit, scoringWeekDates); return { habit, total:validDates.length, done:validDates.filter(date => habitCompleted(habit, date)).length }; }).filter(row => row.total).sort((a, b) => (a.done / a.total) - (b.done / b.total))[0];
-  return `<section class="habits-shell">
-    <article class="panel habits-hero">
-      <div>
-        <p class="panel-kicker">DAILY ROUTINES</p>
-        <h3>Habit tracker</h3>
-        <p class="subtitle">Build consistency across health, learning, sleep, and personal goals.</p>
-      </div>
-      <div class="habit-hero-actions">
-        <button class="primary-button" data-action="open-habit-checkin" type="button">✓ Check in</button>
-        <button class="ghost-button" data-page="habitInsights" type="button">View insights</button>
-        <button class="ghost-button" data-page="habitCheckins" type="button">History</button>
-        <button class="ghost-button" data-page="habitManage" type="button">Manage</button>
-        <button class="primary-button" data-action="open-habit-modal" type="button">＋ Add habit</button>
-      </div>
+  const sleepTarget = Number(sleepHabit?.target || 7.5);
+  const sleepTargetHits = sleepLogs.filter(log => Number(log.value || 0) >= sleepTarget).length;
+  const weeklyBlocks = habitDashboardWeeklyBlocks(habits);
+  const readingHabits = habits.filter(habit => isReadingHabit(habit));
+  const readingHabit = readingHabits[0];
+  const currentMonth = currentMonthKey();
+  const previousMonth = monthInputKey(addMonthsToDate(new Date(`${currentMonth}-01T00:00:00`), -1));
+  const readingSummary = readingStatsForMonths(readingHabits, [previousMonth, currentMonth]);
+  const readingMonth = readingSummary.months[currentMonth] || { started:[], completed:[] };
+  const currentBook = readingHabit ? currentReadingTitle(readingHabit) : '';
+  const latestBook = readingSummary.completedNotes[0];
+  const allHabitLogs = (data.habitLogs || []).filter(log => log.date <= today());
+  const activityHabits = habits.filter(habit => habit.goalType !== 'checkbox');
+  const activityHabitIds = new Set(activityHabits.map(habit => habit.id));
+  const eligibleActivityLogs = allHabitLogs.filter(log => activityHabitIds.has(log.habitId));
+  const activityRangeLabels = { last7:'Last 7 days', last30:'Last 30 days', all:'All time' };
+  const activityRangeDays = habitActivityRange === 'last30' ? 30 : habitActivityRange === 'all' ? null : 7;
+  const firstActivityDate = eligibleActivityLogs.map(log => log.date).sort()[0] || today();
+  const activityStart = activityRangeDays ? dateKey(addDays(new Date(`${today()}T00:00:00`), -(activityRangeDays - 1))) : firstActivityDate;
+  const activitySpanDays = Math.max(1, Math.round((new Date(`${today()}T00:00:00`) - new Date(`${activityStart}T00:00:00`)) / 86400000) + 1);
+  const activityBucketCount = habitActivityRange === 'last7' ? 7 : habitActivityRange === 'last30' ? 10 : Math.min(12, activitySpanDays);
+  const activityBucketDays = Math.max(1, Math.ceil(activitySpanDays / activityBucketCount));
+  const activityChartStart = dateKey(addDays(new Date(`${today()}T00:00:00`), -(activityBucketCount * activityBucketDays - 1)));
+  const scopedActivityLogs = eligibleActivityLogs.filter(log => log.date >= activityStart);
+  const activityRows = activityHabits.map((habit, index) => {
+    const habitLogs = scopedActivityLogs.filter(log => log.habitId === habit.id);
+    const values = Array.from({ length:activityBucketCount }, () => 0);
+    habitLogs.forEach(log => {
+      const offset = Math.floor((new Date(`${log.date}T00:00:00`) - new Date(`${activityChartStart}T00:00:00`)) / 86400000);
+      const bucket = Math.min(activityBucketCount - 1, Math.max(0, Math.floor(offset / activityBucketDays)));
+      values[bucket] += Number(log.value || 0);
+    });
+    const total = habitLogs.reduce((sum, log) => sum + Number(log.value || 0), 0);
+    return { habit, total, values, color:monthRows.find(item => item.habit.id === habit.id)?.color || habitDashboardPalette[index % habitDashboardPalette.length] };
+  });
+  const activityRangeLabel = activityRangeLabels[habitActivityRange] || activityRangeLabels.last7;
+  const walkingHabit = habits.find(habit => habitDashboardIconName(habit) === 'habit-walking');
+  const walkingPeak = walkingHabit ? Math.max(0, ...allHabitLogs.filter(log => log.habitId === walkingHabit.id).map(log => Number(log.value || 0))) : 0;
+  const readingDays = readingHabit ? new Set(allHabitLogs.filter(log => log.habitId === readingHabit.id && habitCompleted(readingHabit, log.date)).map(log => log.date)).size : 0;
+  const sleepTargetNights = sleepHabit ? new Set(allHabitLogs.filter(log => log.habitId === sleepHabit.id && Number(log.value || 0) >= sleepTarget).map(log => log.date)).size : 0;
+  const compactAchievementValue = value => value >= 1000 ? `${Number((value / 1000).toFixed(value >= 10000 ? 0 : 1))}k` : `${Math.round(value)}`;
+  const achievementRows = [
+    bestStreak?.streak ? { tone:'purple', value:bestStreak.streak, title:`${bestStreak.streak}-day streak`, text:`${bestStreak.habit.name} · keep going!` } : null,
+    walkingPeak ? { tone:'teal', value:compactAchievementValue(walkingPeak), title:'Walking peak', text:`${walkingPeak.toLocaleString('en-IN')} ${walkingHabit?.unit || 'steps'} in one day` } : null,
+    readingDays ? { tone:'amber', value:readingDays, title:'Reading days', text:'Days with the reading target met' } : null,
+    sleepTargetNights ? { tone:'blue', value:sleepTargetNights, title:'Sleep target nights', text:`At least ${sleepTarget} hours logged` } : null
+  ].filter(Boolean);
+  const noteLogs = (data.habitLogs || []).filter(log => log.note && monthDates.includes(log.date)).sort((a, b) => b.date.localeCompare(a.date));
+  const latestNote = noteLogs[0];
+  const latestNoteHabit = latestNote ? (data.habits || []).find(habit => habit.id === latestNote.habitId) : null;
+  const dayLabels = week.map(date => new Date(`${date}T00:00:00`).toLocaleDateString('en-IN', { weekday:'short' }));
+  const formatActivity = row => `${row.total.toLocaleString('en-IN', { maximumFractionDigits:1 })} ${esc(row.habit.unit || '')}`.trim();
+  const insightRows = [
+    { icon:'habit-streak', title:'Strongest routine', text:bestStreak ? `${bestStreak.habit.name} has the best current streak at ${bestStreak.streak} days.` : 'Add habits to start building streaks.' },
+    { icon:'habit-weekly', title:'Needs attention', text:weakest ? (weakest.rate < 80 ? `${weakest.habit.name} completed ${weakest.done}/${weakest.validDates.length} eligible days in the last 30 days.` : 'Every active habit is above 80% completion this month.') : 'Completion patterns will appear after check-ins.' },
+    latestNote ? { icon:'habit-patterns', title:'Recent reflection', text:`${latestNoteHabit?.name || 'Habit'} · ${latestNote.date}: ${latestNote.note}` } : { icon:'habit-sleep', title:'Sleep trend', text:sleepAverage ? `Sleep averages ${sleepAverage.toFixed(1)} hrs across ${sleepLogs.length} logged nights.` : 'Log sleep to see recovery patterns.' }
+  ];
+  return `<section class="habits-shell habit-dashboard">
+    <article class="panel habits-hero habit-dashboard-hero">
+      <div><p class="panel-kicker">DAILY ROUTINES</p><h3>Habit tracker</h3><p class="subtitle">Build consistency across health, learning, sleep, and personal goals.</p></div>
+      <div class="habit-hero-actions"><button class="primary-button" data-action="open-habit-checkin" type="button">✓ Check in</button><button class="ghost-button" data-page="habitCheckins" type="button">History</button><button class="ghost-button" data-page="habitManage" type="button">Manage</button><button class="primary-button" data-action="open-habit-modal" type="button">＋ Add habit</button></div>
     </article>
-    <section class="habit-summary-grid">
-      <article class="habit-summary-card featured"><span class="map-icon purple-bg">${svgIcon('habit')}</span><p>Today completion</p><strong>${completed}/${habits.length}</strong><small>${habits.length ? Math.round(completed / habits.length * 100) : 0}% done today</small></article>
-      <article class="habit-summary-card"><span class="map-icon amber-bg">${svgIcon('flame')}</span><p>Best streak</p><strong>${best?.streak || 0} days</strong><small>${best?.habit.name || 'No habits yet'}</small></article>
-      <article class="habit-summary-card"><span class="map-icon teal-bg">${svgIcon('walk')}</span><p>Weekly rate</p><strong>${weeklyChecks ? Math.round(weeklyCompleted / weeklyChecks * 100) : 0}%</strong><small>${weeklyCompleted} of ${weeklyChecks} checks</small></article>
-      <article class="habit-summary-card"><span class="map-icon blue-bg">${svgIcon('moon')}</span><p>Sleep avg</p><strong>${sleepAverage ? sleepAverage.toFixed(1) : '—'} hrs</strong><small>Last 7 days</small></article>
+
+    <section class="habit-dashboard-summary" aria-label="Habit summary">
+      <article class="habit-dashboard-summary-card featured"><span class="habit-dashboard-summary-icon">${richIcon('habit-progress')}</span><div><p>Today’s progress</p><strong>${completedToday}/${habits.length}</strong><small>${todayRate}% completed</small><i><em style="width:${todayRate}%"></em></i></div></article>
+      <article class="habit-dashboard-summary-card"><span class="habit-dashboard-summary-icon amber">${richIcon('habit-streak')}</span><div><p>Current streak</p><strong>${bestStreak?.streak || 0} days</strong><small>${esc(bestStreak?.habit.name || 'No habits yet')} · strongest routine</small></div><div class="habit-dashboard-streak-days">${week.map(date => `<span class="${bestStreak && habitCompleted(bestStreak.habit, date) ? 'done' : ''}"></span>`).join('')}</div></article>
+      <article class="habit-dashboard-summary-card"><span class="habit-dashboard-summary-icon teal">${richIcon('habit-weekly')}</span><div><p>Weekly completion</p><strong>${weekRate}%</strong><small>${weekDone} of ${weekTotal} eligible checks</small></div><div class="habit-dashboard-mini-bars">${weeklyBlocks.map(block => `<span style="height:${Math.max(8, block.rate)}%" title="${block.label}: ${block.rate}%"></span>`).join('')}</div></article>
+      <article class="habit-dashboard-summary-card"><span class="habit-dashboard-summary-icon blue">${richIcon('habit-sleep')}</span><div><p>Average sleep</p><strong>${sleepAverage ? sleepAverage.toFixed(1) : '—'} hrs</strong><small>${sleepLogs.length ? `${sleepTargetHits}/${sleepLogs.length} nights met target` : 'No sleep logs yet'}</small></div>${renderHabitDashboardSparkline(sleepLogs.slice(-14).map(log => Number(log.value || 0)), '#4f86ed')}</article>
     </section>
-    <section class="habits-grid">
-      <article class="panel todays-habits-panel">
-        <div class="panel-heading"><div><p class="panel-kicker">TODAY</p><h3>Daily check-in</h3></div><button class="mini-button" data-action="open-habit-checkin" type="button">Check in all</button></div>
-        <div class="habit-check-list">${habits.map(habit => { const log = habitLog(habit.id); const done = habitCompleted(habit); return `<div class="habit-check ${done ? 'done' : ''}"><span class="map-icon ${habit.color}">${svgIcon(habit.icon)}</span><div><b>${esc(habit.name)}</b><small>${habitValueText(habit, log)} · Goal ${habitTargetText(habit)}</small>${log?.note ? `<em>${esc(log.note)}</em>` : ''}</div><div class="habit-actions"><button class="habit-toggle" data-action="toggle-habit" data-id="${habit.id}" type="button">${done ? 'Done' : 'Mark'}</button><button class="mini-button" data-action="open-habit-checkin" data-date="${today()}" data-id="${habit.id}" type="button">Update</button></div></div>`; }).join('') || '<p class="empty-state">Add your first habit to start tracking.</p>'}</div>
-      </article>
-      <article class="panel habit-week-panel">
-        <div class="panel-heading"><div><p class="panel-kicker">THIS WEEK</p><h3>Consistency grid</h3></div></div>
-        <div class="habit-grid-head"><span></span>${dayLabels.map(day => `<b>${day}</b>`).join('')}</div>
-        ${weeklyHabits.map(habit => `<div class="habit-grid-row"><b>${habit.name}</b>${dates.map(date => `<span title="${habit.name} ${date}" class="${!habitIsStarted(habit, date) ? 'muted' : habitCompleted(habit, date) ? 'filled' : ''}"></span>`).join('')}</div>`).join('') || '<p class="empty-state">Weekly grid will show after habits are added.</p>'}
-      </article>
+
+    <section class="habit-dashboard-primary-grid">
+      <article class="panel habit-dashboard-checkin-panel"><div class="panel-heading"><div><p class="panel-kicker">TODAY · ${new Date().toLocaleDateString('en-IN', { weekday:'short', day:'2-digit', month:'short', year:'numeric' })}</p><h3>Daily check-in</h3></div><button class="mini-button" data-action="open-habit-checkin" type="button">Check in all</button></div><div class="habit-dashboard-checkins">${habits.map(habit => { const log = habitLog(habit.id); const done = habitCompleted(habit); return `<div class="habit-dashboard-checkin ${done ? 'done' : ''}"><span class="habit-dashboard-habit-icon">${richIcon(habitDashboardIconName(habit))}</span><div><b>${esc(habit.name)}</b><small>${habitValueText(habit, log)} · Goal ${habitTargetText(habit)}</small></div><button class="habit-toggle" data-action="toggle-habit" data-id="${habit.id}" type="button">${done ? 'Done' : 'Mark'}</button><button class="habit-dashboard-more" data-action="open-habit-checkin" data-date="${today()}" data-id="${habit.id}" type="button" aria-label="Update ${esc(habit.name)}">•••</button></div>`; }).join('') || '<p class="empty-state">Add your first habit to start tracking.</p>'}</div></article>
+
+      <article class="panel habit-dashboard-week-panel"><div class="panel-heading"><div><p class="panel-kicker">THIS WEEK</p><h3>Consistency grid</h3></div><span class="habit-dashboard-rate">${weekRate}%</span></div><div class="habit-dashboard-grid-head"><span></span>${dayLabels.map(day => `<b>${day}</b>`).join('')}</div>${habits.map(habit => `<div class="habit-dashboard-grid-row"><b>${esc(habit.name)}</b>${week.map(date => `<span title="${esc(habit.name)} · ${date}" class="${!habitIsStarted(habit, date) ? 'muted' : habitCompleted(habit, date) ? 'filled' : ''} ${date === today() ? 'today' : ''}"></span>`).join('')}</div>`).join('') || '<p class="empty-state">The weekly grid appears after you add habits.</p>'}</article>
+
+      <article class="panel habit-dashboard-active-panel"><div class="panel-heading"><div><p class="panel-kicker">HABIT CARDS</p><h3>Active habits</h3></div><button class="mini-button" data-page="habitManage" type="button">Manage</button></div><div class="habit-dashboard-active-grid">${habits.map(habit => { const milestone = habitMilestoneProgress(habit); const streak = habitStreak(habit); return `<div class="habit-dashboard-active-card"><span class="habit-dashboard-habit-icon">${richIcon(habitDashboardIconName(habit))}</span><div><b>${esc(habit.name)}</b><small>${habitTargetText(habit)} daily</small></div><strong>${streak}d</strong><i><em style="width:${milestone.pct}%"></em></i><small>Milestone: ${milestone.label}</small></div>`; }).join('') || '<p class="empty-state">No active habits yet.</p>'}</div></article>
     </section>
-    <section class="habits-grid secondary">
-      <article class="panel habit-card-panel">
-        <div class="panel-heading"><div><p class="panel-kicker">ACTIVE HABITS</p><h3>Habit cards</h3></div></div>
-        <div class="habit-card-list">${streakRows.map(({ habit, streak }) => { const milestone = habitMilestoneProgress(habit); return `<div class="habit-mini-card milestone"><span class="map-icon ${habit.color}">${svgIcon(habit.icon)}</span><div><b>${habit.name}</b><small>${habitTargetText(habit)} daily · since ${habitStartDate(habit)}</small><i><em style="width:${milestone.pct}%"></em></i><small>Milestone: ${milestone.label}</small></div><strong>${streak}d</strong></div>`; }).join('') || '<p class="empty-state">No active habits yet.</p>'}</div>
-      </article>
-      <article class="panel habit-insight-panel">
-        <div class="panel-heading"><div><p class="panel-kicker">HABIT INSIGHTS</p><h3>Patterns</h3></div></div>
-        <div class="habit-insight-list">
-          <div><b>Strongest routine</b><span>${best ? `${best.habit.name} has the best current streak at ${best.streak} days.` : 'Add habits to see strongest routines.'}</span></div>
-          <div><b>Needs attention</b><span>${weakest ? `${weakest.habit.name} has ${weakest.done}/${weakest.total} eligible checks this week.` : 'Missed patterns will appear here.'}</span></div>
-          <div><b>Sleep trend</b><span>${sleep ? (sleepAverage ? `Sleep average is ${sleepAverage.toFixed(1)} ${sleep.unit || 'hrs'} this week.` : 'Log sleep values to see the weekly average.') : 'Add a sleep habit to track sleep trend.'}</span></div>
-        </div>
-      </article>
+
+    <section class="habit-dashboard-analytics-grid">
+      <article class="panel habit-dashboard-trend-panel"><div class="panel-heading"><div><p class="panel-kicker">LAST 30 DAYS</p><h3>30-day consistency</h3></div><span class="tag">${consistencyCompleted}/${consistencyEligible} complete</span></div>${renderHabitDashboardConsistency(consistencyRows, monthDates)}</article>
+      <article class="panel habit-dashboard-weekly-bars"><div class="panel-heading"><div><p class="panel-kicker">LAST 4 WEEKS</p><h3>Weekly completion</h3></div></div><div class="habit-dashboard-week-bars">${weeklyBlocks.map(block => `<div><strong>${block.rate}%</strong><i><em style="height:${Math.max(5, block.rate)}%"></em></i><small>${block.label}</small></div>`).join('')}</div></article>
+      <article class="panel habit-dashboard-activity-panel"><div class="panel-heading"><div><p class="panel-kicker">ACTIVITY</p><h3>Time spent on habits</h3></div><div class="habit-dashboard-activity-range" role="group" aria-label="Time spent range">${[['last7','7 days'],['last30','30 days'],['all','All']].map(([value, label]) => `<button class="${habitActivityRange === value ? 'active' : ''}" data-action="habit-activity-range" data-range="${value}" type="button" aria-pressed="${habitActivityRange === value}">${label}</button>`).join('')}</div></div><div class="habit-dashboard-activity-grid">${activityRows.map(row => `<div><span class="habit-dashboard-habit-icon">${richIcon(habitDashboardIconName(row.habit))}</span><p><b>${esc(row.habit.name)}</b><strong>${formatActivity(row)}</strong></p>${renderHabitDashboardBars(row.values, row.color, activityRangeLabel)}</div>`).join('') || '<p class="empty-state">Value-based habits will appear here.</p>'}</div></article>
+    </section>
+
+    <section class="habit-dashboard-lower-grid">
+      <article class="panel habit-dashboard-target-panel"><div class="panel-heading"><div><p class="panel-kicker">PROGRESS</p><h3>Toward daily targets</h3></div><button class="mini-button" data-page="habitManage" type="button">Edit</button></div><div class="habit-dashboard-target-list">${monthRows.map(row => { const target = Number(row.habit.target || 1); const progress = row.habit.goalType === 'checkbox' ? row.rate : Math.min(100, Math.round(row.average / target * 100)); return `<div><span class="habit-dashboard-habit-icon">${richIcon(habitDashboardIconName(row.habit))}</span><p><b>${esc(row.habit.name)}</b><small>${row.habit.goalType === 'checkbox' ? `${row.rate}% completed` : `${row.average ? row.average.toFixed(row.average >= 10 ? 0 : 1) : 0} ${esc(row.habit.unit || '')} avg · ${habitTargetText(row.habit)} target`}</small></p><i><em style="width:${progress}%"></em></i><strong>${progress}%</strong></div>`; }).join('') || '<p class="empty-state">Target progress appears after check-ins.</p>'}</div></article>
+
+      <article class="panel habit-dashboard-patterns-panel"><div class="panel-heading"><div><p class="panel-kicker">PATTERNS</p><h3>Useful insights</h3></div></div><div class="habit-dashboard-pattern-list">${insightRows.map(row => `<div><span>${richIcon(row.icon)}</span><p><b>${esc(row.title)}</b><small>${esc(row.text)}</small></p></div>`).join('')}</div></article>
+
+      <article class="panel habit-dashboard-achievements-panel"><div class="panel-heading"><div><p class="panel-kicker">MILESTONES</p><h3>Achievements</h3></div></div><div class="habit-dashboard-achievement-grid">${achievementRows.map(row => `<div><span class="${row.tone}">${esc(row.value)}</span><b>${esc(row.title)}</b><small>${esc(row.text)}</small></div>`).join('') || '<p class="empty-state">Achievements appear as your habit history grows.</p>'}</div></article>
+
+      <article class="panel habit-dashboard-context-panel"><div class="panel-heading"><div><p class="panel-kicker">READING &amp; RECOVERY</p><h3>Current context</h3></div></div><div class="habit-dashboard-context-list"><div><span class="habit-dashboard-habit-icon">${richIcon('habit-reading')}</span><p><b>${currentBook ? esc(currentBook) : 'Reading tracker'}</b><small>${readingMonth.started.length} started · ${readingMonth.completed.length} completed this month${latestBook?.rating ? ` · latest ${'★'.repeat(latestBook.rating)}${'☆'.repeat(5 - latestBook.rating)}` : ''}</small></p><button class="mini-button" data-action="open-habit-checkin" data-id="${readingHabit?.id || ''}" type="button">Log</button></div><div><span class="habit-dashboard-habit-icon">${richIcon('habit-sleep')}</span><p><b>${sleepAverage ? `${sleepAverage.toFixed(1)} hrs average` : 'Sleep tracker'}</b><small>${sleepLogs.length ? `${sleepTargetHits}/${sleepLogs.length} nights met ${sleepTarget}h target` : 'Log sleep to build your recovery baseline'}</small></p><button class="mini-button" data-action="open-habit-checkin" data-id="${sleepHabit?.id || ''}" type="button">Log</button></div></div></article>
     </section>
   </section>`;
 }
@@ -404,17 +521,97 @@ function renderHabitManagePage() {
   </section>`;
 }
 
+function habitHistoryCompleted(habit, log) {
+  return isReadingHabit(habit) ? log.bookStatus === 'completed' || !!log.completed : !!log.completed;
+}
+
+function habitHistoryStatus(habit, log) {
+  return isReadingHabit(habit) ? readingStatusLabel(log.bookStatus) : log.completed ? 'Goal met' : 'Not completed';
+}
+
+function habitHistoryValue(habit, log) {
+  if (isReadingHabit(habit)) {
+    const rating = Math.max(0, Math.min(5, Number(log.bookRating || 0)));
+    return `<strong>${esc(log.bookTitle || 'Reading')}</strong><small>${Number(log.value || 0).toLocaleString('en-IN')} pages${rating ? ` · ${'★'.repeat(rating)}${'☆'.repeat(5 - rating)}` : ''}</small>`;
+  }
+  if (isSleepHabit(habit)) return `<strong>${esc(sleepLogText(log))}</strong><small>Sleep logged</small>`;
+  if (habit.goalType === 'checkbox') return `<strong>${log.completed ? 'Completed' : 'Not completed'}</strong><small>Daily check</small>`;
+  return `<strong>${Number(log.value || 0).toLocaleString('en-IN')} ${esc(habit.unit || '')}</strong><small>Target: ${esc(habitTargetText(habit))}</small>`;
+}
+
+function habitHistoryNote(log) {
+  const notes = [];
+  if (log.bookNote) notes.push(`<span><b>Book note</b>${esc(log.bookNote)}</span>`);
+  if (log.note) notes.push(`<span>${esc(log.note)}</span>`);
+  return notes.length ? `<div class="habit-history-note">${notes.join('')}</div>` : '';
+}
+
+function habitHistoryDayLabel(date, currentDate) {
+  const yesterday = dateKey(addDays(new Date(`${currentDate}T00:00:00`), -1));
+  if (date === currentDate) return 'Today';
+  if (date === yesterday) return 'Yesterday';
+  return new Date(`${date}T00:00:00`).toLocaleDateString('en-IN', { weekday:'long' });
+}
+
+function renderHabitHistoryEntry({ habit, log }) {
+  const completed = habitHistoryCompleted(habit, log);
+  return `<article class="habit-history-entry ${completed ? 'completed' : ''}">
+    <div class="habit-history-entry-head">
+      <span class="habit-dashboard-habit-icon">${richIcon(habitDashboardIconName(habit))}</span>
+      <div><b>${esc(habit.name)}</b><span class="habit-history-status ${completed ? 'completed' : ''}">${habitHistoryStatus(habit, log)}</span></div>
+      <div class="habit-history-value">${habitHistoryValue(habit, log)}</div>
+    </div>
+    ${habitHistoryNote(log)}
+    <div class="habit-history-actions">
+      <button class="mini-button" data-action="open-habit-checkin" data-date="${esc(log.date)}" data-id="${esc(habit.id)}" type="button">${richIcon('timeline-edit')}<span>Edit</span></button>
+      <button class="mini-button warn" data-action="delete-habit-log" data-id="${esc(habit.id)}" data-date="${esc(log.date)}" type="button">${richIcon('timeline-delete')}<span>Delete</span></button>
+    </div>
+  </article>`;
+}
+
+function renderHabitHistoryDay(date, dayRows, currentDate) {
+  const day = new Date(`${date}T00:00:00`);
+  const completed = dayRows.filter(({ habit, log }) => habitHistoryCompleted(habit, log)).length;
+  const fullDate = day.toLocaleDateString('en-IN', { day:'numeric', month:'long', year:'numeric' });
+  return `<section class="habit-history-day-card">
+    <header class="habit-history-day-head">
+      <span class="habit-history-date-tile"><strong>${String(day.getDate()).padStart(2, '0')}</strong><small>${day.toLocaleDateString('en-IN', { month:'short' }).toUpperCase()}</small></span>
+      <div><p>${habitHistoryDayLabel(date, currentDate)}</p><small>${fullDate}</small></div>
+      <span class="habit-history-day-total">${dayRows.length} check-in${dayRows.length === 1 ? '' : 's'}<small>${completed} goal${completed === 1 ? '' : 's'} met</small></span>
+    </header>
+    <div class="habit-history-entry-grid">${dayRows.map(renderHabitHistoryEntry).join('')}</div>
+  </section>`;
+}
+
 function renderHabitCheckinsPage() {
-  const logs = (data.habitLogs || []).slice().sort((a, b) => b.date.localeCompare(a.date) || a.habitId.localeCompare(b.habitId));
+  const historyEnd = today();
+  const historyStart = dateKey(addDays(new Date(`${historyEnd}T00:00:00`), -29));
+  const logs = (data.habitLogs || [])
+    .filter(log => log.date >= historyStart && log.date <= historyEnd)
+    .slice()
+    .sort((a, b) => b.date.localeCompare(a.date) || a.habitId.localeCompare(b.habitId));
   const rows = logs.map(log => ({ log, habit:data.habits.find(habit => habit.id === log.habitId) })).filter(row => row.habit);
-  return `<section class="habits-shell">
-    <article class="panel habits-hero">
-      <div><p class="panel-kicker">HABIT HISTORY</p><h3>Check-in log</h3><p class="subtitle">Edit previous values, completion status, and daily notes.</p></div>
-      <div class="habit-hero-actions"><button class="primary-button" data-action="open-habit-checkin" type="button">✓ Add check-in</button><button class="ghost-button" data-page="habitInsights" type="button">Insights</button><button class="ghost-button" data-page="habits" type="button">Back to habits</button></div>
+  const groupedRows = rows.reduce((groups, row) => {
+    if (!groups.has(row.log.date)) groups.set(row.log.date, []);
+    groups.get(row.log.date).push(row);
+    return groups;
+  }, new Map());
+  const completedCount = rows.filter(({ habit, log }) => habitHistoryCompleted(habit, log)).length;
+  const completionRate = rows.length ? Math.round(completedCount / rows.length * 100) : 0;
+  const historyRange = `${new Date(`${historyStart}T00:00:00`).toLocaleDateString('en-IN', { day:'numeric', month:'short' })} – ${new Date(`${historyEnd}T00:00:00`).toLocaleDateString('en-IN', { day:'numeric', month:'short', year:'numeric' })}`;
+  return `<section class="habit-history-page">
+    <article class="panel habit-history-hero">
+      <div class="habit-history-hero-copy"><span class="habit-history-hero-icon">${richIcon('habit-history')}</span><div><p class="panel-kicker">HABIT HISTORY</p><h3>Check-in history</h3><p class="subtitle">Your recent routines, grouped by day for a clearer view.</p></div></div>
+      <div class="habit-hero-actions"><button class="primary-button" data-action="open-habit-checkin" type="button">${richIcon('habit-progress')}<span>Add check-in</span></button><button class="ghost-button" data-page="habits" type="button">Back to habits</button></div>
     </article>
-    <article class="panel">
-      <div class="panel-heading"><div><p class="panel-kicker">RECENT CHECK-INS</p><h3>History</h3></div><span class="tag">${rows.length} entries</span></div>
-      <div class="table-scroll"><table class="outflow-table habit-history-table"><thead><tr><th>Date</th><th>Habit</th><th>Status</th><th>Value</th><th>Note</th><th></th></tr></thead><tbody>${rows.map(({ log, habit }) => `<tr><td>${log.date}</td><td>${esc(habit.name)}</td><td>${isReadingHabit(habit) ? readingStatusLabel(log.bookStatus) : log.completed ? 'Done' : 'Not done'}</td><td>${isReadingHabit(habit) ? `${esc(log.bookTitle || '—')}<br><small>${Number(log.value || 0).toLocaleString('en-IN')} pages${log.bookRating ? ` · ${'★'.repeat(Number(log.bookRating))}${'☆'.repeat(5 - Number(log.bookRating))}` : ''}</small>` : isSleepHabit(habit) ? sleepLogText(log) : habit.goalType === 'checkbox' ? '—' : `${Number(log.value || 0).toLocaleString('en-IN')} ${esc(habit.unit || '')}`}</td><td>${isReadingHabit(habit) && log.bookNote ? `<b>Book note:</b> ${esc(log.bookNote)}${log.note ? `<br>${esc(log.note)}` : ''}` : esc(log.note || '')}</td><td><button class="mini-button" data-action="open-habit-checkin" data-date="${log.date}" data-id="${habit.id}" type="button">Edit</button><button class="mini-button warn" data-action="delete-habit-log" data-id="${habit.id}" data-date="${log.date}" type="button">Delete</button></td></tr>`).join('') || '<tr><td colspan="6">No check-ins yet.</td></tr>'}</tbody></table></div>
+    <section class="habit-history-metrics" aria-label="History summary">
+      <article class="habit-history-metric featured"><span>${richIcon('habit-progress')}</span><div><p>Check-ins</p><strong>${rows.length}</strong><small>Recorded in this window</small></div></article>
+      <article class="habit-history-metric"><span class="teal">${richIcon('habit-weekly')}</span><div><p>Active days</p><strong>${groupedRows.size}<em>/ 30</em></strong><small>Days with at least one entry</small></div></article>
+      <article class="habit-history-metric"><span class="amber">${richIcon('habit-streak')}</span><div><p>Goals met</p><strong>${completionRate}%</strong><small>${completedCount} of ${rows.length} check-ins</small></div></article>
+    </section>
+    <article class="panel habit-history-board">
+      <div class="panel-heading"><div><p class="panel-kicker">LAST 30 DAYS</p><h3>Daily history</h3><p class="subtitle">${historyRange}</p></div><span class="tag">${groupedRows.size} active days</span></div>
+      <div class="habit-history-day-list">${groupedRows.size ? [...groupedRows].map(([date, dayRows]) => renderHabitHistoryDay(date, dayRows, historyEnd)).join('') : '<div class="habit-history-empty"><span>' + richIcon('habit-history') + '</span><b>No recent check-ins</b><p>Add a check-in to start building your 30-day history.</p></div>'}</div>
     </article>
   </section>`;
 }
