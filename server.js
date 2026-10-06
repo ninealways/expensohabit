@@ -282,6 +282,7 @@ app.get('/api/data', requireAuth, async (req, res) => {
 
 const timelineCategories = new Set(['money', 'trading', 'investment', 'personal', 'memory', 'travel', 'reading', 'work', 'health', 'other']);
 const timelineAmountTypes = new Set(['none', 'out', 'in', 'neutral']);
+const timelineBackgroundTones = new Set(['white', 'red', 'orange', 'yellow', 'green']);
 function cleanTimelineEvent(body = {}) {
   const title = String(body.title || '').trim();
   const date = String(body.date || '').trim();
@@ -290,10 +291,11 @@ function cleanTimelineEvent(body = {}) {
   const amountValue = body.amount === '' || body.amount === null || body.amount === undefined ? null : Number(body.amount);
   const amount = Number.isFinite(amountValue) && amountValue >= 0 ? amountValue : null;
   const amountType = amount === null ? 'none' : timelineAmountTypes.has(body.amountType) ? body.amountType : 'neutral';
+  const backgroundTone = timelineBackgroundTones.has(body.backgroundTone) ? body.backgroundTone : 'white';
   if (!title) return { error:'Event title is required.' };
   const eventDate = new Date(`${date}T00:00:00`);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || Number.isNaN(eventDate.getTime()) || localDate(eventDate) !== date) return { error:'Choose a valid event date.' };
-  return { value:{ title, date, category, note, amount, amountType } };
+  return { value:{ title, date, category, note, amount, amountType, backgroundTone } };
 }
 
 app.post('/api/timeline-events', requireAuth, async (req, res) => {

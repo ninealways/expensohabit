@@ -1,0 +1,86 @@
+/* Dashboard pace check: monthly budget runway and cumulative spend path. */
+.bottom-grid { grid-template-columns:minmax(0,6fr) minmax(0,4fr); }
+.bottom-grid > .home-velocity-panel { grid-column:auto; }
+.bottom-grid > .logic-panel { min-width:0;display:flex;flex-direction:column; }
+.bottom-grid > .logic-panel:after { display:none; }
+.money-flow-overview { padding:18px;border:1px solid #e9e1fb;border-radius:18px;background:linear-gradient(130deg,#fbf8ff,#fff 56%,#effcf9);box-shadow:0 12px 26px rgba(83,62,148,.07); }
+.money-flow-overview > span,.money-flow-overview > strong,.money-flow-overview > small { display:block; }
+.money-flow-overview > span { color:#67769a;font-size:11px;font-weight:800; }
+.money-flow-overview > strong { margin-top:5px;color:#182658;font-size:clamp(25px,2.5vw,34px);font-weight:800;line-height:1.05;letter-spacing:-.04em; }
+.money-flow-overview > small { margin-top:5px;color:#7a86a3;font-size:10px; }
+.money-flow-stack { display:flex;height:17px;margin-top:17px;overflow:hidden;border-radius:99px;background:#e9ebf6;box-shadow:inset 0 1px 2px rgba(39,48,101,.08); }
+.money-flow-stack i { display:block;min-width:0;height:100%;transition:width .25s ease; }
+#mapSegmentExpense { background:linear-gradient(90deg,#7441f5,#b25af4); }
+#mapSegmentLoan { background:linear-gradient(90deg,#ffbf54,#ff9b38); }
+#mapSegmentInvestment { background:linear-gradient(90deg,#38d4b3,#10ad96); }
+.money-flow-rows { flex:1;display:grid;grid-template-rows:repeat(3,minmax(0,1fr));gap:10px;margin-top:13px; }
+.money-flow-row { min-width:0;display:grid;grid-template-columns:42px minmax(0,1fr) auto;align-items:center;gap:10px;padding:12px;border:1px solid #ebebf5;border-radius:16px;background:rgba(255,255,255,.82);box-shadow:0 8px 18px rgba(59,56,120,.04); }
+.money-flow-row.expense { border-color:#ebe3fa;background:linear-gradient(110deg,#fff,#f8f4ff); }
+.money-flow-row.loan { border-color:#faead0;background:linear-gradient(110deg,#fff,#fff9ed); }
+.money-flow-row.investment { border-color:#daf3eb;background:linear-gradient(110deg,#fff,#f1fffa); }
+.money-flow-icon { width:42px;height:42px;display:grid;place-items:center;border-radius:13px;background:#f0eaff; }
+.money-flow-row.loan .money-flow-icon { background:#fff0d3; }
+.money-flow-row.investment .money-flow-icon { background:#ddfaf0; }
+.money-flow-icon .rich-icon { width:32px;height:32px; }
+.money-flow-row b,.money-flow-row small,.money-flow-row strong { display:block; }
+.money-flow-row b { color:#172658;font-size:12px;line-height:1.2; }
+.money-flow-row small { margin-top:4px;color:#7683a1;font-size:10px;line-height:1.2; }
+.money-flow-value { text-align:right; }
+.money-flow-value strong { color:#172658;font-size:14px;white-space:nowrap; }
+.money-flow-row.expense .money-flow-value small { color:#7546da; }
+.money-flow-row.loan .money-flow-value small { color:#c47c17; }
+.money-flow-row.investment .money-flow-value small { color:#158d79; }
+.money-flow-note { margin:12px 1px 0;color:#7985a4;font-size:10px;text-align:center; }
+.home-velocity-panel,
+.home-velocity-panel.pace-over,
+.home-velocity-panel.pace-under { min-width:0;border-color:#e7e7f5;background:#fff; }
+.home-velocity-panel .panel-heading { align-items:flex-start;margin-bottom:0; }
+.pace-month-control select { min-width:144px;padding:10px 32px 10px 13px;border:1px solid #d9cef9;border-radius:12px;background:#f8f5ff;color:#6035cb;font:800 12px 'Plus Jakarta Sans',sans-serif;cursor:pointer; }
+.pace-runway-head,.pace-cumulative-heading,.pace-cumulative-footer { display:flex;justify-content:space-between;gap:16px; }
+.pace-runway-head { align-items:end;margin-top:22px; }
+.pace-runway-head span,.pace-runway-head small,.pace-runway-used span { display:block;color:#69789f;font-size:11px;font-weight:600; }
+.pace-runway-head strong { display:block;margin:3px 0;color:#142252;font-size:28px;font-weight:800;line-height:1.1;letter-spacing:-.04em; }
+.pace-runway-used { text-align:right; }
+.pace-runway-used strong { margin-bottom:4px;color:#7543ed;font-size:17px;letter-spacing:0; }
+.pace-runway { position:relative;height:21px;margin-top:15px;border-radius:100px;background:#eceefa; }
+.pace-runway > span { display:block;height:100%;border-radius:inherit;background:linear-gradient(90deg,#7846fb,#c653ee 55%,#ff729e);box-shadow:0 5px 13px rgba(140,74,233,.2); }
+.pace-runway > i { position:absolute;top:-5px;bottom:-5px;width:2px;background:#202a58; }
+.pace-runway-labels { display:flex;justify-content:space-between;gap:9px;margin-top:8px;color:#69789f;font-size:10px;font-weight:700; }
+.pace-cumulative-heading { align-items:end;margin-top:29px; }
+.pace-cumulative-heading h4 { margin:0 0 3px;color:#142252;font-size:16px; }
+.pace-cumulative-heading p { margin:0;color:#69789f;font-size:11px; }
+.pace-cumulative-gap { align-self:center;padding:7px 10px;border-radius:99px;font-size:11px;font-weight:800;text-align:center; }
+.pace-cumulative-gap.over { background:#ffe8ef;color:#c82e55; }
+.pace-cumulative-gap.under { background:#e3faf3;color:#117d66; }
+.pace-cumulative-chart { width:100%;margin-top:8px; }
+.pace-cumulative-chart svg { display:block;width:100%;height:auto;max-height:265px; }
+.pace-cumulative-grid { stroke:#e9eaf5;stroke-width:1; }
+.pace-cumulative-axis { fill:#68799f;font-family:'Plus Jakarta Sans',sans-serif;font-size:11px;font-weight:700; }
+.pace-cumulative-area { fill:url(#paceAreaGradient); }
+.pace-cumulative-budget { fill:none;stroke:#2689f8;stroke-width:2.5;stroke-dasharray:7 6;stroke-linejoin:round; }
+.pace-cumulative-actual { fill:none;stroke:#783cff;stroke-width:4;stroke-linecap:round;stroke-linejoin:round;filter:drop-shadow(0 5px 6px rgba(116,55,241,.14)); }
+.pace-cumulative-hit { fill:transparent; }
+.pace-cumulative-end { fill:#783cff;stroke:#fff;stroke-width:2; }
+.pace-cumulative-footer { align-items:center;flex-wrap:wrap;margin-top:4px;color:#69789f;font-size:11px; }
+.pace-cumulative-footer p { margin:0; }
+.pace-cumulative-footer b { color:#142252; }
+.pace-cumulative-legend { display:flex;gap:16px;flex-wrap:wrap; }
+.pace-cumulative-legend span { display:inline-flex;align-items:center;gap:6px; }
+.pace-cumulative-legend i { display:inline-block;width:15px;height:4px;border-radius:10px; }
+.pace-cumulative-legend .actual { background:#783cff; }
+.pace-cumulative-legend .budget { background:#2689f8; }
+@media (max-width:850px) {
+  .bottom-grid { grid-template-columns:1fr; }
+  .money-flow-rows { flex:initial;grid-template-rows:none; }
+}
+@media (max-width:560px) {
+  .home-velocity-panel .panel-heading { flex-wrap:wrap; }
+  .pace-month-control select { min-width:136px; }
+  .pace-runway-head strong { font-size:24px; }
+  .pace-runway-used strong { font-size:14px; }
+  .pace-cumulative-heading { align-items:flex-start;flex-direction:column;gap:9px; }
+  .pace-cumulative-footer { align-items:flex-start;flex-direction:column; }
+  .money-flow-row { grid-template-columns:38px minmax(0,1fr) auto;gap:8px;padding:10px; }
+  .money-flow-icon { width:38px;height:38px; }
+  .money-flow-value strong { font-size:12px; }
+}
