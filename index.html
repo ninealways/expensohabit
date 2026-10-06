@@ -16,8 +16,10 @@
     <link rel="stylesheet" href="habits-redesign.css?v=20261001-11" />
     <link rel="stylesheet" href="credit-card-redesign.css?v=20261001-11" />
     <link rel="stylesheet" href="finance-pages-redesign.css?v=20261001-05" />
-    <link rel="stylesheet" href="timeline-redesign.css?v=20261001-01" />
+    <link rel="stylesheet" href="timeline-redesign.css?v=20261006-02" />
     <link rel="stylesheet" href="account-pages.css?v=20261001-03" />
+    <link rel="stylesheet" href="modal-redesign.css?v=20261006-03" />
+    <link rel="stylesheet" href="pace-check.css?v=20261006-04" />
   </head>
   <body class="app-booting">
     <svg class="icon-sprite" aria-hidden="true">
@@ -167,7 +169,7 @@
             <button class="active" data-view="all">All outflow</button>
             <button data-view="real">Real expenses</button>
           </div>
-          <p class="helper-text" id="dashboardViewHelper">All outflow chart includes loans &amp; investments. Top categories stay expense-only.</p>
+          <p class="helper-text" id="dashboardViewHelper">All outflow includes loans &amp; investments in totals. The category breakdown stays expense-only.</p>
         </section>
 
         <section class="content-grid">
@@ -183,18 +185,18 @@
 
         <section class="bottom-grid">
           <article class="panel velocity-panel home-velocity-panel">
-            <div class="panel-heading"><div><p class="panel-kicker">SPEND VELOCITY</p><h3>Pace check</h3></div><button class="ghost-button" data-page="insights">View insights</button></div>
+            <div class="panel-heading"><div><p class="panel-kicker">SPEND VELOCITY</p><h3>Pace check</h3></div><label class="pace-month-control"><span class="sr-only">Pace check month</span><select id="paceMonthSelect" aria-label="Pace check month"></select></label></div>
             <div id="homeVelocity" class="velocity-meter"></div>
           </article>
-          <article class="panel chart-panel">
-            <div class="panel-heading"><div><p class="panel-kicker" id="chartRangeLabel">LAST 7 DAYS</p><h3>Outflow overview</h3></div><div class="chart-heading-actions"><div class="chart-range-control" aria-label="Chart range"><button class="active" data-chart-range="last7">7 days</button><button data-chart-range="thisMonth">This month</button><button data-chart-range="lastMonth">Last month</button></div><span class="chart-total" id="chartTotal">₹0</span></div></div>
-            <div id="chart" class="chart" aria-label="Outflow chart"></div>
-            <div class="legend"><span><i class="legend-dot purple"></i>Expense</span><span><i class="legend-dot amber"></i>Loan</span><span><i class="legend-dot teal"></i>Investment</span></div>
-          </article>
           <article class="panel logic-panel">
-            <div class="panel-heading"><div><p class="panel-kicker">HOW TOTALS WORK</p><h3>Money map</h3></div><button class="ghost-button" data-page="outflow">View report</button></div>
-            <div class="money-map"><div class="map-step expense-step"><span class="map-icon purple-bg"><img class="rich-icon" src="assets/icons/real-expenses.svg?v=20261001-02" alt="" /></span><b>Regular expenses</b><small>Included in real expenses</small></div><span class="map-arrow">→</span><div class="map-step loan-step"><span class="map-icon amber-bg"><img class="rich-icon" src="assets/icons/loans.svg?v=20261001-02" alt="" /></span><b>Loans</b><small>Separate loan outflow</small></div><span class="map-arrow">→</span><div class="map-step investment-step"><span class="map-icon teal-bg"><img class="rich-icon" src="assets/icons/investments.svg?v=20261001-02" alt="" /></span><b>Investments</b><small>Separate investment outflow</small></div></div>
-            <div class="formula"><span id="formulaExpense">₹0</span><b>+</b><span id="formulaLoan">₹0</span><b>+</b><span id="formulaInvestment">₹0</span><b>=</b><strong id="formulaTotal">₹0</strong></div>
+            <div class="panel-heading"><div><p class="panel-kicker">THIS MONTH'S OUTFLOW</p><h3>Money map</h3></div><button class="ghost-button" data-page="outflow">View report</button></div>
+            <div class="money-flow-overview"><span>Total outflow</span><strong id="formulaTotal">₹0</strong><small>Where your money went this month</small><div class="money-flow-stack" id="moneyFlowStack" role="img" aria-label="Outflow split between expenses, loans and investments"><i id="mapSegmentExpense"></i><i id="mapSegmentLoan"></i><i id="mapSegmentInvestment"></i></div></div>
+            <div class="money-flow-rows">
+              <div class="money-flow-row expense"><span class="money-flow-icon"><img class="rich-icon" src="assets/icons/real-expenses.svg?v=20261001-02" alt="" /></span><div><b>Expenses</b><small>Expense transactions</small></div><div class="money-flow-value"><strong id="formulaExpense">₹0</strong><small id="mapShareExpense">0% of outflow</small></div></div>
+              <div class="money-flow-row loan"><span class="money-flow-icon"><img class="rich-icon" src="assets/icons/loans.svg?v=20261001-02" alt="" /></span><div><b>Loans</b><small>Loan payments</small></div><div class="money-flow-value"><strong id="formulaLoan">₹0</strong><small id="mapShareLoan">0% of outflow</small></div></div>
+              <div class="money-flow-row investment"><span class="money-flow-icon"><img class="rich-icon" src="assets/icons/investments.svg?v=20261001-02" alt="" /></span><div><b>Investments</b><small>Money set aside</small></div><div class="money-flow-value"><strong id="formulaInvestment">₹0</strong><small id="mapShareInvestment">0% of outflow</small></div></div>
+            </div>
+            <p class="money-flow-note">Expenses + loans + investments = total outflow</p>
           </article>
         </section>
         <section id="subPageView" class="sub-page-view" hidden></section>
@@ -211,7 +213,7 @@
 
     <div class="modal-backdrop" id="modalBackdrop" hidden>
       <section class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
-        <div class="modal-heading"><div><p class="panel-kicker">QUICK ENTRY</p><h3 id="modalTitle">Add transaction</h3></div><button class="close-button" id="closeModal">×</button></div>
+        <div class="modal-heading"><span class="modal-heading-icon"><img src="assets/icons/transactions.svg" alt="" /></span><div class="modal-heading-copy"><p class="panel-kicker">QUICK ENTRY</p><h3 id="modalTitle">Add transaction</h3><p class="modal-description">Record a money move and keep your totals up to date.</p></div><button class="close-button" id="closeModal" type="button" aria-label="Close transaction form">×</button></div>
         <div class="type-tabs" role="tablist"><button class="active" data-type="expense">Expense</button><button data-type="loan">Loan</button><button data-type="investment">Investment</button></div>
         <form id="transactionForm">
           <label>Amount (₹)<input name="amount" type="number" min="1" step="1" placeholder="0" required /></label>
@@ -251,7 +253,7 @@
 
     <div class="modal-backdrop" id="habitModalBackdrop" hidden>
       <section class="modal habit-modal" role="dialog" aria-modal="true" aria-labelledby="habitModalTitle">
-        <div class="modal-heading"><div><p class="panel-kicker">HABIT SETUP</p><h3 id="habitModalTitle">Add habit</h3></div><button class="close-button" id="closeHabitModal">×</button></div>
+        <div class="modal-heading"><span class="modal-heading-icon"><img src="assets/icons/habits.svg" alt="" /></span><div class="modal-heading-copy"><p class="panel-kicker">HABIT SETUP</p><h3 id="habitModalTitle">Add habit</h3><p class="modal-description">Build a routine that fits your goals.</p></div><button class="close-button" id="closeHabitModal" type="button" aria-label="Close habit form">×</button></div>
         <form id="habitForm" class="habit-modal-form">
           <label>Habit name<input name="name" placeholder="Meditation, Reading, Walking..." required /></label>
           <label>Description<textarea name="description" rows="3" placeholder="Why this habit matters, routine notes, or reminders..."></textarea></label>
@@ -292,7 +294,7 @@
 
     <div class="modal-backdrop" id="habitCheckinModalBackdrop" hidden>
       <section class="modal habit-checkin-modal" role="dialog" aria-modal="true" aria-labelledby="habitCheckinTitle">
-        <div class="modal-heading"><div><p class="panel-kicker">DAILY ROUTINE</p><h3 id="habitCheckinTitle">Habit check-in</h3></div><button class="close-button" id="closeHabitCheckinModal">×</button></div>
+        <div class="modal-heading"><span class="modal-heading-icon"><img src="assets/icons/habit-progress.svg" alt="" /></span><div class="modal-heading-copy"><p class="panel-kicker">DAILY ROUTINE</p><h3 id="habitCheckinTitle">Habit check-in</h3><p class="modal-description">Capture today’s progress in one place.</p></div><button class="close-button" id="closeHabitCheckinModal" type="button" aria-label="Close check-in form">×</button></div>
         <form id="habitCheckinForm">
           <label>Check-in date<input name="date" type="text" data-picker="date" required /></label>
           <div class="habit-checkin-list" id="habitCheckinList"></div>
@@ -303,7 +305,7 @@
 
     <div class="modal-backdrop" id="categoryModalBackdrop" hidden>
       <section class="modal category-modal" role="dialog" aria-modal="true" aria-labelledby="categoryModalTitle">
-        <div class="modal-heading"><div><p class="panel-kicker">CATEGORY SETUP</p><h3 id="categoryModalTitle">Add category</h3></div><button class="close-button" id="closeCategoryModal">×</button></div>
+        <div class="modal-heading"><span class="modal-heading-icon"><img src="assets/icons/insight-category.svg" alt="" /></span><div class="modal-heading-copy"><p class="panel-kicker">CATEGORY SETUP</p><h3 id="categoryModalTitle">Add category</h3><p class="modal-description">Organize transactions the way you track them.</p></div><button class="close-button" id="closeCategoryModal" type="button" aria-label="Close category form">×</button></div>
         <form id="categoryForm" class="category-modal-form">
           <label>Category name<input name="name" placeholder="Food, Fuel, Insurance..." required /></label>
           <label>Category type<select name="kind"><option value="expense">Expense</option><option value="loan">Loan</option><option value="investment">Investment</option></select></label>
@@ -315,7 +317,7 @@
 
     <div class="modal-backdrop" id="stockTradeModalBackdrop" hidden>
       <section class="modal stock-trade-modal" role="dialog" aria-modal="true" aria-labelledby="stockTradeModalTitle">
-        <div class="modal-heading"><div><p class="panel-kicker">STOCK LEDGER</p><h3 id="stockTradeModalTitle">Add stock trade</h3></div><button class="close-button" id="closeStockTradeModal">×</button></div>
+        <div class="modal-heading"><span class="modal-heading-icon"><img src="assets/icons/investment-growth.svg" alt="" /></span><div class="modal-heading-copy"><p class="panel-kicker">STOCK LEDGER</p><h3 id="stockTradeModalTitle">Add stock trade</h3><p class="modal-description">Keep your investment activity in view.</p></div><button class="close-button" id="closeStockTradeModal" type="button" aria-label="Close stock trade form">×</button></div>
         <form id="stockTradeForm" class="stock-trade-form">
           <div class="form-row"><label>Symbol<input name="symbol" placeholder="TCS" required /></label><label>Company name<input name="companyName" placeholder="Tata Consultancy Services" /></label></div>
           <div class="form-row"><label>Trade type<select name="tradeType"><option value="buy">Buy</option><option value="sell">Sell</option><option value="price">Update value</option></select></label><label>Trade date<input name="tradeDate" type="text" data-picker="date" required /></label></div>
@@ -329,7 +331,7 @@
 
     <div class="modal-backdrop" id="creditCardModalBackdrop" hidden>
       <section class="modal credit-card-modal" role="dialog" aria-modal="true" aria-labelledby="creditCardModalTitle">
-        <div class="modal-heading"><div><p class="panel-kicker">CARD TRACKER</p><h3 id="creditCardModalTitle">Add credit card</h3></div><button class="close-button" id="closeCreditCardModal">×</button></div>
+        <div class="modal-heading"><span class="modal-heading-icon"><img src="assets/icons/credit-card.svg" alt="" /></span><div class="modal-heading-copy"><p class="panel-kicker">CARD TRACKER</p><h3 id="creditCardModalTitle">Add credit card</h3><p class="modal-description">Keep billing cycles and card details together.</p></div><button class="close-button" id="closeCreditCardModal" type="button" aria-label="Close credit card form">×</button></div>
         <form id="creditCardForm" class="credit-card-form">
           <input name="cardId" type="hidden" />
           <div class="form-row"><label>Card name<input name="name" placeholder="HDFC Regalia, Axis Magnus..." required /></label><label>Issuer / bank<input name="issuer" placeholder="HDFC, ICICI, Axis..." required /></label></div>
@@ -349,7 +351,7 @@
 
     <div class="modal-backdrop" id="creditCardBillModalBackdrop" hidden>
       <section class="modal credit-card-modal" role="dialog" aria-modal="true" aria-labelledby="creditCardBillModalTitle">
-        <div class="modal-heading"><div><p class="panel-kicker">MONTHLY BILL</p><h3 id="creditCardBillModalTitle">Add monthly bill</h3></div><button class="close-button" id="closeCreditCardBillModal">×</button></div>
+        <div class="modal-heading"><span class="modal-heading-icon"><img src="assets/icons/credit-due.svg" alt="" /></span><div class="modal-heading-copy"><p class="panel-kicker">MONTHLY BILL</p><h3 id="creditCardBillModalTitle">Add monthly bill</h3><p class="modal-description">Track the statement and its payment status.</p></div><button class="close-button" id="closeCreditCardBillModal" type="button" aria-label="Close monthly bill form">×</button></div>
         <form id="creditCardBillForm" class="credit-card-form">
           <input name="cardId" type="hidden" />
           <div class="form-row"><label>Card<input name="cardName" readonly /></label><label>Cycle month<input name="month" type="text" data-picker="month" placeholder="Select month" required /></label></div>
@@ -363,10 +365,20 @@
 
     <div class="modal-backdrop" id="timelineEventModalBackdrop" hidden>
       <section class="modal timeline-event-modal" role="dialog" aria-modal="true" aria-labelledby="timelineEventModalTitle">
-        <div class="modal-heading"><div><p class="panel-kicker">TIMELINE MOMENT</p><h3 id="timelineEventModalTitle">Add event</h3></div><button class="close-button" id="closeTimelineEventModal" type="button">×</button></div>
+        <div class="modal-heading"><span class="modal-heading-icon"><img src="assets/icons/timeline-event.svg" alt="" /></span><div class="modal-heading-copy"><p class="panel-kicker">TIMELINE MOMENT</p><h3 id="timelineEventModalTitle">Add event</h3><p class="modal-description">Keep an important moment on your personal timeline.</p></div><button class="close-button" id="closeTimelineEventModal" type="button" aria-label="Close event form">×</button></div>
         <form id="timelineEventForm">
           <div class="form-row"><label>Date<input name="date" type="text" data-picker="date" placeholder="Select date" required /></label><label>Category<select name="category"><option value="personal">Personal</option><option value="memory">Memory</option><option value="money">Money</option><option value="trading">Trading</option><option value="investment">Investment</option><option value="travel">Travel</option><option value="reading">Reading</option><option value="work">Work</option><option value="health">Health</option><option value="other">Other</option></select></label></div>
           <label>Event title<input name="title" maxlength="120" placeholder="What happened?" required /></label>
+          <fieldset class="timeline-background-picker">
+            <legend>Event background <small>Use color to show the emotional tone</small></legend>
+            <div>
+              <label class="tone-white"><input type="radio" name="backgroundTone" value="white" checked /><span></span><b>White<small>Neutral</small></b></label>
+              <label class="tone-red"><input type="radio" name="backgroundTone" value="red" /><span></span><b>Red<small>Tragic</small></b></label>
+              <label class="tone-orange"><input type="radio" name="backgroundTone" value="orange" /><span></span><b>Orange<small>Difficult</small></b></label>
+              <label class="tone-yellow"><input type="radio" name="backgroundTone" value="yellow" /><span></span><b>Yellow<small>Significant</small></b></label>
+              <label class="tone-green"><input type="radio" name="backgroundTone" value="green" /><span></span><b>Green<small>Happy</small></b></label>
+            </div>
+          </fieldset>
           <div class="form-row"><label>Amount (optional)<input name="amount" type="number" min="0" step="0.01" placeholder="0" /></label><label>Money movement<select name="amountType"><option value="none">Not specified</option><option value="out">Money added / spent</option><option value="in">Money received / returned</option><option value="neutral">Show amount only</option></select></label></div>
           <label>Note<textarea name="note" rows="3" maxlength="500" placeholder="Add a short detail or memory..."></textarea></label>
           <p class="timeline-form-help">Timeline events are for your personal record and do not affect expenses, investments, or other totals.</p>
@@ -377,7 +389,7 @@
 
     <div class="modal-backdrop" id="confirmModalBackdrop" hidden>
       <section class="modal confirm-modal" role="dialog" aria-modal="true" aria-labelledby="confirmModalTitle">
-        <div class="modal-heading"><div><p class="panel-kicker">CONFIRMATION</p><h3 id="confirmModalTitle">Delete habit?</h3></div><button class="close-button" id="closeConfirmModal">×</button></div>
+        <div class="modal-heading"><span class="modal-heading-icon"><img src="assets/icons/timeline-delete.svg" alt="" /></span><div class="modal-heading-copy"><p class="panel-kicker">CONFIRMATION</p><h3 id="confirmModalTitle">Delete habit?</h3></div><button class="close-button" id="closeConfirmModal" type="button" aria-label="Close confirmation">×</button></div>
         <p class="confirm-copy" id="confirmModalCopy">This action cannot be undone.</p>
         <div class="modal-actions"><button type="button" class="secondary-button" id="cancelConfirmModal">Cancel</button><button class="secondary-button" id="confirmArchiveButton" type="button" hidden>Archive</button><button class="primary-button danger-button" id="confirmDeleteButton" type="button">Delete</button></div>
       </section>
@@ -403,7 +415,7 @@
     <script src="js/pages/habits.js?v=20261001-07"></script>
     <script src="js/pages/insights.js?v=20261001-02"></script>
     <script src="js/pages/calendar.js?v=20260930-01"></script>
-    <script src="js/pages/timeline.js?v=20261001-01"></script>
-    <script src="app.js?v=20261001-13"></script>
+    <script src="js/pages/timeline.js?v=20261006-02"></script>
+    <script src="app.js?v=20261006-04"></script>
   </body>
 </html>
