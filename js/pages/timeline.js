@@ -11,11 +11,23 @@ const timelineCategoryMeta = {
   other:{ label:'Other', asset:'timeline-event', tone:'purple' }
 };
 const timelineDensityOptions = ['overview', 'compact', 'comfortable'];
+const timelineBackgroundOptions = [
+  { value:'white', label:'White' },
+  { value:'red', label:'Red' },
+  { value:'orange', label:'Orange' },
+  { value:'yellow', label:'Yellow' },
+  { value:'green', label:'Green' }
+];
 let timelineView = 'year';
 let timelinePeriodDate = new Date();
 let timelineCategory = 'all';
+let timelineBackground = 'all';
 let timelineDensity = 'compact';
 let editingTimelineEventId = null;
+
+function timelineEventBackground(event) {
+  return timelineBackgroundOptions.some(option => option.value === event.backgroundTone) ? event.backgroundTone : 'white';
+}
 
 function timelinePeriodRange() {
   const year = timelinePeriodDate.getFullYear();
@@ -34,6 +46,7 @@ function timelineVisibleEvents() {
   return (data.timelineEvents || [])
     .filter(event => event.date >= range.from && event.date <= range.to)
     .filter(event => timelineCategory === 'all' || event.category === timelineCategory)
+    .filter(event => timelineBackground === 'all' || timelineEventBackground(event) === timelineBackground)
     .sort((a, b) => b.date.localeCompare(a.date) || String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
 }
 
@@ -55,8 +68,9 @@ function timelineEventCard(event, index) {
   const date = dateFromKey(event.date);
   const amount = timelineAmount(event);
   const side = index % 2 ? 'right' : 'left';
+  const backgroundTone = timelineEventBackground(event);
   return `<div class="timeline-entry ${side} timeline-${meta.tone}">
-    <div class="timeline-event-card">
+    <div class="timeline-event-card timeline-background-${backgroundTone}">
       <div class="timeline-date-tile"><strong>${String(date.getDate()).padStart(2, '0')}</strong><small>${monthName(date)}</small></div>
       <div class="timeline-event-copy">
         <span class="timeline-category-tag"><span class="timeline-category-icon">${richIcon(meta.asset)}</span>${meta.label}</span>
@@ -95,8 +109,9 @@ function renderTimelinePage() {
   const timeline = events.length ? [...groups.entries()].map(([month, monthEvents]) => `<section class="timeline-month-group">
     ${monthEvents.map(event => timelineEventCard(event, entryIndex++)).join('')}
     <h4>${timelineMonthLabel(month)}</h4>
-  </section>`).join('') : `<div class="timeline-empty"><span>${richIcon('timeline-event')}</span><h4>No moments here yet</h4><p>Add an event to start building your personal timeline.</p><button class="primary-button" type="button" data-timeline-action="add">＋ Add event</button></div>`;
+  </section>`).join('') : timelineCategory !== 'all' || timelineBackground !== 'all' ? `<div class="timeline-empty"><span>${richIcon('timeline-event')}</span><h4>No matching events</h4><p>Try another category or background color.</p></div>` : `<div class="timeline-empty"><span>${richIcon('timeline-event')}</span><h4>No moments here yet</h4><p>Add an event to start building your personal timeline.</p><button class="primary-button" type="button" data-timeline-action="add">＋ Add event</button></div>`;
   const categoryOptions = [`<option value="all">All events</option>`, ...Object.entries(timelineCategoryMeta).map(([key, meta]) => `<option value="${key}" ${timelineCategory === key ? 'selected' : ''}>${meta.label}</option>`)].join('');
+  const backgroundOptions = [`<option value="all">All backgrounds</option>`, ...timelineBackgroundOptions.map(({ value, label }) => `<option value="${value}" ${timelineBackground === value ? 'selected' : ''}>${label}</option>`)].join('');
   const range = timelinePeriodRange();
   const densityIndex = timelineDensityOptions.indexOf(timelineDensity);
   const densityLabel = timelineDensity.charAt(0).toUpperCase() + timelineDensity.slice(1);
@@ -113,6 +128,7 @@ function renderTimelinePage() {
         <div class="timeline-view-switch" role="group" aria-label="Timeline view"><button type="button" class="${timelineView === 'month' ? 'active' : ''}" data-timeline-view="month">Month</button><button type="button" class="${timelineView === 'year' ? 'active' : ''}" data-timeline-view="year">Year</button></div>
         <div class="timeline-density-control" aria-label="Timeline zoom"><button type="button" data-timeline-density="out" ${densityIndex === 0 ? 'disabled' : ''} aria-label="Zoom out">−</button><span>${densityLabel}</span><button type="button" data-timeline-density="in" ${densityIndex === timelineDensityOptions.length - 1 ? 'disabled' : ''} aria-label="Zoom in">＋</button></div>
         <label class="timeline-filter"><span class="sr-only">Filter events</span><select data-timeline-filter>${categoryOptions}</select></label>
+        <label class="timeline-background-filter timeline-background-${timelineBackground}"><span class="sr-only">Filter event backgrounds</span><i aria-hidden="true"></i><select data-timeline-background-filter>${backgroundOptions}</select></label>
       </div>
       <div class="timeline-canvas">${events.length ? '<span class="timeline-direction-arrow" aria-hidden="true"></span>' : ''}${timeline}</div>
     </article>
@@ -126,6 +142,7 @@ function openTimelineEventModal(event = null) {
   form.elements.date.value = event?.date || today();
   form.elements.title.value = event?.title || '';
   form.elements.category.value = event?.category || 'personal';
+  form.elements.backgroundTone.value = event?.backgroundTone || 'white';
   form.elements.amount.value = event?.amount ?? '';
   form.elements.amountType.value = event?.amountType || 'none';
   form.elements.note.value = event?.note || '';
@@ -147,7 +164,8 @@ async function submitTimelineEvent(event) {
   const form = new FormData(event.target);
   const payload = {
     date:form.get('date'), title:form.get('title'), category:form.get('category'),
-    amount:form.get('amount'), amountType:form.get('amount') === '' ? 'none' : form.get('amountType'), note:form.get('note')
+    backgroundTone:form.get('backgroundTone') || 'white', amount:form.get('amount'),
+    amountType:form.get('amount') === '' ? 'none' : form.get('amountType'), note:form.get('note')
   };
   const response = await fetch(editingTimelineEventId ? `/api/timeline-events/${editingTimelineEventId}` : '/api/timeline-events', {
     method:editingTimelineEventId ? 'PUT' : 'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify(payload)
