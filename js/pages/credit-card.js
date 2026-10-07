@@ -4,9 +4,9 @@ function creditCardTone(card = {}) {
   return 'purple';
 }
 
-function creditCardCycleText(card = {}) {
-  if (card.cycle) return card.cycle;
-  const month = card.currentCycleMonth || currentMonthKey();
+function creditCardCycleText(card = {}, bill = null) {
+  if (!bill && card.cycle) return card.cycle;
+  const month = bill?.month || card.currentCycleMonth || currentMonthKey();
   const label = new Date(`${month}-01T00:00:00`).toLocaleDateString('en-IN', { month:'short', year:'numeric' });
   return `${label} · cycle ${card.cycleStartDay || 1}${ordinal(card.cycleStartDay || 1)}–${card.cycleEndDay || 31}${ordinal(card.cycleEndDay || 31)}`;
 }
@@ -204,7 +204,9 @@ function renderCreditCardPage() {
   const completedWaivers = waiverCards.filter(item => item.progress.done).length;
   const historyMonths = [...new Set(allBills.map(bill => bill.month).filter(Boolean))].sort().reverse();
   const spendChart = renderCreditCardSpendChart(summaryCards);
-  const dueCards = summaryCards.slice().sort((a, b) => Number(a.dueDay || String(creditCardDueText(a)).match(/\d+/)?.[0] || 99) - Number(b.dueDay || String(creditCardDueText(b)).match(/\d+/)?.[0] || 99));
+  const dueCards = summaryCards.map(card => ({ card, bill:latestCreditCardBill(card) }))
+    .filter(item => item.bill && creditCardRemaining(item.bill) > 0)
+    .sort((a, b) => Number(a.card.dueDay || String(creditCardDueText(a.card)).match(/\d+/)?.[0] || 99) - Number(b.card.dueDay || String(creditCardDueText(b.card)).match(/\d+/)?.[0] || 99));
   const cardBreakdown = latestBills.slice().sort((a, b) => Number(b.bill.outstanding || 0) - Number(a.bill.outstanding || 0)).slice(0, 3);
 
   return `<article class="credit-card-shell credit-card-dashboard">
@@ -230,29 +232,32 @@ function renderCreditCardPage() {
           const waiver = creditCardWaiverProgress(card);
           const perks = creditCardPrivileges(card);
           const canToggle = hasSavedCards && card.id;
-          return `<article class="credit-card-account ${state.tone} ${card.active === false ? 'inactive' : ''}">
-            <header><span class="credit-card-account-icon">${richIcon('credit-card')}</span><div><b>${esc(card.name)}</b><small>${esc(card.issuer || 'Credit card')}</small></div><em>${esc(state.label)}</em></header>
-            <p class="credit-card-cycle">${esc(creditCardCycleText(card))} · due ${esc(creditCardDueText(card))}</p>
-            <div class="credit-card-account-values"><span><small>Statement</small><strong>${latest ? money(latest.outstanding || 0) : '—'}</strong></span><span><small>Paid</small><strong>${latest ? money(latest.paid || 0) : '—'}</strong></span><span><small>Remaining</small><strong class="${remaining ? 'due' : 'clear'}">${latest ? money(remaining) : '—'}</strong></span></div>
-            ${waiver ? `<div class="credit-card-waiver"><div><b>${waiver.done ? 'Fee waiver reached' : `${money(waiver.remaining)} to fee waiver`}</b><small>${money(waiver.spend)} of ${money(waiver.target)} · ${waiver.pct}%</small></div><i><span style="width:${waiver.pct}%"></span></i></div>` : `<p class="credit-card-fee">${esc(creditCardFeeText(card))}</p>`}
-            ${perks.length ? `<div class="credit-card-perks">${perks.slice(0, 3).map(item => `<span>${esc(item)}</span>`).join('')}</div>` : ''}
-            ${card.benefitsSourceName ? `<a class="credit-card-source" href="${esc(card.benefitsSourceUrl || '#')}" target="_blank" rel="noopener">Benefits source: ${esc(card.benefitsSourceName)}</a>` : ''}
-            ${canToggle ? `<footer><button class="mini-action neutral" type="button" data-action="edit-credit-card" data-id="${esc(card.id)}">Edit card</button><button class="mini-action neutral" type="button" data-action="update-credit-card-bill" data-id="${esc(card.id)}">Add bill</button><button class="mini-action ${card.active === false ? 'activate' : ''}" type="button" data-action="toggle-credit-card-active" data-id="${esc(card.id)}">${card.active === false ? 'Activate' : 'Deactivate'}</button></footer>` : ''}
+          const latestProductChange = Array.isArray(card.productChanges) ? card.productChanges.slice().sort((a, b) => String(b.effectiveDate || b.changedAt || '').localeCompare(String(a.effectiveDate || a.changedAt || '')))[0] : null;
+          return `<article class="credit-card-account compact ${state.tone} ${card.active === false ? 'inactive' : ''}">
+            <div class="credit-card-account-identity"><header><span class="credit-card-account-icon">${richIcon('credit-card')}</span><div><b>${esc(card.name)}</b><small>${esc(card.issuer || 'Credit card')}</small></div><em>${esc(state.label)}</em></header><p class="credit-card-cycle">${esc(creditCardCycleText(card, latest))} · due ${esc(creditCardDueText(card))}</p>${latestProductChange ? `<p class="credit-card-product-change ${latestProductChange.type === 'downgrade' ? 'downgrade' : ''}"><span>${latestProductChange.type === 'downgrade' ? '↓ Downgraded' : '↑ Upgraded'}</span> from ${esc(latestProductChange.fromName || 'previous card')}${latestProductChange.effectiveDate ? ` · ${esc(creditCardDateLabel(latestProductChange.effectiveDate))}` : ''}</p>` : ''}</div>
+            <div class="credit-card-account-values ${latest && !remaining ? 'settled' : ''}"><span><small>Latest statement</small><strong>${latest ? money(latest.outstanding || 0) : '—'}</strong></span>${latest && !remaining ? `<span><small>Payment status</small><strong class="clear">Paid in full</strong></span>` : `<span><small>Paid</small><strong>${latest ? money(latest.paid || 0) : '—'}</strong></span><span><small>Remaining</small><strong class="${remaining ? 'due' : 'clear'}">${latest ? money(remaining) : '—'}</strong></span>`}</div>
+            ${canToggle ? `<footer><button class="mini-action neutral" type="button" data-action="edit-credit-card" data-id="${esc(card.id)}">Edit</button><button class="mini-action neutral" type="button" data-action="change-credit-card-product" data-id="${esc(card.id)}">Change tier</button><button class="mini-action neutral" type="button" data-action="update-credit-card-bill" data-id="${esc(card.id)}">Add bill</button><button class="mini-action ${card.active === false ? 'activate' : ''}" type="button" data-action="toggle-credit-card-active" data-id="${esc(card.id)}">${card.active === false ? 'Activate' : 'Deactivate'}</button></footer>` : ''}
+            <details class="credit-card-extra"><summary>Card details <span>${waiver ? `${waiver.pct}% toward fee waiver` : esc(creditCardFeeText(card))}${perks.length ? ` · ${perks.length} benefit${perks.length === 1 ? '' : 's'}` : ''}</span></summary><div>${waiver ? `<div class="credit-card-waiver"><div><b>${waiver.done ? 'Fee waiver reached' : `${money(waiver.remaining)} to fee waiver`}</b><small>${money(waiver.spend)} of ${money(waiver.target)} · ${waiver.pct}%</small></div><i><span style="width:${waiver.pct}%"></span></i></div>` : `<p class="credit-card-fee">${esc(creditCardFeeText(card))}</p>`}${perks.length ? `<div class="credit-card-perks">${perks.slice(0, 4).map(item => `<span>${esc(item)}</span>`).join('')}</div>` : ''}${card.benefitsSourceName ? `<a class="credit-card-source" href="${esc(card.benefitsSourceUrl || '#')}" target="_blank" rel="noopener">Benefits source: ${esc(card.benefitsSourceName)}</a>` : ''}</div></details>
           </article>`;
         }).join('') || `<div class="credit-card-dashboard-empty"><span>${richIcon('credit-card')}</span><b>No credit cards yet</b><p>Add your first card to track statements, due dates and fee waivers.</p><button class="primary-button" type="button" data-action="open-credit-card-modal">＋ Add card</button></div>`}</div>
       </section>
 
+      <div class="credit-card-side-stack">
       <aside class="panel credit-card-due-panel" id="creditCardTimelinePanel">
         <div class="panel-heading"><div><p class="panel-kicker">PAYMENT TIMELINE</p><h3>Upcoming due dates</h3></div></div>
-        ${dueCards.length ? `<div class="credit-card-due-list">${dueCards.map(card => {
-          const latest = latestCreditCardBill(card);
-          const remaining = latest ? creditCardRemaining(latest) : 0;
+        ${dueCards.length ? `<div class="credit-card-due-list">${dueCards.map(({ card, bill:latest }) => {
+          const remaining = creditCardRemaining(latest);
           const state = creditCardDisplayStatus(card, latest);
           const due = creditCardDueText(card);
           const dueDay = String(due).match(/\d+/)?.[0] || due;
-          return `<div class="credit-card-due-item ${state.tone}"><span><b>${esc(dueDay)}</b><small>due</small></span><div><b>${esc(card.name)}</b><small>${esc(due)} · ${esc(state.label)}</small></div><strong class="${remaining ? 'due' : 'clear'}">${latest ? (remaining ? money(remaining) : 'Paid') : 'No bill'}</strong></div>`;
-        }).join('')}</div><div class="credit-card-recommendation"><span>${richIcon(amountDue ? 'credit-due' : 'credit-paid')}</span><div><small>Recommended action</small><b>${amountDue ? (attentionCount === 1 ? `One card has ${money(amountDue)} left to clear.` : `${attentionCount} cards have ${money(amountDue)} left to clear.`) : 'All current statements are fully paid.'}</b></div></div>` : `<div class="credit-card-dashboard-empty compact"><span>${richIcon('credit-due')}</span><b>No upcoming due dates</b><p>Add an active credit card to build the payment timeline.</p></div>`}
+          return `<div class="credit-card-due-item ${state.tone}"><span><b>${esc(dueDay)}</b><small>due</small></span><div><b>${esc(card.name)}</b><small>${esc(creditCardMonthLabel(latest.month))} · ${esc(state.label)}</small></div><strong class="due">${money(remaining)}</strong></div>`;
+        }).join('')}</div><div class="credit-card-recommendation"><span>${richIcon('credit-due')}</span><div><small>Recommended action</small><b>${attentionCount === 1 ? `One card has ${money(amountDue)} left to clear.` : `${attentionCount} cards have ${money(amountDue)} left to clear.`}</b></div></div>` : `<div class="credit-card-all-clear"><span>${richIcon('credit-paid')}</span><div><b>Nothing due right now</b><p>All latest recorded statements are fully paid.</p></div></div>`}
       </aside>
+
+      <article class="panel credit-card-health-panel"><div class="panel-heading"><div><p class="panel-kicker">PAYMENT HEALTH</p><h3>Status check</h3></div><span class="credit-card-status-pill ${amountDue ? 'due' : 'clear'}">${amountDue ? 'Needs attention' : 'All clear'}</span></div><div class="credit-card-health-main"><span>${richIcon(amountDue ? 'credit-due' : 'credit-paid')}</span><div><b>${amountDue ? `${attentionCount} card${attentionCount === 1 ? '' : 's'} still have a balance` : 'All current statements are paid'}</b><small>${amountDue ? `${money(amountDue)} remains across active cards` : `${money(paidThisCycle)} recorded as paid this cycle`}</small></div></div><div class="credit-card-health-metrics"><span><small>Paid history</small><b>${money(lifetimeCardPaid)}</b></span><span><small>Amount due</small><b class="${amountDue ? 'due' : 'clear'}">${money(amountDue)}</b></span><span><small>Statement total</small><b>${money(statementTotal)}</b></span></div></article>
+
+      <article class="panel credit-card-signal-panel"><div class="panel-heading"><div><p class="panel-kicker">INSIGHTS</p><h3>Useful signals</h3></div></div><div class="credit-card-signal-list"><div><span>${richIcon('credit-insights')}</span><p><b>${esc(largest?.card?.name || 'Top card')}</b><small>${largestPct}% of the current statement total.</small></p></div><div><span>${richIcon('credit-spend')}</span><p><b>${esc(topSpendCard?.name || 'Top card')}</b><small>Highest recorded card spend history.</small></p></div><div><span>${richIcon('credit-paid')}</span><p><b>${completedWaivers}/${waiverCards.length || 0} waivers reached</b><small>Annual-fee waiver milestones completed.</small></p></div><div><span>${richIcon('credit-card')}</span><p><b>${cards.filter(card => card.active === false).length} inactive cards</b><small>Inactive cards are excluded from totals.</small></p></div></div></article>
+      </div>
     </section>
 
     <section class="credit-card-history-suite" id="creditCardHistoryPanel">
@@ -280,10 +285,5 @@ function renderCreditCardPage() {
       </section>
     </section>
 
-    <section class="credit-card-dashboard-bottom">
-      <article class="panel credit-card-health-panel"><div class="panel-heading"><div><p class="panel-kicker">PAYMENT HEALTH</p><h3>Status check</h3></div><span class="credit-card-status-pill ${amountDue ? 'due' : 'clear'}">${amountDue ? 'Needs attention' : 'All clear'}</span></div><div class="credit-card-health-main"><span>${richIcon(amountDue ? 'credit-due' : 'credit-paid')}</span><div><b>${amountDue ? `${attentionCount} card${attentionCount === 1 ? '' : 's'} still have a balance` : 'All current statements are paid'}</b><small>${amountDue ? `${money(amountDue)} remains across active cards` : `${money(paidThisCycle)} recorded as paid this cycle`}</small></div></div><div class="credit-card-health-metrics"><span><small>Paid history</small><b>${money(lifetimeCardPaid)}</b></span><span><small>Amount due</small><b class="${amountDue ? 'due' : 'clear'}">${money(amountDue)}</b></span><span><small>Statement total</small><b>${money(statementTotal)}</b></span></div></article>
-
-      <article class="panel credit-card-signal-panel"><div class="panel-heading"><div><p class="panel-kicker">INSIGHTS</p><h3>Useful signals</h3></div></div><div class="credit-card-signal-list"><div><span>${richIcon('credit-insights')}</span><p><b>${esc(largest?.card?.name || 'Top card')}</b><small>${largestPct}% of the current statement total.</small></p></div><div><span>${richIcon('credit-spend')}</span><p><b>${esc(topSpendCard?.name || 'Top card')}</b><small>Highest recorded card spend history.</small></p></div><div><span>${richIcon('credit-paid')}</span><p><b>${completedWaivers}/${waiverCards.length || 0} waivers reached</b><small>Annual-fee waiver milestones completed.</small></p></div><div><span>${richIcon('credit-card')}</span><p><b>${cards.filter(card => card.active === false).length} inactive cards</b><small>Inactive cards are excluded from totals.</small></p></div></div></article>
-    </section>
   </article>`;
 }

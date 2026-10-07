@@ -113,8 +113,24 @@ function transactionPaymentLabel(transaction) {
   return 'UPI';
 }
 
+const transactionReasonLabels = {
+  essential:'Essential',
+  planned:'Planned purchase',
+  impulse:'Impulse purchase',
+  recurring:'Recurring commitment',
+  emergency:'Emergency',
+  gift:'Gift or support',
+  other:'Other'
+};
+
+function transactionReasonCell(transaction = {}) {
+  if (transaction.type !== 'expense') return '<span class="transaction-reason not-applicable">—</span>';
+  const reason = transactionReasonLabels[transaction.expenseReason] ? transaction.expenseReason : '';
+  return `<span class="transaction-reason ${reason || 'unspecified'}">${reason ? transactionReasonLabels[reason] : 'Not specified'}</span>`;
+}
+
 function renderTransactionResultsTable(rows = filteredTransactions()) {
-  return `<div class="table-scroll"><table class="data-table"><thead><tr><th>Date</th><th>Description</th><th>Type</th><th>Category</th><th>Payment</th><th>Amount</th><th></th></tr></thead><tbody>${rows.length ? rows.map(t => `<tr class="${t.syncStatus === 'pending' ? 'pending-row' : ''}"><td>${t.date}</td><td><b>${t.subcategory || t.category}</b>${t.syncStatus === 'pending' ? '<span class="pending-badge">Pending sync</span>' : ''}<br><small>${t.note || 'No note'}</small></td><td><span class="type-badge ${t.type}">${t.type}</span></td><td>${t.category}</td><td><small>${transactionPaymentLabel(t)}</small></td><td>${money(t.amount)}</td><td><div class="row-actions">${t.syncStatus === 'pending' ? '' : `<button class="table-actions" data-action="edit" data-id="${t.id}">Edit</button>`}<button class="table-actions delete-action" data-action="delete" data-id="${t.id}" ${t.syncStatus === 'pending' ? 'data-pending="true"' : ''}>Delete</button></div></td></tr>`).join('') : '<tr><td colspan="7"><p class="empty-state">No transactions match the selected range and filters.</p></td></tr>'}</tbody></table></div>`;
+  return `<div class="table-scroll"><table class="data-table transaction-data-table"><thead><tr><th>Date</th><th>Description</th><th>Type</th><th>Category</th><th>Reason</th><th>Payment</th><th>Amount</th><th></th></tr></thead><tbody>${rows.length ? rows.map(t => `<tr class="${t.syncStatus === 'pending' ? 'pending-row' : ''}"><td>${t.date}</td><td><b>${t.subcategory || t.category}</b>${t.syncStatus === 'pending' ? '<span class="pending-badge">Pending sync</span>' : ''}<br><small>${t.note || 'No note'}</small></td><td><span class="type-badge ${t.type}">${t.type}</span></td><td>${t.category}</td><td>${transactionReasonCell(t)}</td><td><small>${transactionPaymentLabel(t)}</small></td><td>${money(t.amount)}</td><td><div class="row-actions">${t.syncStatus === 'pending' ? '' : `<button class="table-actions" data-action="edit" data-id="${t.id}">Edit</button>`}<button class="table-actions delete-action" data-action="delete" data-id="${t.id}" ${t.syncStatus === 'pending' ? 'data-pending="true"' : ''}>Delete</button></div></td></tr>`).join('') : '<tr><td colspan="8"><p class="empty-state">No transactions match the selected range and filters.</p></td></tr>'}</tbody></table></div>`;
 }
 
 function refreshTransactionResultsOnly() {

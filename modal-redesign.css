@@ -1,11 +1,11 @@
 /* Shared modal language for expense, habit, timeline, card, and confirmation flows. */
 .modal-backdrop {
-  z-index:5;
+  z-index:100;
   overflow-y:auto;
   background:rgba(35,38,87,.34);
   backdrop-filter:blur(10px) saturate(.85);
 }
-:is(#modalBackdrop,#stockTradeModalBackdrop,#creditCardModalBackdrop,#creditCardBillModalBackdrop) { z-index:5; }
+:is(#modalBackdrop,#stockTradeModalBackdrop,#creditCardModalBackdrop,#creditCardProductChangeModalBackdrop,#creditCardBillModalBackdrop) { z-index:100; }
 
 .modal-backdrop .modal {
   width:min(610px,100%);
@@ -49,7 +49,7 @@
 }
 .modal-heading-icon img { width:54px;height:54px;object-fit:contain;filter:drop-shadow(0 5px 8px rgba(105,68,181,.13)); }
 #habitModalBackdrop .modal-heading-icon,#habitCheckinModalBackdrop .modal-heading-icon { background:linear-gradient(145deg,#e8fff6,#f4f0ff); }
-#creditCardModalBackdrop .modal-heading-icon,#creditCardBillModalBackdrop .modal-heading-icon { background:linear-gradient(145deg,#ecf2ff,#f3edff); }
+#creditCardModalBackdrop .modal-heading-icon,#creditCardProductChangeModalBackdrop .modal-heading-icon,#creditCardBillModalBackdrop .modal-heading-icon { background:linear-gradient(145deg,#ecf2ff,#f3edff); }
 #confirmModalBackdrop .modal-heading-icon { background:linear-gradient(145deg,#fff0f1,#fff7f4); }
 
 .modal-heading-copy { min-width:0; }
@@ -116,15 +116,15 @@
 
 @media (max-width:640px) {
   .modal-backdrop { align-items:end;place-items:end center;padding:10px 10px 0; }
-  :is(#modalBackdrop,#stockTradeModalBackdrop,#creditCardModalBackdrop,#creditCardBillModalBackdrop) { align-items:end;place-items:end center;padding:10px 10px 0; }
+  :is(#modalBackdrop,#stockTradeModalBackdrop,#creditCardModalBackdrop,#creditCardProductChangeModalBackdrop,#creditCardBillModalBackdrop) { align-items:end;place-items:end center;padding:10px 10px 0; }
   .modal-backdrop .modal { max-height:calc(100dvh - 10px);padding:18px 18px 12px;border-radius:22px 22px 0 0; }
-  :is(#modalBackdrop,#stockTradeModalBackdrop,#creditCardModalBackdrop,#creditCardBillModalBackdrop) .modal { max-height:calc(100dvh - 10px);margin:0;padding:18px 18px 12px; }
+  :is(#modalBackdrop,#stockTradeModalBackdrop,#creditCardModalBackdrop,#creditCardProductChangeModalBackdrop,#creditCardBillModalBackdrop) .modal { max-height:calc(100dvh - 10px);margin:0;padding:18px 18px 12px; }
   .modal-backdrop .modal-heading { top:-18px;grid-template-columns:52px minmax(0,1fr) 34px;gap:11px;margin:-18px -18px 15px;padding:18px 18px 14px; }
-  :is(#modalBackdrop,#stockTradeModalBackdrop,#creditCardModalBackdrop,#creditCardBillModalBackdrop) .modal-heading { z-index:3;top:-18px;margin:-18px -18px 15px;padding:18px 18px 14px;background:linear-gradient(155deg,#fff 57%,#fbf8ff); }
+  :is(#modalBackdrop,#stockTradeModalBackdrop,#creditCardModalBackdrop,#creditCardProductChangeModalBackdrop,#creditCardBillModalBackdrop) .modal-heading { z-index:3;top:-18px;margin:-18px -18px 15px;padding:18px 18px 14px;background:linear-gradient(155deg,#fff 57%,#fbf8ff); }
   .modal-heading-icon { width:52px;height:52px;border-radius:16px; }
   .modal-heading-icon img { width:42px;height:42px; }
   .modal-heading h3 { font-size:21px; }
   .modal-description { font-size:10.5px; }
   .modal-backdrop .modal-actions { bottom:-12px;margin:16px -18px -12px;padding:12px 18px 20px; }
-  :is(#modalBackdrop,#stockTradeModalBackdrop,#creditCardModalBackdrop,#creditCardBillModalBackdrop) .modal-actions { bottom:-12px;margin:16px -18px -12px;padding:12px 18px 20px;background:linear-gradient(180deg,rgba(255,255,255,.95),#fff 35%); }
+  :is(#modalBackdrop,#stockTradeModalBackdrop,#creditCardModalBackdrop,#creditCardProductChangeModalBackdrop,#creditCardBillModalBackdrop) .modal-actions { bottom:-12px;margin:16px -18px -12px;padding:12px 18px 20px;background:linear-gradient(180deg,rgba(255,255,255,.95),#fff 35%); }
 }
