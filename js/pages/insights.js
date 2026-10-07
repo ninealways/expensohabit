@@ -113,18 +113,24 @@ function renderPaymentSourceChart(items) {
     return acc;
   }, {})).sort((a, b) => b[1] - a[1]).slice(0, 4);
   const sourceRows = [
-    { key:'cash', label:'Cash', icon:'rupee', color:'purple-bg' },
-    { key:'bank', label:'Bank', icon:'lock', color:'blue-bg' },
-    { key:'upi', label:'UPI', icon:'bolt', color:'teal-bg' },
-    { key:'credit_card', label:'Credit card', icon:'receipt', color:'amber-bg' },
-    { key:'mixed', label:'Mixed', icon:'spark', color:'pink-bg' }
-  ].filter(row => totals[row.key] || row.key === 'cash');
+    { key:'cash', label:'Cash', icon:'expenses', color:'#8854ee' },
+    { key:'bank', label:'Bank', icon:'outflow', color:'#5689ed' },
+    { key:'upi', label:'UPI', icon:'transactions', color:'#20bea2' },
+    { key:'credit_card', label:'Credit card', icon:'credit-card', color:'#ffad40' },
+    { key:'mixed', label:'Mixed', icon:'insight-flow', color:'#f46b9c' }
+  ].filter(row => totals[row.key] > 0);
+  let angle = 0;
+  const segments = sourceRows.map(row => {
+    const start = angle;
+    angle += totals[row.key] / total * 360;
+    return `${row.color} ${start.toFixed(2)}deg ${angle.toFixed(2)}deg`;
+  });
   return `<div class="payment-source-chart">
-    <div class="payment-source-ring" style="--card:${percent(cardTotal, total) * 3.6}deg"><div><strong>${percent(cardTotal, total)}%</strong><small>Credit card</small></div></div>
+    <div class="payment-mix-visual"><div class="payment-mix-donut" style="background:conic-gradient(from -90deg,${segments.join(',')})" role="img" aria-label="Payment methods for ${money(total)} of expenses"><div><small>Total paid</small><strong>${money(total)}</strong></div></div><p>${sourceRows.length} payment method${sourceRows.length === 1 ? '' : 's'} in this range</p></div>
     <div class="payment-source-summary">
-      ${sourceRows.map(row => `<div><span class="map-icon ${row.color}">${svgIcon(row.icon)}</span><b>${row.label}</b><strong>${money(totals[row.key] || 0)}</strong><em>${percent(totals[row.key] || 0, total)}%</em></div>`).join('')}
+      ${sourceRows.map(row => `<div class="payment-method-row" style="--payment-color:${row.color}"><span class="payment-method-icon">${richIcon(row.icon)}</span><span class="payment-method-name"><b>${row.label}</b><span class="payment-method-track"><i style="width:${totals[row.key] / total * 100}%"></i></span></span><span class="payment-method-value"><strong>${money(totals[row.key])}</strong><em>${percent(totals[row.key], total)}%</em></span></div>`).join('')}
     </div>
-    <div class="payment-card-list">${cardRows.length ? cardRows.map(([name, value]) => `<span><b>${esc(name)}</b><strong>${money(value)}</strong><em>${percent(value, cardTotal)}%</em></span>`).join('') : '<small class="subtitle">No card-tagged expenses in this range.</small>'}</div>
+    <div class="payment-card-breakdown"><div class="payment-card-heading"><span>Credit card breakdown</span><strong>${money(cardTotal)}</strong></div><div class="payment-card-list">${cardRows.length ? cardRows.map(([name, value]) => `<span><b>${esc(name)}</b><strong>${money(value)}</strong><em>${percent(value, cardTotal)}%</em></span>`).join('') : '<small class="subtitle">No card-tagged expenses in this range.</small>'}</div></div>
   </div>`;
 }
 function daysBetweenInclusive(from, to) { return Math.max(1, Math.round((new Date(`${to}T00:00:00`) - new Date(`${from}T00:00:00`)) / 86400000) + 1); }
@@ -230,10 +236,148 @@ function renderMoneyFlowHistory(endMonth, offset = moneyFlowHistoryOffset) {
   ];
   return `<div class="money-flow-history">${nav}<div class="money-flow-history-scroll"><table><thead><tr><th>Flow</th>${months.map(month => `<th>${month.label}</th>`).join('')}</tr></thead><tbody>${rows.map(([label, key]) => `<tr><td>${label}</td>${months.map((month, index) => { const previous = history[index]; const change = moneyFlowChange(month[key], previous[key]); const changeClass = key === 'investment' && change.cls === 'up' ? 'positive' : change.cls; const share = month.total ? percent(month[key], month.total) : 0; return `<td><span class="flow-history-cell" title="${htmlAttr(`${change.title} · ${share}% of total outflow`)}"><span class="flow-history-main"><b>${money(month[key])}</b><small>${share}%</small><em class="${changeClass}">${change.label}</em></span></span></td>`; }).join('')}</tr>`).join('')}</tbody></table></div></div>`;
 }
+
+const insightReasonLabels = {
+  essential:'Essential', planned:'Planned purchase', impulse:'Impulse purchase',
+  recurring:'Recurring commitment', emergency:'Emergency', gift:'Gift or support', other:'Other'
+};
+const insightReasonOrder = Object.keys(insightReasonLabels);
+function insightComparisonMonths(endMonth, count) {
+  const end = endMonth > currentMonthKey() ? currentMonthKey() : endMonth;
+  const earliest = data.transactions.filter(item => item.type === 'expense' && item.includeInReal !== false && item.date?.slice(0, 7) <= end)
+    .reduce((month, item) => !month || item.date.slice(0, 7) < month ? item.date.slice(0, 7) : month, '');
+  const endDate = new Date(`${end}-01T00:00:00`);
+  const available = earliest ? (endDate.getFullYear() - Number(earliest.slice(0, 4))) * 12 + endDate.getMonth() - (Number(earliest.slice(5, 7)) - 1) + 1 : 1;
+  const length = count === 'all' ? available : Number(count);
+  return Array.from({ length:Math.max(1, length) }, (_, index) => monthInputKey(addMonthsToDate(endDate, index - length + 1)));
+}
+function insightMonthComparison(month) {
+  const [year, monthNumber] = month.split('-').map(Number);
+  const monthDays = new Date(year, monthNumber, 0).getDate();
+  const isPartial = month === currentMonthKey() && Number(today().slice(8, 10)) < monthDays;
+  const throughDay = isPartial ? Number(today().slice(8, 10)) : monthDays;
+  const cutoff = `${month}-${String(throughDay).padStart(2, '0')}`;
+  const items = data.transactions.filter(item => item.type === 'expense' && item.includeInReal !== false && item.date?.startsWith(`${month}-`) && item.date <= cutoff);
+  const total = sumAmount(items);
+  const budget = budgetForMonth(month) * throughDay / monthDays;
+  const categories = Object.entries(categoryTotals(items)).sort((a, b) => b[1] - a[1]);
+  const reasons = Object.fromEntries(insightReasonOrder.map(key => [key, 0]));
+  let unspecified = 0;
+  let taggedCount = 0;
+  items.forEach(item => {
+    if (Object.hasOwn(reasons, item.expenseReason)) { reasons[item.expenseReason] += Number(item.amount || 0); taggedCount += 1; }
+    else unspecified += Number(item.amount || 0);
+  });
+  const topReason = Object.entries(reasons).sort((a, b) => b[1] - a[1])[0];
+  return { month, from:`${month}-01`, to:cutoff, label:new Date(year, monthNumber - 1, 1).toLocaleDateString('en-IN', { month:'short', year:'numeric' }), short:new Date(year, monthNumber - 1, 1).toLocaleDateString('en-IN', { month:'short' }), isPartial, throughDay, items, total, budget, categories, reasons, unspecified, taggedCount, topReason:taggedCount && topReason?.[1] ? insightReasonLabels[topReason[0]] : 'Not tagged' };
+}
+function insightReasonRow(items, from, to, label) {
+  const reasons = Object.fromEntries(insightReasonOrder.map(key => [key, 0]));
+  let unspecified = 0;
+  let taggedCount = 0;
+  items.forEach(item => {
+    if (Object.hasOwn(reasons, item.expenseReason)) { reasons[item.expenseReason] += Number(item.amount || 0); taggedCount += 1; }
+    else unspecified += Number(item.amount || 0);
+  });
+  return { items, from, to, label, short:label, reasons, unspecified, taggedCount };
+}
+function insightReasonSummary(rows) {
+  const totals = Object.fromEntries(insightReasonOrder.map(key => [key, 0]));
+  let unspecified = 0;
+  let taggedCount = 0;
+  rows.forEach(row => {
+    insightReasonOrder.forEach(key => { totals[key] += row.reasons[key]; });
+    unspecified += row.unspecified;
+    taggedCount += row.taggedCount;
+  });
+  const taggedTotal = Object.values(totals).reduce((sum, value) => sum + value, 0);
+  return { totals, unspecified, taggedCount, taggedTotal };
+}
+function renderInsightReasonMix(rows, byMonth = false) {
+  const summary = insightReasonSummary(rows);
+  if (!summary.taggedCount) return '<p class="insight-comparison-empty">No expenses have a reason yet. Add one in the expense form to see this breakdown; the field stays optional.</p>';
+  const segments = (totals, total, from, to, showAmounts = false) => insightReasonOrder.filter(key => totals[key] > 0).map(key =>
+    `<button type="button" class="reason-segment ${key}" style="width:${totals[key] / total * 100}%" data-insight-reason="${key}" data-reason-label="${htmlAttr(insightReasonLabels[key])}" data-reason-from="${from}" data-reason-to="${to}" title="View ${htmlAttr(insightReasonLabels[key].toLowerCase())} expenses · ${money(totals[key])}" aria-label="View ${htmlAttr(insightReasonLabels[key].toLowerCase())} expenses, ${money(totals[key])}">${showAmounts ? `<b>${money(totals[key])}</b>` : ''}</button>`).join('');
+  if (byMonth) return `<div class="insight-reason-months">${rows.map(row => {
+    const tagged = Object.values(row.reasons).reduce((sum, value) => sum + value, 0);
+    return `<div class="insight-reason-month"><b>${row.short}${row.isPartial ? '*' : ''}</b><div class="insight-reason-track">${tagged ? segments(row.reasons, tagged, row.from, row.to) : '<span class="reason-empty">No tags</span>'}</div><small>${tagged ? money(tagged) : '—'}</small></div>`;
+  }).join('')}</div>`;
+  return `<div class="insight-reason-track large" aria-label="Reason mix for ${summary.taggedCount} tagged expenses">${segments(summary.totals, summary.taggedTotal, rows[0].from, rows.at(-1).to, true)}</div>`;
+}
+function renderInsightReasonPanel(rows, options = {}) {
+  const summary = insightReasonSummary(rows);
+  const title = options.title || 'Why you spent';
+  const kicker = options.kicker || 'OPTIONAL EXPENSE REASON';
+  const note = options.note ? `<span class="insight-reason-range">${esc(options.note)}</span>` : '';
+  return `<div class="panel insight-reason-panel ${options.className || ''}"><div class="panel-heading"><div><p class="panel-kicker">${kicker}</p><h3>${title}</h3>${note}</div><span class="insight-tag-count">${summary.taggedCount} tagged</span></div>${renderInsightReasonMix(rows)}${summary.taggedCount ? `<div class="insight-reason-legend">${insightReasonOrder.filter(key => summary.totals[key]).map(key => `<span><i class="${key}"></i>${insightReasonLabels[key]} ${percent(summary.totals[key], summary.taggedTotal)}%</span>`).join('')}</div>` : ''}<p class="insight-comparison-note">Unspecified: ${money(summary.unspecified)}. Percentages use tagged expenses only.</p></div>`;
+}
+function insightCategoryMovement(current, previous) {
+  if (!current || !previous || (!current.total && !previous.total)) return [];
+  const currentTotals = categoryTotals(current.items);
+  const previousTotals = categoryTotals(previous.items);
+  return Object.keys({ ...currentTotals, ...previousTotals }).map(name => ({ name, change:(currentTotals[name] || 0) - (previousTotals[name] || 0) }))
+    .filter(row => row.change).sort((a, b) => Math.abs(b.change) - Math.abs(a.change)).slice(0, 3);
+}
+function renderInsightsComparisonSection(anchorMonth = currentMonthKey()) {
+  const endMonth = anchorMonth > currentMonthKey() ? currentMonthKey() : anchorMonth;
+  const overview = insightComparisonMonths(endMonth, 6).map(insightMonthComparison);
+  const selected = insightComparisonMonths(endMonth, insightComparisonRange).map(insightMonthComparison);
+  const latestComplete = overview.filter(row => !row.isPartial && row.items.length).at(-1);
+  const priorComplete = overview.filter(row => !row.isPartial && row.items.length).at(-2);
+  const overviewTotal = overview.reduce((sum, row) => sum + row.total, 0);
+  const completeRows = overview.filter(row => !row.isPartial && row.items.length);
+  const completeAverage = completeRows.length ? completeRows.reduce((sum, row) => sum + row.total, 0) / completeRows.length : 0;
+  const selectedTotal = selected.reduce((sum, row) => sum + row.total, 0);
+  const activeCount = selected.filter(row => row.items.length).length;
+  const overCount = selected.filter(row => row.items.length && row.total > row.budget).length;
+  const max = Math.max(1, ...overview.flatMap(row => [row.total, row.budget]));
+  const tickBase = Math.max(1, 10 ** Math.floor(Math.log10(max / 3)));
+  const axisStep = Math.ceil(max / 3 / tickBase) * tickBase;
+  const axisMax = axisStep * 3;
+  const movements = insightCategoryMovement(latestComplete, priorComplete);
+  const last = overview.at(-1);
+  const observations = [];
+  if (latestComplete && priorComplete && (latestComplete.total || priorComplete.total)) {
+    const change = latestComplete.total - priorComplete.total;
+    observations.push({ icon:'insight-pattern', title:`${latestComplete.short} ${change >= 0 ? 'rose' : 'fell'} ${money(Math.abs(change))}`, detail:`Real expenses compared with ${priorComplete.label}.` });
+  }
+  if (last?.isPartial && last.items.length) observations.push({ icon:'insight-pace', title:`${last.short} is ${last.total > last.budget ? 'above' : 'below'} budget to date`, detail:`${money(Math.abs(last.total - last.budget))} ${last.total > last.budget ? 'over' : 'under'} through ${last.throughDay} ${last.short}; not a full-month comparison.` });
+  if (movements.length) observations.push({ icon:'insight-category', title:`${movements[0].name} moved ${money(Math.abs(movements[0].change))}`, detail:`${movements[0].change > 0 ? 'Higher' : 'Lower'} in ${latestComplete.label} than ${priorComplete.label}.` });
+  const rangeOptions = [['3','Last 3 months'],['6','Last 6 months'],['12','Last 1 year'],['all','All time']].map(([value, label]) => `<option value="${value}" ${insightComparisonRange === value ? 'selected' : ''}>${label}</option>`).join('');
+  const chart = `<div class="insight-month-chart" role="img" aria-label="Real expenses versus budget for ${overview[0].label} through ${last.label}, from ₹0 to ${money(axisMax)} on the vertical axis"><div class="insight-month-chart-axis" aria-hidden="true">${[3, 2, 1, 0].map(tick => `<span>${compactMoney(axisStep * tick)}</span>`).join('')}</div><div class="insight-month-chart-plot"><div class="insight-month-chart-grid"></div>${overview.map(row => `<div class="insight-month-chart-column" title="${htmlAttr(row.items.length ? `${row.label}: ${money(row.total)} spent, ${money(row.budget)} budget${row.isPartial ? ' to date' : ''}` : `${row.label}: No real expenses recorded`)}"><div class="insight-month-chart-bars"><span class="actual ${row.isPartial ? 'partial' : ''}" style="height:${row.total / axisMax * 100}%"></span><span class="budget" style="height:${row.budget / axisMax * 100}%"></span></div><b>${row.short}${row.isPartial ? '*' : ''}</b><small>${row.items.length ? compactMoney(row.total) : 'No data'}</small></div>`).join('')}</div></div>`;
+  return `<section class="insights-comparison-section" id="insightsComparisonSection" aria-label="Monthly insights" data-anchor-month="${endMonth}">
+    <div class="insights-comparison-view">
+      <div class="insights-comparison-kpis"><div><span>Real expenses</span><strong>${money(overviewTotal)}</strong><small>Last six months, including partial month</small></div><div><span>Monthly average</span><strong>${completeRows.length ? money(completeAverage) : '—'}</strong><small>${completeRows.length} completed month${completeRows.length === 1 ? '' : 's'} with expenses</small></div><div><span>Latest complete month</span><strong>${latestComplete ? money(latestComplete.total) : '—'}</strong><small>${latestComplete?.label || 'No completed month with expenses'}</small></div></div>
+      <div class="insights-comparison-grid"><div class="panel insight-month-chart-panel"><div class="panel-heading"><div><p class="panel-kicker">MONTHLY TREND</p><h3>Real expenses vs budget</h3></div><span class="insight-chart-legend"><i class="actual"></i>Spent <i class="budget"></i>Budget</span></div>${chart}<p class="insight-comparison-note">${last.isPartial ? `* ${last.short} is through ${last.throughDay} ${last.short}; its budget is prorated to that day.` : 'All months use full-month budgets.'}</p></div><div class="panel insight-observations-panel"><div class="panel-heading"><div><p class="panel-kicker">AT A GLANCE</p><h3>What stands out</h3></div></div>${observations.length ? observations.map(item => `<div class="insight-observation"><span>${richIcon(item.icon)}</span><div><b>${esc(item.title)}</b><small>${esc(item.detail)}</small></div></div>`).join('') : '<p class="empty-state">Add expenses across more months to reveal trends.</p>'}</div></div>
+      <div class="insights-comparison-grid lower">${renderInsightReasonPanel(overview)}<div class="panel insight-movement-panel"><div class="panel-heading"><div><p class="panel-kicker">CATEGORY MOVEMENT</p><h3>Top shifts</h3></div></div>${movements.length ? movements.map(row => `<div class="insight-movement"><span>${esc(row.name)}</span><strong class="${row.change > 0 ? 'up' : 'down'}">${row.change > 0 ? '↑' : '↓'} ${money(Math.abs(row.change))}</strong></div>`).join('') : '<p class="empty-state">More completed months are needed for category changes.</p>'}<p class="insight-comparison-note">${latestComplete && priorComplete ? `${latestComplete.label} vs ${priorComplete.label}` : 'Completed months only'}</p></div></div>
+    </div>
+    <div class="insights-comparison-view">
+      <div class="panel insight-comparison-table-panel"><div class="panel-heading"><div><p class="panel-kicker">MONTH-BY-MONTH</p><h3>Compare spending</h3><p class="subtitle">Real expenses, budget, categories, and reasons together.</p></div><label class="insight-comparison-range">Range<select id="insightComparisonRange" aria-label="Comparison range">${rangeOptions}</select></label></div>
+        <div class="insight-period-summary"><div><span>Period</span><strong>${selected[0].label} – ${selected.at(-1).label}</strong></div><div><span>Real expenses</span><strong>${money(selectedTotal)}</strong></div><div><span>Over budget</span><strong>${activeCount ? `${overCount} of ${activeCount} months with expenses` : 'No recorded months'}</strong></div></div>
+        <div class="insight-comparison-table-wrap"><table class="insight-comparison-table"><thead><tr><th>Month</th><th>Real expenses</th><th>Budget</th><th>Difference</th><th>Top category</th><th>Most common reason</th></tr></thead><tbody>${selected.map(row => `<tr><th scope="row">${row.label}${row.isPartial ? '*' : ''}</th><td>${row.items.length ? money(row.total) : 'No activity'}</td><td>${money(row.budget)}${row.isPartial ? ' to date' : ''}</td><td class="${!row.items.length ? '' : row.total > row.budget ? 'over' : 'under'}">${row.items.length ? `${row.total > row.budget ? '↑' : '↓'} ${money(Math.abs(row.total - row.budget))}` : '—'}</td><td>${row.categories.length ? esc(row.categories[0][0]) : '—'}</td><td>${row.items.length ? row.topReason : '—'}</td></tr>`).join('')}</tbody></table></div><p class="insight-comparison-note">${selected.at(-1).isPartial ? `* Current month is compared with budget through ${selected.at(-1).throughDay} ${selected.at(-1).short}.` : 'All months use full-month budgets.'} Months without recorded expenses are excluded from budget counts. Reasons use tagged expenses only.</p></div>
+      <div class="insights-comparison-grid lower"><div class="panel insight-reason-panel"><div class="panel-heading"><div><p class="panel-kicker">PATTERN ACROSS MONTHS</p><h3>Reason mix by month</h3></div></div>${renderInsightReasonMix(selected, true)}${insightReasonSummary(selected).taggedCount ? `<div class="insight-reason-legend">${insightReasonOrder.map(key => `<span><i class="${key}"></i>${insightReasonLabels[key]}</span>`).join('')}</div>` : ''}<p class="insight-comparison-note">Each bar includes only tagged expenses; untagged spend is excluded from reason shares.</p></div><div class="panel insight-observations-panel"><div class="panel-heading"><div><p class="panel-kicker">PERIOD SUMMARY</p><h3>The spending story</h3></div></div><div class="insight-period-facts"><div><span>${richIcon('insight-pace')}</span><p><b>${overCount} month${overCount === 1 ? '' : 's'} above budget</b><small>Of ${activeCount} month${activeCount === 1 ? '' : 's'} with recorded expenses.</small></p></div><div><span>${richIcon('insight-category')}</span><p><b>${activeCount - overCount} month${activeCount - overCount === 1 ? '' : 's'} at or below budget</b><small>${selected.at(-1).isPartial ? 'Current month uses budget to date.' : 'Full-month comparison.'}</small></p></div></div></div></div>
+    </div>
+  </section>`;
+}
+function renderInsightsTopTabs() {
+  return `<div class="insights-page-tabs" role="tablist" aria-label="Insights sections">
+    <button type="button" role="tab" id="insightsSpendTab" aria-controls="insightsSpendPanel" aria-selected="${insightPageTab === 'spend'}" class="${insightPageTab === 'spend' ? 'active' : ''}" data-insights-page-tab="spend">${richIcon('insight-flow')} Spend insights</button>
+    <button type="button" role="tab" id="insightsMonthlyTab" aria-controls="insightsMonthlyPanel" aria-selected="${insightPageTab === 'monthly'}" class="${insightPageTab === 'monthly' ? 'active' : ''}" data-insights-page-tab="monthly">${richIcon('insight-pattern')} Monthly insights</button>
+  </div>`;
+}
+function renderInsightsHero(filter, range, previousRange) {
+  return `<section class="insights-hero panel">
+    <div><p class="panel-kicker">SPEND ANALYSIS</p><h3>Spend Insights</h3><p class="subtitle">Where your money is flowing for ${range.label}. Compared with ${previousRange.label}.</p></div>
+    ${renderInsightFilters(filter)}
+  </section>`;
+}
 function renderInsightsPage(filter = insightFilter) {
   const range = insightRange(filter);
-  const current = insightTransactions(filter);
   const previousRange = previousInsightRange(filter, range);
+  const tabs = renderInsightsTopTabs();
+  const hero = renderInsightsHero(filter, range, previousRange);
+  if (insightPageTab === 'monthly') return `<article class="insights-shell">${tabs}<div id="insightsMonthlyPanel" role="tabpanel" aria-labelledby="insightsMonthlyTab" class="insights-page-panel">${hero}${renderInsightsComparisonSection(range.to.slice(0, 7))}</div></article>`;
+  const current = insightTransactions(filter);
   const previous = data.transactions.filter(t => t.date >= previousRange.from && t.date <= previousRange.to);
   const groups = { expense:current.filter(t => t.type === 'expense'), loan:current.filter(t => t.type === 'loan'), investment:current.filter(t => t.type === 'investment') };
   const sums = { expense:sumAmount(groups.expense), real:sumAmount(groups.expense.filter(t => t.includeInReal !== false)), loan:sumAmount(groups.loan), investment:sumAmount(groups.investment) };
@@ -301,14 +445,13 @@ function renderInsightsPage(filter = insightFilter) {
   groups.expense.filter(t => t.includeInReal !== false).forEach(t => { const key = `${t.category}-${weekOfMonth(t.date)}`; heatValues[key] = (heatValues[key] || 0) + t.amount; });
   const heatMax = Math.max(...Object.values(heatValues), 1);
   const scheduled = data.schedules.slice().sort((a,b) => (a.dueDay || 31) - (b.dueDay || 31)).slice(0, 5);
-  return `<article class="insights-shell">
-    <section class="insights-hero panel">
-      <div><p class="panel-kicker">SPEND ANALYSIS</p><h3>Spend Insights</h3><p class="subtitle">Where your money is flowing for ${range.label}. Compared with ${previousRange.label}.</p></div>
-      ${renderInsightFilters(filter)}
-    </section>
+  const selectedReasonRow = insightReasonRow(expenseItems, range.from, range.to, range.label);
+  return `<article class="insights-shell">${tabs}<div id="insightsSpendPanel" role="tabpanel" aria-labelledby="insightsSpendTab" class="insights-page-panel">
+    ${hero}
     <section class="finance-kpi-grid insights-kpi-grid" aria-label="Spend insight summary">${insightKpis.map(item => `<article class="finance-kpi insights-kpi ${item.featured ? 'featured' : ''} ${item.tone || ''}"><span class="finance-kpi-icon">${richIcon(item.icon)}</span><div><p>${item.label}</p><strong>${money(item.value)}</strong><small>${item.note}</small></div></article>`).join('')}</section>
+    <section class="insights-selected-reason" aria-label="Expense reasons for selected period">${renderInsightReasonPanel([selectedReasonRow], { note:range.label, className:'selected-range' })}</section>
     <section class="insights-grid-main">
-      <div class="panel money-flow-panel"><div class="panel-heading"><div><p class="panel-kicker">MONEY FLOW</p><h3>Money flow</h3><p class="subtitle">How your money is distributed</p></div><button class="ghost-button" data-page="outflow">View report</button></div><div class="flow-stage radial-split"><div class="flow-total"><small>Total outflow</small><strong>${money(sums.total)}</strong></div><div class="flow-lines">${moneyFlowRows.map((row, index) => `<div class="flow-row ${row.cls}"><span class="flow-row-icon">${richIcon(['real-expenses','loans','investments','schedule'][index])}</span><div class="flow-row-text"><b>${row.label}</b><small>${row.note}</small></div><strong>${money(row.value)}</strong><em>${percent(row.value, sums.total)}%</em></div>`).join('')}</div></div><div class="money-flow-payment"><div><p class="panel-kicker">PAYMENT MIX</p><h4>Credit card vs cash</h4></div>${renderPaymentSourceChart(expenseItems)}</div><p class="flow-note"><span>ⓘ</span> Loans and investments are shown in the flow but excluded from real-expense ranking.</p></div>
+      <div class="panel money-flow-panel"><div class="panel-heading"><div><p class="panel-kicker">MONEY FLOW</p><h3>Money flow</h3><p class="subtitle">How your money is distributed</p></div><button class="ghost-button" data-page="outflow">View report</button></div><div class="flow-stage radial-split"><div class="flow-total"><small>Total outflow</small><strong>${money(sums.total)}</strong></div><div class="flow-lines">${moneyFlowRows.map((row, index) => `<div class="flow-row ${row.cls}"><span class="flow-row-icon">${richIcon(['real-expenses','loans','investments','schedule'][index])}</span><div class="flow-row-text"><b>${row.label}</b><small>${row.note}</small></div><strong>${money(row.value)}</strong><em>${percent(row.value, sums.total)}%</em></div>`).join('')}</div></div><div class="money-flow-payment"><div class="payment-mix-heading"><span class="payment-mix-heading-icon">${richIcon('credit-spend')}</span><div><p class="panel-kicker">PAYMENT MIX</p><h4>How expenses were paid</h4><p class="subtitle">A clearer view of each payment method in this range</p></div></div>${renderPaymentSourceChart(expenseItems)}</div><p class="flow-note"><span>ⓘ</span> Loans and investments are shown in the flow but excluded from real-expense ranking.</p></div>
       ${renderInsightsCategoryPanel(range, expenseItems, categoryEntries, categoryChartTotal, categoryRows)}
     </section>
     <section class="insights-flow-history-grid">
@@ -325,5 +468,5 @@ function renderInsightsPage(filter = insightFilter) {
       <div class="panel insight-list-panel"><div class="panel-heading"><div><p class="panel-kicker">ACTIONABLE</p><h3>Key insights</h3></div></div><div class="key-insight-list">${keyInsights.map((text, index) => `<div class="key-insight"><span>${richIcon(['insight-flow','insight-pattern','insight-pace','insight-alert'][index])}</span><p>${text}</p></div>`).join('')}</div><button class="primary-button insight-wide-button" data-page="investments">View investments</button></div>
       <div class="panel recurring-panel"><div class="panel-heading"><div><p class="panel-kicker">COMMITMENTS</p><h3>Recurring commitments</h3></div><button class="ghost-button" data-page="schedule">Manage</button></div><div class="commitment-list">${scheduled.length ? scheduled.map(schedule => `<div class="commitment-item"><span class="upcoming-icon ${schedule.type === 'loan' ? 'amber-bg' : schedule.type === 'investment' ? 'teal-bg' : 'purple-bg'}">${richIcon(schedule.type === 'loan' ? 'loans' : schedule.type === 'investment' ? 'investments' : 'real-expenses')}</span><div><b>${schedule.subcategory}</b><small>${scheduleWhen(schedule)}</small></div><strong>${money(schedule.amount)}</strong></div>`).join('') : '<p class="empty-state">No schedules configured.</p>'}</div></div>
     </section>
-  </article>`;
+  </div></article>`;
 }

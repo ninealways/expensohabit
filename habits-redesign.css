@@ -147,6 +147,9 @@
 .habit-dashboard-grid-row b { overflow:hidden;color:#26335f;font-size:9px;text-overflow:ellipsis;white-space:nowrap; }
 .habit-dashboard-grid-row span { aspect-ratio:1.2;min-height:23px;border-radius:7px;background:#f0f1f6; }
 .habit-dashboard-grid-row span.filled { background:linear-gradient(145deg,color-mix(in srgb,var(--habit-chart-color) 62%,white),var(--habit-chart-color));box-shadow:0 6px 13px color-mix(in srgb,var(--habit-chart-color) 14%,transparent); }
+.habit-dashboard-grid-row span.pending { background:repeating-linear-gradient(135deg,#f2f1f7 0 4px,#e5e3ee 4px 7px); }
+.habit-dashboard-grid-row span.missed { position:relative;background:linear-gradient(145deg,#ff8c90,#ea5268); }
+.habit-dashboard-grid-row span.missed:after { content:'\00d7';position:absolute;inset:0;display:grid;place-items:center;color:#fff;font-size:10px;font-weight:900;line-height:1; }
 .habit-dashboard-grid-row span.muted { opacity:.35; }
 .habit-dashboard-grid-row span.today { outline:2px solid rgba(117,73,239,.24);outline-offset:2px; }
 

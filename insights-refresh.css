@@ -1,0 +1,56 @@
+/* Insights payment mix and history, aligned with the illustrated finance cards. */
+.insights-shell .money-flow-payment { margin-top:19px;padding:18px;border:1px solid #e9e7f5;border-radius:20px;background:linear-gradient(135deg,#fff,#faf8ff 58%,#f4fbff);box-shadow:0 12px 28px rgba(66,58,130,.055); }
+.payment-mix-heading { display:flex;align-items:center;gap:11px;margin-bottom:16px; }
+.payment-mix-heading-icon { width:48px;height:48px;display:grid;place-items:center;flex:0 0 48px;border-radius:15px;background:linear-gradient(145deg,#f0eaff,#e6f5ff);box-shadow:0 7px 15px rgba(100,67,182,.1); }
+.payment-mix-heading-icon .rich-icon { width:39px;height:39px; }
+.insights-shell .payment-mix-heading h4 { margin:2px 0 3px;color:#172658;font-size:17px; }
+.payment-mix-heading .subtitle { color:#7180a0;font-size:11px;line-height:1.3; }
+.insights-shell .payment-source-chart { grid-template-columns:184px minmax(0,1fr);gap:13px;align-items:stretch; }
+.payment-mix-visual { min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:14px 10px;border:1px solid #efedf8;border-radius:18px;background:linear-gradient(150deg,#fff,#f7f5ff); }
+.payment-mix-donut { width:148px;height:148px;display:grid;place-items:center;border-radius:50%;box-shadow:0 14px 25px rgba(102,67,172,.12); }
+.payment-mix-donut > div { width:105px;height:105px;display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:50%;background:#fff;box-shadow:inset 0 0 0 1px #f0edf7; }
+.payment-mix-donut small { color:#7180a0;font-size:10px;font-weight:800; }
+.payment-mix-donut strong { margin-top:4px;color:#172658;font-size:17px;font-weight:800;letter-spacing:-.04em;white-space:nowrap; }
+.payment-mix-visual p { margin:12px 0 0;color:#7b87a4;font-size:10px;font-weight:700;text-align:center; }
+.insights-shell .payment-source-summary { display:grid;align-content:start;gap:8px; }
+.insights-shell .payment-source-summary .payment-method-row { min-width:0;display:grid;grid-template-columns:39px minmax(0,1fr) auto;gap:10px;align-items:center;padding:9px 11px;border:1px solid #ebebf5;border-radius:14px;background:#fff;box-shadow:0 5px 13px rgba(62,54,131,.035); }
+.payment-method-icon { width:39px;height:39px;display:grid;place-items:center;border-radius:12px;background:color-mix(in srgb,var(--payment-color) 14%,#fff); }
+.payment-method-icon .rich-icon { width:33px;height:33px; }
+.payment-method-name { min-width:0;display:block; }
+.payment-method-name b { display:block;min-width:0;color:#1b2b5d;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
+.payment-method-track { display:block;height:5px;margin-top:7px;overflow:hidden;border-radius:99px;background:#eef0f7; }
+.payment-method-track i { display:block;height:100%;border-radius:inherit;background:var(--payment-color); }
+.payment-method-value { min-width:0;display:flex;flex-direction:column;align-items:flex-end;gap:5px; }
+.payment-method-value strong { color:#192858;font-size:12px;white-space:nowrap; }
+.payment-method-value em { padding:4px 7px;border-radius:99px;background:color-mix(in srgb,var(--payment-color) 13%,#fff);color:color-mix(in srgb,var(--payment-color) 78%,#172658);font-size:9px;font-weight:900;font-style:normal; }
+.payment-card-breakdown { grid-column:1 / -1;padding:12px;border:1px solid #e9e7f3;border-radius:15px;background:#fff; }
+.payment-card-heading { display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px;color:#65749a;font-size:11px;font-weight:800; }
+.payment-card-heading strong { color:#172658;font-size:12px; }
+.insights-shell .payment-card-list { display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px; }
+.insights-shell .payment-card-list span { min-width:0;max-width:none;width:100%;grid-template-columns:minmax(0,1fr) auto auto;gap:6px;padding:9px 10px;border-color:#eeedf7;border-radius:12px;background:#faf9fe; }
+.insights-shell .payment-card-list b { font-size:10px; }
+.insights-shell .payment-card-list strong { font-size:10px; }
+.insights-shell .payment-card-list em { padding:4px 6px;font-size:9px; }
+.insights-shell .money-flow-history table { min-width:0;table-layout:fixed; }
+.insights-shell .money-flow-history th:first-child,.insights-shell .money-flow-history td:first-child { width:130px; }
+.insights-shell .money-flow-history td { padding:9px 5px; }
+.insights-shell .flow-history-cell { width:100%;max-width:138px;padding:8px 10px;border-radius:12px; }
+.insights-shell .flow-history-main { display:grid;grid-template-columns:1fr auto;gap:5px;align-items:center;text-align:left; }
+.insights-shell .flow-history-main b { grid-column:1 / -1;font-size:11px;line-height:1.15; }
+.insights-shell .flow-history-main small { font-size:9px; }
+.insights-shell .flow-history-main em { justify-self:end;font-size:9px; }
+@media (max-width:1180px) {
+  .insights-shell .money-flow-history table { min-width:690px; }
+  .insights-shell .payment-source-chart { grid-template-columns:1fr; }
+  .payment-mix-visual { flex-direction:row;gap:15px; }
+  .payment-mix-donut { width:126px;height:126px;flex:0 0 126px; }
+  .payment-mix-donut > div { width:88px;height:88px; }
+  .payment-mix-donut strong { font-size:14px; }
+  .payment-mix-visual p { margin:0;text-align:left; }
+}
+@media (max-width:560px) {
+  .insights-shell .money-flow-payment { padding:13px; }
+  .payment-mix-heading-icon { width:42px;height:42px;flex-basis:42px; }
+  .payment-mix-heading-icon .rich-icon { width:34px;height:34px; }
+  .insights-shell .payment-card-list { grid-template-columns:1fr; }
+}
