@@ -10,6 +10,7 @@
     investments:'/investments',
     insights:'/insights',
     profile:'/profile',
+    admin:'/admin',
     guide:'/guide',
     habits:'/habits',
     habitManage:'/habit-manage',

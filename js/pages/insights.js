@@ -238,7 +238,7 @@ function renderMoneyFlowHistory(endMonth, offset = moneyFlowHistoryOffset) {
 }
 
 const insightReasonLabels = {
-  essential:'Essential', planned:'Planned purchase', impulse:'Impulse purchase',
+  essential:'Essential', planned:'Planned purchase', holiday:'Holiday', impulse:'Impulse purchase',
   recurring:'Recurring commitment', emergency:'Emergency', gift:'Gift or support', other:'Other'
 };
 const insightReasonOrder = Object.keys(insightReasonLabels);
