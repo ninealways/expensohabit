@@ -55,6 +55,7 @@
 .reason-segment b { max-width:100%;overflow:hidden;color:#fff;font-size:10px;font-weight:850;letter-spacing:-.02em;text-overflow:ellipsis;text-shadow:0 1px 3px rgba(34,25,78,.24);white-space:nowrap; }
 .reason-segment.essential,.insight-reason-legend i.essential { background:#7950f6; }
 .reason-segment.planned,.insight-reason-legend i.planned { background:#6099f5; }
+.reason-segment.holiday,.insight-reason-legend i.holiday { background:#28b6d9; }
 .reason-segment.recurring,.insight-reason-legend i.recurring { background:#24c7a9; }
 .reason-segment.impulse,.insight-reason-legend i.impulse { background:#f56d98; }
 .reason-segment.emergency,.insight-reason-legend i.emergency { background:#ffad4d; }

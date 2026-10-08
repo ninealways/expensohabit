@@ -65,6 +65,7 @@ h1,h2,h3,p { margin:0; } h1,h2,h3 { font-family:'Inter',sans-serif; } h1 { font-
 .transaction-reason { display:inline-flex;align-items:center;min-height:23px;padding:4px 8px;border-radius:999px;background:#f2eff9;color:#617098;font-size:9px;font-weight:800;line-height:1.2;white-space:nowrap; }
 .transaction-reason.essential { color:#6741dc;background:#eee9ff; }
 .transaction-reason.planned { color:#356fc8;background:#eaf2ff; }
+.transaction-reason.holiday { color:#087fa4;background:#e3f7ff; }
 .transaction-reason.impulse { color:#c9416d;background:#ffe8f0; }
 .transaction-reason.recurring { color:#07866d;background:#def8ef; }
 .transaction-reason.emergency { color:#bb6815;background:#fff0df; }

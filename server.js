@@ -8,6 +8,8 @@ const port = process.env.PORT || 4173;
 const mongoUri = process.env.MONGODB_URI;
 const dbName = process.env.MONGODB_DB || 'daily_expenses';
 const inviteCode = process.env.INVITE_CODE;
+const primaryAdminEmail = '9always.rocks@gmail.com';
+const inactiveAccountMessage = `Your account is inactive. Please contact the administrator at ${primaryAdminEmail}.`;
 let MongoClient;
 let mongoModulePromise;
 let db;
@@ -120,7 +122,9 @@ function sleepHours(from, to) {
 }
 function cookies(req) { return Object.fromEntries((req.headers.cookie || '').split(';').filter(Boolean).map(part => { const [key, ...value] = part.trim().split('='); return [key, decodeURIComponent(value.join('='))]; })); }
 async function currentUser(req) { const token = cookies(req)[sessionCookie]; if (!token) return null; const session = await (await ensureDatabase()).collection('sessions').findOne({ token, expiresAt:{ $gt:new Date() } }); if (!session) return null; return db.collection('users').findOne({ id:session.userId }, { projection:{ _id:0, passwordHash:0, passwordSalt:0 } }); }
-async function requireAuth(req, res, next) { try { req.user = await currentUser(req); if (!req.user) return res.status(401).json({ error:'Authentication required' }); next(); } catch (error) { res.status(500).json({ error:error.message }); } }
+async function requireAuth(req, res, next) { try { req.user = await currentUser(req); if (!req.user) return res.status(401).json({ error:'Authentication required' }); if (req.user.isActive === false) return res.status(403).json({ error:inactiveAccountMessage, code:'ACCOUNT_INACTIVE' }); next(); } catch (error) { res.status(500).json({ error:error.message }); } }
+function requireAdmin(req, res, next) { if (!req.user?.isAdmin) return res.status(403).json({ error:'Administrator access is required.' }); next(); }
+function publicUser(user = {}) { return { id:user.id, email:user.email, name:user.name, createdAt:user.createdAt, lastLoginAt:user.lastLoginAt || null, isAdmin:user.isAdmin === true, isActive:user.isActive !== false }; }
 function setSession(res, token) { res.setHeader('Set-Cookie', `${sessionCookie}=${encodeURIComponent(token)}; HttpOnly; SameSite=Lax; Path=/; Max-Age=604800`); }
 function defaultSpendGroup(name = '') {
   const value = String(name).toLowerCase();
@@ -132,7 +136,7 @@ function defaultSpendGroup(name = '') {
 }
 function cleanSpendGroup(value, name = '') { return validSpendGroups.includes(value) ? value : defaultSpendGroup(name); }
 function cleanPaymentMode(value) { return ['cash','bank','upi','credit_card','mixed'].includes(value) ? value : 'upi'; }
-function cleanExpenseReason(value) { return ['essential','planned','impulse','recurring','emergency','gift','other'].includes(value) ? value : ''; }
+function cleanExpenseReason(value) { return ['essential','planned','holiday','impulse','recurring','emergency','gift','other'].includes(value) ? value : ''; }
 function buildStockPositions(trades = []) {
   const positions = {};
   const sorted = trades.slice().sort((a, b) => {
@@ -179,37 +183,41 @@ app.post('/api/auth/register', async (req, res) => {
     const existing = await users.findOne({ email:normalizedEmail });
     if (existing) {
       if (!passwordsMatch(password, existing)) return res.status(409).json({ error:'An account with that email already exists.' });
+      if (existing.isActive === false) return res.status(403).json({ error:inactiveAccountMessage, code:'ACCOUNT_INACTIVE' });
       await ensureUserData(existing.id);
       const token = crypto.randomBytes(32).toString('hex');
-      await database.collection('sessions').insertOne({ token, userId:existing.id, createdAt:new Date(), expiresAt:new Date(Date.now() + 604800000) });
+      const lastLoginAt = new Date();
+      await users.updateOne({ id:existing.id }, { $set:{ lastLoginAt } });
+      await database.collection('sessions').insertOne({ token, userId:existing.id, createdAt:lastLoginAt, expiresAt:new Date(Date.now() + 604800000) });
       setSession(res, token);
-      return res.json({ id:existing.id, email:existing.email, name:existing.name, createdAt:existing.createdAt });
+      return res.json(publicUser({ ...existing, lastLoginAt }));
     }
 
     const id = crypto.randomUUID();
     const createdAt = new Date();
     const { salt, hash } = hashPassword(password);
     const cleanName = name.trim();
-    await users.insertOne({ id, email:normalizedEmail, name:cleanName, passwordSalt:salt, passwordHash:hash, createdAt });
+    const user = { id, email:normalizedEmail, name:cleanName, passwordSalt:salt, passwordHash:hash, createdAt, lastLoginAt:createdAt, isAdmin:normalizedEmail === primaryAdminEmail, isActive:true };
+    await users.insertOne(user);
     await ensureUserData(id);
     const token = crypto.randomBytes(32).toString('hex');
     await database.collection('sessions').insertOne({ token, userId:id, createdAt:new Date(), expiresAt:new Date(Date.now() + 604800000) });
     setSession(res, token);
-    res.status(201).json({ id, email:normalizedEmail, name:cleanName, createdAt });
+    res.status(201).json(publicUser(user));
   } catch (error) {
     res.status(500).json({ error:error.message });
   }
 });
-app.post('/api/auth/login', async (req, res) => { try { const database = await ensureDatabase(); const { email, password } = req.body; const user = await database.collection('users').findOne({ email:(email || '').toLowerCase() }); if (!user || !passwordsMatch(password || '', user)) return res.status(401).json({ error:'Email or password is incorrect.' }); await ensureUserData(user.id); const token = crypto.randomBytes(32).toString('hex'); await database.collection('sessions').insertOne({ token, userId:user.id, createdAt:new Date(), expiresAt:new Date(Date.now() + 604800000) }); setSession(res, token); res.json({ id:user.id, email:user.email, name:user.name, createdAt:user.createdAt }); } catch (error) { res.status(500).json({ error:error.message }); } });
+app.post('/api/auth/login', async (req, res) => { try { const database = await ensureDatabase(); const { email, password } = req.body; const user = await database.collection('users').findOne({ email:(email || '').toLowerCase() }); if (!user || !passwordsMatch(password || '', user)) return res.status(401).json({ error:'Email or password is incorrect.' }); if (user.isActive === false) return res.status(403).json({ error:inactiveAccountMessage, code:'ACCOUNT_INACTIVE' }); await ensureUserData(user.id); const token = crypto.randomBytes(32).toString('hex'); const lastLoginAt = new Date(); await database.collection('users').updateOne({ id:user.id }, { $set:{ lastLoginAt } }); await database.collection('sessions').insertOne({ token, userId:user.id, createdAt:lastLoginAt, expiresAt:new Date(Date.now() + 604800000) }); setSession(res, token); res.json(publicUser({ ...user, lastLoginAt })); } catch (error) { res.status(500).json({ error:error.message }); } });
 app.post('/api/auth/logout', async (req, res) => { const token = cookies(req)[sessionCookie]; if (token && db) await db.collection('sessions').deleteOne({ token }); res.setHeader('Set-Cookie', `${sessionCookie}=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0`); res.json({ ok:true }); });
-app.get('/api/auth/me', async (req, res) => { try { const user = await currentUser(req); res.json(user ? { authenticated:true, user } : { authenticated:false }); } catch (error) { res.status(500).json({ error:error.message }); } });
+app.get('/api/auth/me', async (req, res) => { try { const user = await currentUser(req); if (user?.isActive === false) { const token = cookies(req)[sessionCookie]; if (token) await (await ensureDatabase()).collection('sessions').deleteOne({ token }); res.setHeader('Set-Cookie', `${sessionCookie}=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0`); return res.json({ authenticated:false, error:inactiveAccountMessage, code:'ACCOUNT_INACTIVE' }); } res.json(user ? { authenticated:true, user:publicUser(user) } : { authenticated:false }); } catch (error) { res.status(500).json({ error:error.message }); } });
 app.put('/api/profile', requireAuth, async (req, res) => {
   try {
     const name = req.body.name?.trim();
     if (!name) return res.status(400).json({ error:'Name is required.' });
     const database = await ensureDatabase();
     const result = await database.collection('users').findOneAndUpdate({ id:req.user.id }, { $set:{ name } }, { returnDocument:'after', projection:{ _id:0, passwordHash:0, passwordSalt:0 } });
-    res.json(result.value || result);
+    res.json(publicUser(result.value || result));
   } catch (error) { res.status(500).json({ error:error.message }); }
 });
 
@@ -224,6 +232,10 @@ async function ensureDatabase() {
   await client.connect();
   db = client.db(dbName);
   const transactions = db.collection('transactions'); const schedules = db.collection('schedules'); const habits = db.collection('habits'); const habitLogs = db.collection('habitLogs'); const stockTrades = db.collection('stockTrades'); const creditCards = db.collection('creditCards'); const timelineEvents = db.collection('timelineEvents');
+  const users = db.collection('users');
+  await users.updateMany({ isActive:{ $exists:false } }, { $set:{ isActive:true } });
+  await users.updateMany({ isAdmin:{ $exists:false } }, { $set:{ isAdmin:false } });
+  await users.updateOne({ email:primaryAdminEmail }, { $set:{ isAdmin:true, isActive:true } });
   await transactions.dropIndex('id_1').catch(error => { if (error.codeName !== 'IndexNotFound') throw error; });
   await schedules.dropIndex('id_1').catch(error => { if (error.codeName !== 'IndexNotFound') throw error; });
   await transactions.createIndex({ ownerId: 1, id: 1 }, { unique: true });
@@ -237,6 +249,49 @@ async function ensureDatabase() {
   await db.collection('sessions').createIndex({ expiresAt:1 }, { expireAfterSeconds:0 });
   return db;
 }
+
+app.get('/api/admin/users', requireAuth, requireAdmin, async (_req, res) => {
+  try {
+    const database = await ensureDatabase();
+    const users = await database.collection('users').find({}, { projection:{ _id:0, passwordHash:0, passwordSalt:0 } }).sort({ createdAt:-1 }).toArray();
+    const [transactionCounts, habitCounts, recentSessions] = await Promise.all([
+      database.collection('transactions').aggregate([{ $group:{ _id:'$ownerId', count:{ $sum:1 } } }]).toArray(),
+      database.collection('habits').aggregate([{ $group:{ _id:'$ownerId', count:{ $sum:1 } } }]).toArray(),
+      database.collection('sessions').aggregate([{ $group:{ _id:'$userId', lastActiveAt:{ $max:'$createdAt' } } }]).toArray()
+    ]);
+    const transactionsByUser = new Map(transactionCounts.map(row => [row._id, row.count]));
+    const habitsByUser = new Map(habitCounts.map(row => [row._id, row.count]));
+    const activityByUser = new Map(recentSessions.map(row => [row._id, row.lastActiveAt]));
+    const rows = users.map(user => ({ ...publicUser(user), transactionCount:transactionsByUser.get(user.id) || 0, habitCount:habitsByUser.get(user.id) || 0, lastActiveAt:activityByUser.get(user.id) || user.lastLoginAt || null }));
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    res.json({
+      users:rows,
+      summary:{
+        total:rows.length,
+        active:rows.filter(user => user.isActive).length,
+        inactive:rows.filter(user => !user.isActive).length,
+        admins:rows.filter(user => user.isAdmin).length,
+        activeThisMonth:rows.filter(user => user.lastActiveAt && new Date(user.lastActiveAt) >= monthStart).length,
+        newThisMonth:rows.filter(user => user.createdAt && new Date(user.createdAt) >= monthStart).length
+      }
+    });
+  } catch (error) { res.status(500).json({ error:error.message }); }
+});
+
+app.put('/api/admin/users/:id/status', requireAuth, requireAdmin, async (req, res) => {
+  try {
+    if (typeof req.body.isActive !== 'boolean') return res.status(400).json({ error:'Active status is required.' });
+    if (req.params.id === req.user.id && req.body.isActive === false) return res.status(400).json({ error:'You cannot deactivate your own administrator account.' });
+    const database = await ensureDatabase();
+    const existing = await database.collection('users').findOne({ id:req.params.id });
+    if (!existing) return res.status(404).json({ error:'User not found.' });
+    if (existing.email === primaryAdminEmail && req.body.isActive === false) return res.status(400).json({ error:'The primary administrator account cannot be deactivated.' });
+    const result = await database.collection('users').findOneAndUpdate({ id:req.params.id }, { $set:{ isActive:req.body.isActive, statusUpdatedAt:new Date(), statusUpdatedBy:req.user.id } }, { returnDocument:'after', projection:{ _id:0, passwordHash:0, passwordSalt:0 } });
+    if (req.body.isActive === false) await database.collection('sessions').deleteMany({ userId:req.params.id });
+    res.json(publicUser(result.value || result));
+  } catch (error) { res.status(500).json({ error:error.message }); }
+});
 
 async function ensureUserData(userId) { const database = await ensureDatabase(); const transactions = database.collection('transactions'); const schedules = database.collection('schedules'); const categories = database.collection('categories'); const settings = database.collection('settings'); const habits = database.collection('habits'); if (!await settings.findOne({ ownerId:userId })) await settings.insertOne({ ownerId:userId, ...defaultSettings }); const hasUserTransactions = await transactions.countDocuments({ ownerId:userId }); const hasLegacy = await transactions.countDocuments({ ownerId:{ $exists:false } }); if (!hasUserTransactions && hasLegacy) { await transactions.updateMany({ ownerId:{ $exists:false } }, { $set:{ ownerId:userId } }); await schedules.updateMany({ ownerId:{ $exists:false } }, { $set:{ ownerId:userId } }); } else if (!hasUserTransactions) { await transactions.insertMany(seedTransactions.map(item => ({ ...item, ownerId:userId }))); await schedules.insertMany(seedSchedules.map(item => ({ ...item, ownerId:userId }))); } if (!await categories.countDocuments({ ownerId:userId })) await categories.insertMany(seedCategories.map(item => ({ ...item, ownerId:userId }))); const uncategorized = await categories.find({ ownerId:userId, kind:'expense', $or:[{ spendGroup:{ $exists:false } }, { spendGroup:null }, { spendGroup:{ $nin:validSpendGroups } }] }).toArray(); await Promise.all(uncategorized.map(category => categories.updateOne({ _id:category._id }, { $set:{ spendGroup:cleanSpendGroup(category.spendGroup, category.name) } }))); if (!await habits.countDocuments({ ownerId:userId })) await habits.insertMany(seedHabits.map(item => ({ ...item, ownerId:userId }))); }
 
@@ -267,6 +322,8 @@ async function processSchedules(userId) {
   const database = await ensureDatabase(); const transactions = database.collection('transactions'); const schedules = database.collection('schedules');
   const due = await schedules.find({ ownerId:userId, autoAdd:true, archived:{ $ne:true } }).toArray();
   for (const schedule of due) {
+    const hasRemainingPrincipal = schedule.remainingPrincipal !== undefined && schedule.remainingPrincipal !== null && schedule.remainingPrincipal !== '';
+    if (schedule.type === 'loan' && (schedule.loanClosed === true || (schedule.loanClosed !== false && hasRemainingPrincipal && Number(schedule.remainingPrincipal) <= 0))) continue;
     for (const dueDate of dueDatesForSchedule(schedule)) {
       const periodKey = dueDate; if ((schedule.skippedMonths || []).includes(periodKey)) continue;
       const exists = await transactions.findOne({ ownerId:userId, scheduleId:schedule.id, $or:[{ periodKey }, { date:dueDate }] });
@@ -685,11 +742,39 @@ app.delete('/api/habit-logs/:habitId/:date', requireAuth, async (req, res) => {
 
 app.put('/api/transactions/:id', requireAuth, async (req, res) => { try { const database = await ensureDatabase(); const updates = { ...req.body }; if (updates.type === 'expense') updates.expenseReason = cleanExpenseReason(updates.expenseReason); else delete updates.expenseReason; const result = await database.collection('transactions').findOneAndUpdate({ id:req.params.id, ownerId:req.user.id }, { $set:updates }, { returnDocument:'after', projection:{ _id:0, ownerId:0 } }); res.json(result.value || result); } catch (error) { res.status(500).json({ error:error.message }); } });
 app.delete('/api/transactions/:id', requireAuth, async (req, res) => { try { const database = await ensureDatabase(); const transactions = database.collection('transactions'); const transaction = await transactions.findOne({ id:req.params.id, ownerId:req.user.id }); if (!transaction) return res.status(404).json({ error:'Transaction not found' }); if (transaction.scheduleId) { const periodKey = transaction.periodKey || transaction.date || localDate(); await database.collection('schedules').updateOne({ id:transaction.scheduleId, ownerId:req.user.id }, { $addToSet:{ skippedMonths:periodKey } }); } await transactions.deleteOne({ id:req.params.id, ownerId:req.user.id }); res.json({ ok:true }); } catch (error) { res.status(500).json({ error:error.message }); } });
-app.put('/api/schedules/:id', requireAuth, async (req, res) => { try { const database = await ensureDatabase(); const updates = { ...req.body }; if ('expenseReason' in updates) updates.expenseReason = cleanExpenseReason(updates.expenseReason); if (updates.endDate === '') updates.endDate = null; if (updates.investmentValuationDate === '') updates.investmentValuationDate = null; if (updates.projectionEndDate === '') updates.projectionEndDate = null; if (Array.isArray(updates.dueDays)) updates.dueDays = updates.dueDays.map(Number).filter(day => day >= 1 && day <= 31).sort((a,b) => a - b); if (updates.dueDay) updates.dueDay = Number(updates.dueDay); if (updates.dueDays?.length) updates.dueDay = updates.dueDays[0]; if (!['Daily','Weekly','Monthly','BiMonthly','Quarterly','Yearly'].includes(updates.frequency)) delete updates.frequency; if (updates.frequency === 'BiMonthly' && (!updates.dueDays || updates.dueDays.length < 2)) return res.status(400).json({ error:'Select two bi-monthly dates.' }); if (updates.interestType) updates.interestType = updates.interestType === 'floating' ? 'floating' : 'fixed'; for (const field of ['amount','originalAmount','remainingPrincipal','annualRate','amountInvestedToDate','currentValue','amountWithdrawn','expectedAnnualRate','projectionMonths']) if (updates[field] !== undefined && updates[field] !== null && updates[field] !== '') updates[field] = Number(updates[field]); const result = await database.collection('schedules').findOneAndUpdate({ id:req.params.id, ownerId:req.user.id }, { $set:updates }, { returnDocument:'after', projection:{ _id:0, ownerId:0 } }); res.json(result.value || result); } catch (error) { res.status(500).json({ error:error.message }); } });
+app.put('/api/schedules/:id', requireAuth, async (req, res) => {
+  try {
+    const database = await ensureDatabase();
+    const schedules = database.collection('schedules');
+    const existing = await schedules.findOne({ id:req.params.id, ownerId:req.user.id });
+    if (!existing) return res.status(404).json({ error:'Schedule not found' });
+    const updates = { ...req.body };
+    if ('expenseReason' in updates) updates.expenseReason = cleanExpenseReason(updates.expenseReason);
+    if (updates.endDate === '') updates.endDate = null;
+    if (updates.investmentValuationDate === '') updates.investmentValuationDate = null;
+    if (updates.projectionEndDate === '') updates.projectionEndDate = null;
+    if ('loanClosed' in updates) {
+      if (existing.type !== 'loan') return res.status(400).json({ error:'Only loan schedules can be closed.' });
+      updates.loanClosed = updates.loanClosed === true;
+      updates.loanClosedAt = updates.loanClosed ? (/^\d{4}-\d{2}-\d{2}$/.test(String(updates.loanClosedAt || '')) ? updates.loanClosedAt : localDate()) : null;
+    } else {
+      delete updates.loanClosedAt;
+    }
+    if (Array.isArray(updates.dueDays)) updates.dueDays = updates.dueDays.map(Number).filter(day => day >= 1 && day <= 31).sort((a,b) => a - b);
+    if (updates.dueDay) updates.dueDay = Number(updates.dueDay);
+    if (updates.dueDays?.length) updates.dueDay = updates.dueDays[0];
+    if (!['Daily','Weekly','Monthly','BiMonthly','Quarterly','Yearly'].includes(updates.frequency)) delete updates.frequency;
+    if (updates.frequency === 'BiMonthly' && (!updates.dueDays || updates.dueDays.length < 2)) return res.status(400).json({ error:'Select two bi-monthly dates.' });
+    if (updates.interestType) updates.interestType = updates.interestType === 'floating' ? 'floating' : 'fixed';
+    for (const field of ['amount','originalAmount','remainingPrincipal','annualRate','amountInvestedToDate','currentValue','amountWithdrawn','expectedAnnualRate','projectionMonths']) if (updates[field] !== undefined && updates[field] !== null && updates[field] !== '') updates[field] = Number(updates[field]);
+    const result = await schedules.findOneAndUpdate({ id:req.params.id, ownerId:req.user.id }, { $set:updates }, { returnDocument:'after', projection:{ _id:0, ownerId:0 } });
+    res.json(result.value || result);
+  } catch (error) { res.status(500).json({ error:error.message }); }
+});
 app.get('/api/schedules/:id', requireAuth, async (req, res) => { try { const database = await ensureDatabase(); const schedule = await database.collection('schedules').findOne({ id:req.params.id, ownerId:req.user.id }, { projection:{ _id:0, ownerId:0 } }); if (!schedule) return res.status(404).json({ error:'Schedule not found' }); res.json(schedule); } catch (error) { res.status(500).json({ error:error.message }); } });
 app.delete('/api/schedules/:id', requireAuth, async (req, res) => { try { const database = await ensureDatabase(); const result = await database.collection('schedules').deleteOne({ id:req.params.id, ownerId:req.user.id }); if (!result.deletedCount) return res.status(404).json({ error:'Schedule not found' }); res.json({ ok:true }); } catch (error) { res.status(500).json({ error:error.message }); } });
 
-app.get(['/dashboard', '/transactions', '/credit-card', '/calendar', '/schedule', '/settings', '/outflow', '/investments', '/insights', '/profile', '/guide', '/habits', '/habit-insights', '/habit-manage', '/habit-checkins', '/timeline'], (_req, res) => {
+app.get(['/dashboard', '/transactions', '/credit-card', '/calendar', '/schedule', '/settings', '/outflow', '/investments', '/insights', '/profile', '/admin', '/guide', '/habits', '/habit-insights', '/habit-manage', '/habit-checkins', '/timeline'], (_req, res) => {
   res.setHeader('Cache-Control', 'no-store');
   res.sendFile(path.join(__dirname, 'index.html'));
 });

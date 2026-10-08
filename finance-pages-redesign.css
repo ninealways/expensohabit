@@ -83,13 +83,15 @@
 .schedule-tab-icon { width:27px;height:27px;display:grid;place-items:center; }
 .schedule-tab-icon .rich-icon { width:25px;height:25px; }
 .schedule-tab.active .schedule-tab-icon .rich-icon { filter:brightness(0) invert(1); }
-.schedule-page .schedule-grid { gap:11px; }
+.schedule-page .schedule-grid { gap:11px;align-items:start; }
 .schedule-plan-card {
   min-height:0;
-  padding:13px;
+  padding:15px;
   border-radius:17px;
   background:linear-gradient(145deg,#fff,#fdfcff);
+  box-shadow:0 12px 28px rgba(43,42,95,.055);
 }
+.schedule-plan-card.closed { border-color:#cceee5;background:linear-gradient(145deg,#fff,#f5fcfa); }
 .schedule-plan-header { display:grid;grid-template-columns:45px minmax(0,1fr) auto;gap:10px;align-items:center; }
 .schedule-plan-icon,
 .investment-position-icon {
@@ -104,18 +106,45 @@
 }
 .schedule-plan-icon .rich-icon,
 .investment-position-icon .rich-icon { width:36px;height:36px; }
+.schedule-plan-icon.closed-icon { border-color:#c8eee4;background:linear-gradient(145deg,#e4fbf4,#f7fffc); }
 .schedule-plan-copy { min-width:0;margin:0; }
 .schedule-plan-card h4 { color:var(--ink);font-size:14px;font-weight:850; }
-.schedule-plan-card p { margin:5px 0 0;font-size:9.5px;line-height:1.45; }
-.schedule-plan-footer { display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:11px; }
-.schedule-plan-amount { min-width:128px;padding:9px 11px;border:1px solid #efedf7;border-radius:12px;background:#faf9fd; }
+.schedule-plan-card p { margin:5px 0 0;font-size:10px;line-height:1.45; }
+.schedule-status-pill { padding:6px 9px;border-radius:999px;background:#f2efff;color:#7650e8;font-size:8.5px;font-weight:850;white-space:nowrap; }
+.schedule-status-pill.closed { background:#dcf8ef;color:#078c70; }
+.schedule-status-pill.archived { background:#eef0f6;color:#7d869e; }
+.schedule-plan-body { display:grid;grid-template-columns:minmax(125px,.55fr) minmax(0,1fr);gap:8px;margin-top:11px; }
+.schedule-plan-amount,
+.schedule-plan-next { min-width:0;padding:10px 11px;border:1px solid #efedf7;border-radius:12px;background:#faf9fd; }
 .schedule-plan-amount small,
-.schedule-plan-amount strong { display:block; }
-.schedule-plan-amount small { color:#8490ad;font-size:7.5px;font-weight:850;text-transform:uppercase;letter-spacing:.04em; }
+.schedule-plan-amount strong,
+.schedule-plan-next small,
+.schedule-plan-next strong { display:block; }
+.schedule-plan-amount small,
+.schedule-plan-next small { color:#8490ad;font-size:7.5px;font-weight:850;text-transform:uppercase;letter-spacing:.04em; }
 .schedule-plan-amount strong { margin-top:4px;color:var(--ink);font-size:19px;line-height:1; }
-.schedule-plan-card .schedule-summary { margin-top:10px;border:1px solid #eeeaf8;background:#faf8ff; }
+.schedule-plan-next strong { margin-top:5px;overflow:hidden;color:#4e5b7e;font-size:9.5px;line-height:1.35;text-overflow:ellipsis;white-space:nowrap; }
+.schedule-plan-insight { display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px;margin-top:9px;padding:9px;border:1px solid #eeeaf8;border-radius:13px;background:#faf8ff; }
+.schedule-plan-insight > div { min-width:0;padding:2px 3px; }
+.schedule-plan-insight small,
+.schedule-plan-insight b { display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
+.schedule-plan-insight small { color:#8490ad;font-size:7.5px;font-weight:800; }
+.schedule-plan-insight b { margin-top:4px;color:var(--ink);font-size:10px; }
+.schedule-plan-insight b.positive { color:#078c70; }
+.schedule-plan-insight b.negative { color:#d34d61; }
+.investment-insight { border-color:#dff4ee;background:#f4fcf9; }
+.schedule-closed-note { display:flex;align-items:center;gap:9px;margin-top:9px;padding:9px 10px;border:1px solid #cceee5;border-radius:13px;background:#effbf7; }
+.schedule-closed-note > span { width:30px;height:30px;display:grid;place-items:center;border-radius:10px;background:#fff; }
+.schedule-closed-note .rich-icon { width:27px;height:27px; }
+.schedule-closed-note b,
+.schedule-closed-note small { display:block; }
+.schedule-closed-note b { color:#087e68;font-size:10px; }
+.schedule-closed-note small { margin-top:2px;color:#66877f;font-size:8px; }
+.schedule-plan-footer { display:flex;align-items:center;justify-content:flex-end;gap:12px;margin-top:10px;padding-top:10px;border-top:1px solid #f0eef7; }
 .schedule-plan-card .schedule-actions { justify-content:flex-end;margin:0;padding:0; }
 .schedule-plan-card .mini-button { padding:7px 9px;font-size:8.5px; }
+.schedule-plan-card .mini-button.close-loan { color:#078c70;background:#e1f8f1; }
+.schedule-plan-card .mini-button.reopen { color:#157b9b;background:#e5f6fb; }
 
 /* Investments */
 .investments-page .investment-tabs { width:min(470px,100%);max-width:none;margin:0; }
@@ -209,6 +238,8 @@
   .finance-page-hero .primary-button { width:100%; }
   .schedule-workspace .schedule-tabs { grid-template-columns:1fr; }
   .schedule-workspace .schedule-tab { justify-content:flex-start; }
+  .schedule-plan-body { grid-template-columns:1fr; }
+  .schedule-plan-insight { grid-template-columns:repeat(2,minmax(0,1fr)); }
   .schedule-plan-footer { align-items:stretch;flex-direction:column; }
   .schedule-plan-amount { min-width:0; }
   .schedule-plan-card .schedule-actions { justify-content:flex-start; }

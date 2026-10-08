@@ -32,6 +32,8 @@ let habitSleepRange = 'daily';
 let habitActivityRange = 'last7';
 let mobileStartupTransactionModalOpened = false;
 let expenseReasonModalTrigger = null;
+let adminDirectoryState = null;
+let adminDirectoryFilter = { search:'', status:'all', sort:'joined', page:1 };
 
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => [...document.querySelectorAll(selector)];
@@ -412,11 +414,13 @@ function updateAccountAvatar() {
     button.setAttribute('aria-label', `Open account menu for ${displayName()}`);
     button.title = displayName();
   }
+  const adminMenuItem = $('#adminMenuItem');
+  if (adminMenuItem) adminMenuItem.hidden = !currentUser?.isAdmin;
 }
 function dashboardGreeting() { return `Good morning, ${displayName()} <span class="title-icon">${richIcon('insights')}</span>`; }
 function setAuthMode(mode) { authMode=mode; const isLogin=mode==='login'; $('#authTitle').textContent=isLogin?'Welcome back':'Create your account'; $('#authSubmit').textContent=isLogin?'Sign in':'Create account'; $('#authToggle').textContent=isLogin?'Create a new account':'I already have an account'; $('#authPassword').autocomplete=isLogin?'current-password':'new-password'; $('#authNameRow').hidden=isLogin; $('#authName').required=!isLogin; $('#inviteCodeRow').hidden=isLogin; $('#inviteCode').required=!isLogin; $('#authError').textContent=''; }
 async function submitAuth(event) { event.preventDefault(); const payload={ email:$('#authEmail').value, password:$('#authPassword').value }; if (authMode === 'register') { payload.name = $('#authName').value; payload.inviteCode = $('#inviteCode').value; } try { currentUser = authMode === 'login' ? await window.ExpensoAuth.login(payload) : await window.ExpensoAuth.register(payload); } catch (error) { $('#authError').textContent = error.message || 'Authentication failed'; return; } await syncPendingTransactions({ silent:true, skipReload:true }); await loadData(); updateCategoryOptions(); renderDashboard(); navigate(window.ExpensoRouter.pageFromLocation(), false); showAppShell(); maybeOpenMobileStartupTransactionModal(); toast(authMode==='login'?'Signed in':'Account created'); }
-async function logout() { try { await window.ExpensoAuth.logout(); } catch (error) { toast(error.message || 'Could not log out'); return; } currentUser = null; data = { transactions: [], schedules: [], categories: [], habits: [], habitLogs: [], stockTrades: [], creditCards: [], notes: [], timelineEvents: [], settings:defaultSettings }; $('#authForm').reset(); setAuthMode('login'); history.pushState({ page:'dashboard' }, '', '/dashboard'); showAuthGate(); toast('Logged out'); }
+async function logout() { try { await window.ExpensoAuth.logout(); } catch (error) { toast(error.message || 'Could not log out'); return; } currentUser = null; adminDirectoryState = null; data = { transactions: [], schedules: [], categories: [], habits: [], habitLogs: [], stockTrades: [], creditCards: [], notes: [], timelineEvents: [], settings:defaultSettings }; $('#authForm').reset(); setAuthMode('login'); history.pushState({ page:'dashboard' }, '', '/dashboard'); showAuthGate(); toast('Logged out'); }
 
 function totals() {
   const transactions = dashboardMonthTransactions();
@@ -672,7 +676,7 @@ function renderCategories(view = dashboardView) {
 }
 
 function nextScheduleOccurrence(schedule, afterKey = today()) {
-  if (schedule.archived === true) return null;
+  if (schedule.archived === true || scheduleLoanIsClosed(schedule, afterKey)) return null;
   const after = dateFromKey(afterKey);
   const start = dateFromKey(schedule.startDate || afterKey);
   const end = schedule.endDate ? dateFromKey(schedule.endDate) : null;
@@ -784,7 +788,7 @@ function scheduleSummary(schedule) { if (schedule.type === 'expense') return '';
 
 function activeCreditCards() { return (data.creditCards || []).filter(card => card.active !== false).sort((a, b) => (a.name || '').localeCompare(b.name || '')); }
 function cleanPaymentMode(mode) { return ['cash', 'bank', 'upi', 'credit_card', 'mixed'].includes(mode) ? mode : 'upi'; }
-function cleanExpenseReason(reason) { return ['essential','planned','impulse','recurring','emergency','gift','other'].includes(reason) ? reason : ''; }
+function cleanExpenseReason(reason) { return ['essential','planned','holiday','impulse','recurring','emergency','gift','other'].includes(reason) ? reason : ''; }
 function updateCreditCardSourceOptions(selectedId = '') {
   const select = $('#creditCardSourceInput');
   if (!select) return;
@@ -865,10 +869,15 @@ async function addTransaction(event) {
 }
 
 function toast(message) { const el = $('#toast'); el.textContent = message; el.classList.add('show'); setTimeout(() => el.classList.remove('show'), 2400); }
-const pageTitles = { transactions:'Your transactions', creditCard:'Credit cards', calendar:'Spend calendar', schedule:'Plan your payments', outflow:'Outflow report', investments:'Investments', insights:'Spend insights', profile:'Profile', settings:'Keep your data yours', guide:'App guide', habits:'Habit tracker', habitManage:'Manage habits', habitCheckins:'Habit check-ins', timeline:'Personal timeline' };
+const pageTitles = { transactions:'Your transactions', creditCard:'Credit cards', calendar:'Spend calendar', schedule:'Plan your payments', outflow:'Outflow report', investments:'Investments', insights:'Spend insights', profile:'Profile', admin:'User management', settings:'Keep your data yours', guide:'App guide', habits:'Habit tracker', habitManage:'Manage habits', habitCheckins:'Habit check-ins', timeline:'Personal timeline' };
 
 function navigate(page, updateUrl = true) {
   if (page === 'habitInsights') page = 'habits';
+  if (page === 'admin' && !currentUser?.isAdmin) {
+    page = 'profile';
+    if (updateUrl) toast('Administrator access is required');
+    else if (window.location.pathname === '/admin') window.history.replaceState({ page:'profile' }, '', '/profile');
+  }
   transactionOpenMultiFilter = '';
   activePage = page; activeWorkspace = page === 'timeline' ? 'timeline' : ['habits','habitManage','habitCheckins'].includes(page) ? 'habits' : 'expense'; if (updateUrl) window.ExpensoRouter.push(page); document.body.classList.toggle('dashboard-mode', page === 'dashboard'); document.body.classList.toggle('habits-mode', activeWorkspace === 'habits'); document.body.classList.toggle('timeline-mode', activeWorkspace === 'timeline'); $$('.nav-item').forEach(item => item.classList.toggle('active', item.dataset.page === page)); $$('[data-workspace]').forEach(item => item.classList.toggle('active', item.dataset.workspace === activeWorkspace));
   const dashboardSections = $$('.hero-row,.summary-grid,.view-switch-row,.content-grid,.bottom-grid'); const subPage = $('#subPageView');
@@ -877,7 +886,7 @@ function navigate(page, updateUrl = true) {
   if (page === 'habitCheckins') { dashboardSections.forEach(section => section.hidden = true); subPage.hidden = false; subPage.innerHTML = renderHabitCheckinsPage(); initializeDatePickers(subPage); return; }
   if (page === 'timeline') { dashboardSections.forEach(section => section.hidden = true); subPage.hidden = false; subPage.innerHTML = renderTimelinePage(); $('#pageTitle').textContent = pageTitles.timeline; return; }
   if (page === 'dashboard') { dashboardSections.forEach(section => section.hidden = false); subPage.hidden = true; $('#pageTitle').innerHTML = dashboardGreeting(); return; }
-  dashboardSections.forEach(section => section.hidden = true); subPage.hidden = false; subPage.innerHTML = renderSubPage(page); $('#pageTitle').textContent = pageTitles[page] || pageTitles.settings; initializeDatePickers(subPage);
+  dashboardSections.forEach(section => section.hidden = true); subPage.hidden = false; subPage.innerHTML = renderSubPage(page); $('#pageTitle').textContent = pageTitles[page] || pageTitles.settings; initializeDatePickers(subPage); if (page === 'admin') loadAdminDirectory();
 }
 
 function renderSubPage(page) {
@@ -890,6 +899,7 @@ function renderSubPage(page) {
   if (page === 'insights') return renderInsightsPage();
   if (page === 'timeline') return renderTimelinePage();
   if (page === 'profile') return renderProfilePage();
+  if (page === 'admin') return renderAdminPage();
   if (page === 'guide') return renderGuidePage();
   return renderSettingsPage();
 }
@@ -1399,6 +1409,46 @@ $('#subPageView').addEventListener('change', async event => {
   applyTransactionFiltersFromForm(form);
 });
 $('#subPageView').addEventListener('input', event => { const form = event.target.closest('#transactionFilters'); if (!form || event.target.name !== 'search') return; clearTimeout(transactionFilterTimer); transactionFilterTimer = setTimeout(() => applyTransactionFiltersFromForm(form, transactionFilter.mode || 'thisMonth', { resultsOnly:true }), 250); });
+$('#subPageView').addEventListener('input', event => {
+  if (event.target.id !== 'adminUserSearch') return;
+  adminDirectoryFilter.search = event.target.value;
+  adminDirectoryFilter.page = 1;
+  refreshAdminUserResults();
+});
+$('#subPageView').addEventListener('change', event => {
+  if (event.target.id === 'adminUserStatus') adminDirectoryFilter.status = event.target.value;
+  else if (event.target.id === 'adminUserSort') adminDirectoryFilter.sort = event.target.value;
+  else return;
+  adminDirectoryFilter.page = 1;
+  refreshAdminUserResults();
+});
+$('#subPageView').addEventListener('click', async event => {
+  const target = event.target.closest('[data-action="toggle-admin-user"],[data-action="admin-page"],[data-action="reload-admin-users"]');
+  if (!target) return;
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  if (target.dataset.action === 'admin-page') {
+    adminDirectoryFilter.page = Number(target.dataset.page) || 1;
+    refreshAdminUserResults();
+    return;
+  }
+  if (target.dataset.action === 'reload-admin-users') {
+    adminDirectoryState = null;
+    $('#subPageView').innerHTML = renderAdminPage();
+    await loadAdminDirectory();
+    return;
+  }
+  const user = adminDirectoryState?.users?.find(item => item.id === target.dataset.id);
+  if (!user) return;
+  const isActive = target.dataset.nextActive === 'true';
+  if (!isActive && !window.confirm(`Deactivate ${user.name || user.email}? They will be signed out and asked to contact the administrator.`)) return;
+  target.disabled = true;
+  const response = await fetch(`/api/admin/users/${encodeURIComponent(user.id)}/status`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ isActive }) });
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok) { target.disabled = false; toast(result.error || 'Could not update user access'); return; }
+  await loadAdminDirectory();
+  toast(isActive ? 'User activated' : 'User deactivated');
+}, true);
 $('#habitCheckinForm').addEventListener('change', event => {
   if (event.target.name === 'date') {
     habitCheckinDate = event.target.value || today();
@@ -1444,6 +1494,25 @@ $('#subPageView').addEventListener('click', async event => {
   const timelineEvent = (data.timelineEvents || []).find(item => item.id === target.dataset.id);
   if (target.dataset.timelineAction === 'edit' && timelineEvent) { openTimelineEventModal(timelineEvent); return; }
   if (target.dataset.timelineAction === 'delete') await deleteTimelineEvent(target.dataset.id);
+}, true);
+$('#subPageView').addEventListener('click', async event => {
+  const target = event.target.closest('[data-action="toggle-loan-closed"]');
+  if (!target) return;
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  const schedule = data.schedules.find(item => item.id === target.dataset.id && item.type === 'loan');
+  if (!schedule) return;
+  const loanClosed = target.dataset.closed !== 'true';
+  const response = await fetch(`/api/schedules/${schedule.id}`, {
+    method:'PUT',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({ loanClosed, loanClosedAt:loanClosed ? today() : null })
+  });
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok) { toast(result.error || `Could not ${loanClosed ? 'close' : 'reopen'} loan`); return; }
+  await loadData();
+  navigate('schedule', false);
+  toast(loanClosed ? 'Loan marked closed' : 'Loan reopened');
 }, true);
 $('#subPageView').addEventListener('click', async event => {
   const target = event.target.closest('[data-action="toggle-schedule-archive"],[data-action="confirm-delete-schedule"]');
@@ -1572,7 +1641,7 @@ async function bootstrap() {
   showBootGate();
   try {
     const auth = await checkAuth();
-    if (!auth.authenticated) { showAuthGate(); return; }
+    if (!auth.authenticated) { showAuthGate(); if (auth.error) $('#authError').textContent = auth.error; return; }
     currentUser = auth.user;
     await syncPendingTransactions({ silent:true, skipReload:true });
     await loadData();

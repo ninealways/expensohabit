@@ -116,6 +116,7 @@ function transactionPaymentLabel(transaction) {
 const transactionReasonLabels = {
   essential:'Essential',
   planned:'Planned purchase',
+  holiday:'Holiday',
   impulse:'Impulse purchase',
   recurring:'Recurring commitment',
   emergency:'Emergency',
