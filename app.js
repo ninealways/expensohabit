@@ -9,6 +9,7 @@ let editingCreditCardId = null;
 let stockTradeSeed = null;
 let dashboardView = 'all';
 let paceMonth = '';
+let paceChartOverlays = { previous:true, average:false };
 let currentUser = null;
 let insightFilter = { mode:'thisMonth' };
 let insightPageTab = 'spend';
@@ -523,7 +524,36 @@ function renderDashboard() {
   $('#categoryPanelSubtitle').textContent = realMode
     ? 'Day-to-day expense categories only.'
     : 'Where your money goes this month.';
-  renderCategories(dashboardView); renderUpcoming(); renderHomeVelocity();
+  renderDashboardForecast(); renderCategories(dashboardView); renderUpcoming(); renderHomeVelocity();
+}
+
+function paceRealTransactions(month, throughDay = 31) {
+  return (data.transactions || []).filter(transaction => transaction.type === 'expense' && transaction.includeInReal !== false && transaction.date?.startsWith(`${month}-`) && Number(transaction.date.slice(8, 10)) <= throughDay);
+}
+
+function paceDailySeries(month, outputDays, throughDay = outputDays) {
+  const totals = Array.from({ length:outputDays }, () => 0);
+  paceRealTransactions(month, throughDay).forEach(transaction => {
+    const day = Number(transaction.date.slice(8, 10));
+    if (day >= 1 && day <= outputDays) totals[day - 1] += Number(transaction.amount || 0);
+  });
+  let running = 0;
+  return { totals, cumulative:[0, ...totals.map(amount => (running += amount))], total:running };
+}
+
+function paceUpcomingCommitments(month, cutoffDay) {
+  const cutoffKey = `${month}-${String(cutoffDay).padStart(2, '0')}`;
+  return (data.schedules || []).flatMap(schedule => {
+    if (schedule.type !== 'expense' || schedule.archived === true || typeof dashboardScheduleDatesInMonth !== 'function') return [];
+    return dashboardScheduleDatesInMonth(schedule, month).filter(date => date > cutoffKey && !(schedule.skippedMonths || []).includes(date)).filter(date => !(data.transactions || []).some(transaction => transaction.scheduleId === schedule.id && (transaction.periodKey === date || transaction.date === date))).map(date => ({ schedule, date, day:Number(date.slice(8, 10)), amount:Number(schedule.amount || 0) }));
+  }).sort((a, b) => a.date.localeCompare(b.date));
+}
+
+function paceCategoryDriver(month, previousMonth, throughDay) {
+  const categoryTotals = rows => rows.reduce((totals, row) => { const key = row.category || 'Other'; totals[key] = (totals[key] || 0) + Number(row.amount || 0); return totals; }, {});
+  const current = categoryTotals(paceRealTransactions(month, throughDay));
+  const previous = categoryTotals(paceRealTransactions(previousMonth, Math.min(throughDay, dashboardForecastMonthDays(previousMonth))));
+  return [...new Set([...Object.keys(current), ...Object.keys(previous)])].map(category => ({ category, delta:(current[category] || 0) - (previous[category] || 0) })).sort((a, b) => b.delta - a.delta)[0] || null;
 }
 
 function renderHomeVelocity() {
@@ -539,44 +569,87 @@ function renderHomeVelocity() {
   const [year, monthNumber] = paceMonth.split('-').map(Number);
   const monthDays = new Date(year, monthNumber, 0).getDate();
   const isCurrent = paceMonth === thisMonth;
-  const elapsedDays = isCurrent ? now.getDate() : monthDays;
+  const elapsedDays = isCurrent ? Math.min(now.getDate(), monthDays) : monthDays;
+  const remainingDays = Math.max(0, monthDays - elapsedDays);
   const targetBudget = budgetForMonth(paceMonth);
-  const dailyTotals = Array.from({ length:elapsedDays }, () => 0);
-  data.transactions.forEach(transaction => {
-    if (transaction.type !== 'expense' || transaction.includeInReal === false || !transaction.date?.startsWith(`${paceMonth}-`)) return;
-    const day = Number(transaction.date.slice(8, 10));
-    if (day >= 1 && day <= elapsedDays) dailyTotals[day - 1] += Number(transaction.amount || 0);
-  });
-  let running = 0;
-  const actual = [0, ...dailyTotals.map(amount => (running += amount))];
-  const realSpend = running;
-  const budget = Array.from({ length:elapsedDays + 1 }, (_, day) => targetBudget * day / monthDays);
+  const currentSeries = paceDailySeries(paceMonth, monthDays, elapsedDays);
+  const actual = currentSeries.cumulative.slice(0, elapsedDays + 1);
+  const realSpend = currentSeries.total;
+  const budget = Array.from({ length:monthDays + 1 }, (_, day) => targetBudget * day / monthDays);
   const budgetToDate = budget[elapsedDays];
   const difference = realSpend - budgetToDate;
-  const projected = isCurrent ? realSpend / Math.max(1, elapsedDays) * monthDays : realSpend;
+  const rawProjection = isCurrent ? realSpend / Math.max(1, elapsedDays) * monthDays : realSpend;
+  const commitments = isCurrent ? paceUpcomingCommitments(paceMonth, elapsedDays) : [];
+  const scheduledRemaining = commitments.reduce((sum, item) => sum + item.amount, 0);
+  const projected = isCurrent ? Math.max(rawProjection, realSpend + scheduledRemaining) : realSpend;
+  const safeToSpend = Math.max(0, targetBudget - realSpend - scheduledRemaining);
+  const dailyAllowance = remainingDays ? safeToSpend / remainingDays : 0;
+  const projectedDelta = projected - targetBudget;
   const usedPercent = targetBudget > 0 ? Math.round(realSpend / targetBudget * 100) : 0;
   const elapsedPercent = Math.round(elapsedDays / monthDays * 100);
-  const width = 700, height = 230, left = 51, right = 16, top = 17, bottom = 195;
-  const chartMax = Math.max(1, Math.max(realSpend, budgetToDate) * 1.18);
-  const x = day => left + (width - left - right) * day / Math.max(1, elapsedDays);
+  const previousMonth = dashboardForecastShiftMonth(paceMonth, -1);
+  const previousSeries = paceDailySeries(previousMonth, monthDays, dashboardForecastMonthDays(previousMonth));
+  const previousThroughDay = previousSeries.cumulative[Math.min(elapsedDays, previousSeries.cumulative.length - 1)] || 0;
+  const previousDifference = realSpend - previousThroughDay;
+  const averageMonths = Array.from({ length:3 }, (_, index) => dashboardForecastShiftMonth(paceMonth, -(index + 1)));
+  const averageSeries = Array.from({ length:monthDays + 1 }, (_, day) => {
+    const values = averageMonths.map(month => {
+      const series = paceDailySeries(month, dashboardForecastMonthDays(month), dashboardForecastMonthDays(month)).cumulative;
+      return series[Math.min(day, series.length - 1)] || 0;
+    });
+    return values.reduce((sum, value) => sum + value, 0) / values.length;
+  });
+  const status = !targetBudget ? { key:'neutral', label:'Set a budget' } : projected > targetBudget * 1.05 ? { key:'over', label:'Over pace' } : projected > targetBudget || difference > targetBudget * .05 ? { key:'watch', label:'Watch closely' } : { key:'on-track', label:'On track' };
+  const driver = paceCategoryDriver(paceMonth, previousMonth, elapsedDays);
+  const recoveryAllowance = remainingDays ? Math.max(0, targetBudget - realSpend - scheduledRemaining) / remainingDays : 0;
+  const monthNameLabel = new Date(year, monthNumber - 1, 1).toLocaleDateString('en-IN', { month:'long' });
+  const previousLabel = new Date(`${previousMonth}-01T00:00:00`).toLocaleDateString('en-IN', { month:'short' });
+  const insightText = !isCurrent
+    ? `${monthNameLabel} finished ${money(Math.abs(realSpend - targetBudget))} ${realSpend > targetBudget ? 'over' : 'under'} target${previousDifference ? ` and ${money(Math.abs(previousDifference))} ${previousDifference > 0 ? 'above' : 'below'} ${previousLabel}` : ''}.`
+    : projectedDelta > 0
+      ? `Keep new spending below ${money(recoveryAllowance)} per day to limit the overrun.${driver?.delta > 0 ? ` ${driver.category} is ${money(driver.delta)} higher than ${previousLabel}.` : ''}`
+      : scheduledRemaining
+        ? `After ${money(scheduledRemaining)} in upcoming commitments, you can spend about ${money(dailyAllowance)} per remaining day.${driver?.delta > 0 ? ` ${driver.category} is the largest increase versus ${previousLabel}.` : ''}`
+        : `You can spend about ${money(dailyAllowance)} per remaining day and stay within target.${driver?.delta > 0 ? ` Watch ${driver.category}, up ${money(driver.delta)} versus ${previousLabel}.` : ''}`;
+  const width = 700, height = 238, left = 53, right = 16, top = 22, bottom = 199;
+  const visibleComparisonValues = [targetBudget, realSpend, projected, ...(paceChartOverlays.previous ? previousSeries.cumulative : []), ...(paceChartOverlays.average ? averageSeries : [])];
+  const chartMax = Math.max(1, ...visibleComparisonValues) * 1.12;
+  const x = day => left + (width - left - right) * day / Math.max(1, monthDays);
   const y = value => bottom - value / chartMax * (bottom - top);
-  const path = values => values.map((value, day) => `${day ? 'L' : 'M'}${x(day).toFixed(1)} ${y(value).toFixed(1)}`).join(' ');
+  const path = (values, limit = values.length - 1) => values.slice(0, limit + 1).map((value, day) => `${day ? 'L' : 'M'}${x(day).toFixed(1)} ${y(value).toFixed(1)}`).join(' ');
   const grid = Array.from({ length:4 }, (_, index) => {
     const value = chartMax * index / 3;
     return `<line class="pace-cumulative-grid" x1="${left}" x2="${width - right}" y1="${y(value).toFixed(1)}" y2="${y(value).toFixed(1)}"/><text class="pace-cumulative-axis" x="4" y="${(y(value) + 4).toFixed(1)}">${compactMoney(value)}</text>`;
   }).join('');
-  const tickDays = [...new Set([1, Math.ceil(elapsedDays / 2), elapsedDays])];
-  const ticks = tickDays.map(day => `<text class="pace-cumulative-axis" x="${x(day).toFixed(1)}" y="222" text-anchor="${day === elapsedDays ? 'end' : day === 1 ? 'start' : 'middle'}">${day} ${new Date(year, monthNumber - 1, 1).toLocaleDateString('en-IN', { month:'short' })}</text>`).join('');
-  const monthNameLabel = new Date(year, monthNumber - 1, 1).toLocaleDateString('en-IN', { month:'long' });
-  const differenceLabel = difference > 0 ? `${money(difference)} over budget${isCurrent ? ' to date' : ''}` : `${money(Math.abs(difference))} ${isCurrent ? 'below budget to date' : 'under budget'}`;
+  const tickDays = [...new Set([1, Math.ceil(monthDays / 2), monthDays])];
+  const ticks = tickDays.map(day => `<text class="pace-cumulative-axis" x="${x(day).toFixed(1)}" y="229" text-anchor="${day === monthDays ? 'end' : day === 1 ? 'start' : 'middle'}">${day} ${new Date(year, monthNumber - 1, 1).toLocaleDateString('en-IN', { month:'short' })}</text>`).join('');
+  const nonZeroDaily = currentSeries.totals.slice(0, elapsedDays).filter(Boolean);
+  const averageActiveDay = nonZeroDaily.length ? nonZeroDaily.reduce((sum, value) => sum + value, 0) / nonZeroDaily.length : 0;
+  const spikeThreshold = Math.max(targetBudget / monthDays * 1.5, averageActiveDay * 1.6);
+  const spikes = currentSeries.totals.slice(0, elapsedDays).map((amount, index) => ({ day:index + 1, amount })).filter(item => item.amount > spikeThreshold).sort((a, b) => b.amount - a.amount).slice(0, 4);
+  const spikeMarkers = spikes.map(item => `<circle class="pace-spike-marker" data-pace-day="${item.day}" cx="${x(item.day).toFixed(1)}" cy="${y(actual[item.day]).toFixed(1)}" r="6"><title>${item.day} ${monthNameLabel}: ${money(item.amount)} spent — open transactions</title></circle>`).join('');
+  const commitmentMarkers = commitments.map((item, index) => `<g class="pace-commitment-marker" transform="translate(${x(item.day).toFixed(1)} ${top + 2 + index % 2 * 9})"><line y1="0" y2="13"/><circle cy="0" r="4"/><title>${item.day} ${monthNameLabel}: ${esc(item.schedule.subcategory || item.schedule.category)} ${money(item.amount)} due</title></g>`).join('');
+  const differenceLabel = difference > 0 ? `${money(difference)} over pace to date` : `${money(Math.abs(difference))} below pace to date`;
   const panel = target.closest('.home-velocity-panel');
-  panel?.classList.toggle('pace-over', difference > 0);
-  panel?.classList.toggle('pace-under', difference <= 0);
-  const tooltipPoints = dailyTotals.map((_, index) => `<circle class="pace-cumulative-hit" cx="${x(index + 1).toFixed(1)}" cy="${y(actual[index + 1]).toFixed(1)}" r="8"><title>${index + 1} ${monthNameLabel}: ${money(actual[index + 1])} spent · ${money(budget[index + 1])} budget to date</title></circle>`).join('');
-  target.innerHTML = `<div class="pace-runway-head"><div><span>Real spend ${isCurrent ? 'so far' : 'in ' + monthNameLabel}</span><strong>${money(realSpend)}</strong><small>of ${money(targetBudget)} monthly target</small></div><div class="pace-runway-used"><strong>${usedPercent}% used</strong><span>${isCurrent ? `${elapsedPercent}% of month elapsed` : 'Full month'}</span></div></div><div class="pace-runway" role="img" aria-label="${money(realSpend)} spent of ${money(targetBudget)} target, ${usedPercent}% used"><span style="width:${Math.min(100, Math.max(0, usedPercent))}%"></span>${isCurrent ? `<i style="left:${elapsedPercent}%"></i>` : ''}</div><div class="pace-runway-labels"><span>${money(0)}</span><span>${isCurrent ? `Today · ${elapsedDays} ${monthNameLabel}` : `${monthNameLabel} complete`}</span><span>${money(targetBudget)}</span></div><div class="pace-cumulative-heading"><div><h4>Cumulative spending</h4><p>Actual compared with budget ${isCurrent ? 'through today' : 'for the month'}</p></div><span class="pace-cumulative-gap ${difference > 0 ? 'over' : 'under'}">${difference > 0 ? '↑' : '↓'} ${differenceLabel}</span></div><div class="pace-cumulative-chart"><svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Cumulative real expenses ${money(realSpend)} versus budget to date ${money(budgetToDate)} for ${monthNameLabel} ${year}"><defs><linearGradient id="paceAreaGradient" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#9655ff" stop-opacity=".35"/><stop offset="1" stop-color="#9655ff" stop-opacity=".015"/></linearGradient></defs>${grid}<path class="pace-cumulative-area" d="${path(actual)} L${x(elapsedDays).toFixed(1)} ${bottom} L${left} ${bottom}Z"/><path class="pace-cumulative-budget" d="${path(budget)}"/><path class="pace-cumulative-actual" d="${path(actual)}"/>${tooltipPoints}<circle class="pace-cumulative-end" cx="${x(elapsedDays).toFixed(1)}" cy="${y(realSpend).toFixed(1)}" r="5"/>${ticks}</svg></div><div class="pace-cumulative-footer"><div class="pace-cumulative-legend"><span><i class="actual"></i>Actual spend</span><span><i class="budget"></i>Budget to date</span></div><p>${isCurrent ? `At this pace: <b>${money(projected)}</b> projected month-end · <b>${money(Math.abs(projected - targetBudget))} ${projected > targetBudget ? 'over' : 'under'} target</b>` : `Month ended: <b>${money(realSpend)}</b> spent · <b>${money(Math.abs(realSpend - targetBudget))} ${realSpend > targetBudget ? 'over' : 'under'} target</b>`}</p></div>`;
+  panel?.classList.toggle('pace-over', status.key === 'over');
+  panel?.classList.toggle('pace-under', status.key !== 'over');
+  const metrics = isCurrent
+    ? [
+      ['real-expenses', 'Safe to spend', money(safeToSpend), scheduledRemaining ? `after ${money(scheduledRemaining)} still due` : 'remaining monthly budget', safeToSpend > 0 ? 'positive' : 'negative'],
+      ['schedule-overview', 'Daily allowance', money(dailyAllowance), `${remainingDays} day${remainingDays === 1 ? '' : 's'} remaining`, 'purple'],
+      ['insight-pattern', 'Projected finish', money(projected), `${money(Math.abs(projectedDelta))} ${projectedDelta > 0 ? 'over' : 'under'} target`, projectedDelta > 0 ? 'negative' : 'positive'],
+      ['timeline-travel', `Vs ${previousLabel} to date`, `${previousDifference > 0 ? '+' : previousDifference < 0 ? '−' : ''}${money(Math.abs(previousDifference))}`, previousDifference > 0 ? 'spending is higher' : previousDifference < 0 ? 'spending is lower' : 'same spending', previousDifference > 0 ? 'negative' : 'positive']
+    ]
+    : [
+      ['real-expenses', 'Unused budget', money(Math.max(0, targetBudget - realSpend)), realSpend > targetBudget ? `${money(realSpend - targetBudget)} over target` : 'at month end', realSpend > targetBudget ? 'negative' : 'positive'],
+      ['schedule-overview', 'Daily average', money(realSpend / monthDays), `${monthDays}-day month`, 'purple'],
+      ['insight-pattern', 'Final result', money(realSpend), `${usedPercent}% of target used`, realSpend > targetBudget ? 'negative' : 'positive'],
+      ['timeline-travel', `Vs ${previousLabel}`, `${previousDifference > 0 ? '+' : previousDifference < 0 ? '−' : ''}${money(Math.abs(previousDifference))}`, previousDifference > 0 ? 'higher than prior month' : 'lower than prior month', previousDifference > 0 ? 'negative' : 'positive']
+    ];
+  target.innerHTML = `<div class="pace-runway-head"><div><div class="pace-status-line"><span>Real spend ${isCurrent ? 'so far' : 'in ' + monthNameLabel}</span><em class="pace-status ${status.key}">${status.label}</em></div><strong>${money(realSpend)}</strong><small>of ${money(targetBudget)} monthly target</small></div><div class="pace-runway-used"><strong>${usedPercent}% used</strong><span>${isCurrent ? `${elapsedPercent}% of month elapsed` : 'Full month'}</span></div></div><div class="pace-runway" role="img" aria-label="${money(realSpend)} spent of ${money(targetBudget)} target, ${usedPercent}% used"><span style="width:${Math.min(100, Math.max(0, usedPercent))}%"></span>${isCurrent ? `<i style="left:${elapsedPercent}%"></i>` : ''}</div><div class="pace-runway-labels"><span>${money(0)}</span><span>${isCurrent ? `Today · ${elapsedDays} ${monthNameLabel}` : `${monthNameLabel} complete`}</span><span>${money(targetBudget)}</span></div><div class="pace-decision-grid">${metrics.map(([icon, label, value, note, tone]) => `<article class="pace-decision-card ${tone}"><span>${richIcon(icon)}</span><div><small>${label}</small><strong>${value}</strong><p>${note}</p></div></article>`).join('')}</div><div class="pace-cumulative-heading"><div><h4>Cumulative spending</h4><p>Follow your daily path and upcoming commitments.</p></div><div class="pace-heading-actions"><span class="pace-cumulative-gap ${difference > 0 ? 'over' : 'under'}">${difference > 0 ? '↑' : '↓'} ${differenceLabel}</span><div class="pace-overlay-controls" aria-label="Chart comparison lines"><button type="button" data-pace-overlay="previous" aria-pressed="${paceChartOverlays.previous}">Last month</button><button type="button" data-pace-overlay="average" aria-pressed="${paceChartOverlays.average}">3-month avg</button></div></div></div><div class="pace-cumulative-chart"><svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Cumulative real expenses ${money(realSpend)} versus a ${money(targetBudget)} budget for ${monthNameLabel} ${year}"><defs><linearGradient id="paceAreaGradient" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#9655ff" stop-opacity=".35"/><stop offset="1" stop-color="#9655ff" stop-opacity=".015"/></linearGradient></defs>${grid}<path class="pace-cumulative-area" d="${path(actual, elapsedDays)} L${x(elapsedDays).toFixed(1)} ${bottom} L${left} ${bottom}Z"/><path class="pace-cumulative-budget" d="${path(budget, monthDays)}"/>${paceChartOverlays.previous ? `<path class="pace-cumulative-previous" d="${path(previousSeries.cumulative, monthDays)}"/>` : ''}${paceChartOverlays.average ? `<path class="pace-cumulative-average" d="${path(averageSeries, monthDays)}"/>` : ''}<path class="pace-cumulative-actual" d="${path(actual, elapsedDays)}"/>${commitmentMarkers}${spikeMarkers}<circle class="pace-cumulative-end" cx="${x(elapsedDays).toFixed(1)}" cy="${y(realSpend).toFixed(1)}" r="5"/>${ticks}</svg></div><div class="pace-cumulative-footer"><div class="pace-cumulative-legend"><span><i class="actual"></i>Actual spend</span><span><i class="budget"></i>Budget pace</span>${paceChartOverlays.previous ? '<span><i class="previous"></i>Last month</span>' : ''}${paceChartOverlays.average ? '<span><i class="average"></i>3-month avg</span>' : ''}${commitments.length ? '<span><i class="commitment"></i>Upcoming</span>' : ''}</div><p>${isCurrent ? `Commitment-adjusted finish: <b>${money(projected)}</b>` : `Month ended at <b>${money(realSpend)}</b>`}</p></div><div class="pace-action-insight ${status.key}"><span>${richIcon(status.key === 'over' ? 'insight-alert' : 'insight-pattern')}</span><div><b>${isCurrent ? 'Your pace for the rest of the month' : `${monthNameLabel} summary`}</b><p>${insightText}</p></div>${isCurrent ? `<button type="button" data-pace-action="transactions">Review spend →</button>` : ''}</div>`;
   const chart = target.querySelector('.pace-cumulative-chart');
   const svg = chart.querySelector('svg');
-  chart.insertAdjacentHTML('beforeend', '<div class="pace-hover-tooltip" hidden><strong class="pace-hover-date"></strong><span>Actual spend <b class="pace-hover-spend"></b></span><span>Budget to date <b class="pace-hover-budget-value"></b></span></div>');
+  chart.insertAdjacentHTML('beforeend', `<div class="pace-hover-tooltip" hidden><strong class="pace-hover-date"></strong><span>Spent that day <b class="pace-hover-daily"></b></span><span>Actual to date <b class="pace-hover-spend"></b></span><span>Budget pace <b class="pace-hover-budget-value"></b></span>${paceChartOverlays.previous ? '<span>Last month <b class="pace-hover-previous"></b></span>' : ''}${paceChartOverlays.average ? '<span>3-month avg <b class="pace-hover-average"></b></span>' : ''}</div>`);
   const tooltip = chart.querySelector('.pace-hover-tooltip');
   const guide = document.createElementNS('http://www.w3.org/2000/svg', 'line');
   guide.setAttribute('class', 'pace-hover-guide');
@@ -592,37 +665,39 @@ function renderHomeVelocity() {
   };
   const actualMarker = marker('pace-hover-marker pace-hover-actual');
   const budgetMarker = marker('pace-hover-marker pace-hover-budget');
-  // The custom tooltip is immediate and works across the plot, so suppress native title popups.
-  svg.querySelectorAll('.pace-cumulative-hit title').forEach(title => title.remove());
   let activeDay = elapsedDays;
-  const showDay = day => {
+  const showDay = requestedDay => {
+    const day = Math.max(1, Math.min(monthDays, requestedDay));
     activeDay = day;
     const px = x(day);
+    const actualDay = Math.min(day, elapsedDays);
     guide.setAttribute('x1', px);
     guide.setAttribute('x2', px);
-    actualMarker.setAttribute('cx', px);
-    actualMarker.setAttribute('cy', y(actual[day]));
+    actualMarker.setAttribute('cx', x(actualDay));
+    actualMarker.setAttribute('cy', y(actual[actualDay]));
     budgetMarker.setAttribute('cx', px);
     budgetMarker.setAttribute('cy', y(budget[day]));
-    [guide, actualMarker, budgetMarker].forEach(element => element.classList.add('is-visible'));
+    guide.classList.add('is-visible');
+    budgetMarker.classList.add('is-visible');
+    actualMarker.classList.toggle('is-visible', day <= elapsedDays);
     tooltip.querySelector('.pace-hover-date').textContent = new Date(year, monthNumber - 1, day).toLocaleDateString('en-IN', { day:'numeric', month:'short', year:'numeric' });
-    tooltip.querySelector('.pace-hover-spend').textContent = money(actual[day]);
+    tooltip.querySelector('.pace-hover-daily').textContent = day <= elapsedDays ? money(currentSeries.totals[day - 1]) : 'Not reached';
+    tooltip.querySelector('.pace-hover-spend').textContent = day <= elapsedDays ? money(actual[day]) : 'Not reached';
     tooltip.querySelector('.pace-hover-budget-value').textContent = money(budget[day]);
+    if (paceChartOverlays.previous) tooltip.querySelector('.pace-hover-previous').textContent = money(previousSeries.cumulative[Math.min(day, previousSeries.cumulative.length - 1)] || 0);
+    if (paceChartOverlays.average) tooltip.querySelector('.pace-hover-average').textContent = money(averageSeries[day] || 0);
     tooltip.hidden = false;
     const scale = svg.getBoundingClientRect().width / width;
     tooltip.style.left = `${Math.max(4, Math.min(chart.clientWidth - tooltip.offsetWidth - 4, px * scale - tooltip.offsetWidth / 2))}px`;
-    const pointTop = Math.min(y(actual[day]), y(budget[day])) * svg.getBoundingClientRect().height / height;
+    const pointTop = Math.min(y(budget[day]), day <= elapsedDays ? y(actual[day]) : bottom) * svg.getBoundingClientRect().height / height;
     tooltip.style.top = `${pointTop >= tooltip.offsetHeight + 14 ? pointTop - tooltip.offsetHeight - 10 : pointTop + 12}px`;
   };
-  const hideDay = () => {
-    tooltip.hidden = true;
-    [guide, actualMarker, budgetMarker].forEach(element => element.classList.remove('is-visible'));
-  };
+  const hideDay = () => { tooltip.hidden = true; [guide, actualMarker, budgetMarker].forEach(element => element.classList.remove('is-visible')); };
   svg.addEventListener('pointermove', event => {
     const bounds = svg.getBoundingClientRect();
     const svgX = (event.clientX - bounds.left) / bounds.width * width;
     if (svgX < left - 8 || svgX > width - right + 8) return hideDay();
-    showDay(Math.max(1, Math.min(elapsedDays, Math.round((svgX - left) / (width - left - right) * elapsedDays))));
+    showDay(Math.round((svgX - left) / (width - left - right) * monthDays));
   });
   svg.addEventListener('pointerleave', hideDay);
   svg.setAttribute('tabindex', '0');
@@ -631,7 +706,7 @@ function renderHomeVelocity() {
   svg.addEventListener('keydown', event => {
     if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
     event.preventDefault();
-    showDay(Math.max(1, Math.min(elapsedDays, activeDay + (event.key === 'ArrowRight' ? 1 : -1))));
+    showDay(activeDay + (event.key === 'ArrowRight' ? 1 : -1));
   });
 }
 
@@ -880,7 +955,7 @@ function navigate(page, updateUrl = true) {
   }
   transactionOpenMultiFilter = '';
   activePage = page; activeWorkspace = page === 'timeline' ? 'timeline' : ['habits','habitManage','habitCheckins'].includes(page) ? 'habits' : 'expense'; if (updateUrl) window.ExpensoRouter.push(page); document.body.classList.toggle('dashboard-mode', page === 'dashboard'); document.body.classList.toggle('habits-mode', activeWorkspace === 'habits'); document.body.classList.toggle('timeline-mode', activeWorkspace === 'timeline'); $$('.nav-item').forEach(item => item.classList.toggle('active', item.dataset.page === page)); $$('[data-workspace]').forEach(item => item.classList.toggle('active', item.dataset.workspace === activeWorkspace));
-  const dashboardSections = $$('.hero-row,.summary-grid,.view-switch-row,.content-grid,.bottom-grid'); const subPage = $('#subPageView');
+  const dashboardSections = $$('.hero-row,.summary-grid,.dashboard-forecast-section,.view-switch-row,.content-grid,.bottom-grid'); const subPage = $('#subPageView');
   if (page === 'habits') { dashboardSections.forEach(section => section.hidden = true); subPage.hidden = false; subPage.innerHTML = renderHabitsPage(); initializeDatePickers(subPage); return; }
   if (page === 'habitManage') { dashboardSections.forEach(section => section.hidden = true); subPage.hidden = false; subPage.innerHTML = renderHabitManagePage(); initializeDatePickers(subPage); return; }
   if (page === 'habitCheckins') { dashboardSections.forEach(section => section.hidden = true); subPage.hidden = false; subPage.innerHTML = renderHabitCheckinsPage(); initializeDatePickers(subPage); return; }
@@ -1363,6 +1438,59 @@ $('#transactionForm select[name="frequency"]').addEventListener('change', () => 
 $('#transactionForm select[name="paymentMode"]').addEventListener('change', updatePaymentSourceVisibility);
 $$('.type-tabs button').forEach(button => button.addEventListener('click', () => { setType(button.dataset.type); updateCategoryOptions(); })); $$('[data-workspace]').forEach(button => button.addEventListener('click', () => navigate(button.dataset.workspace === 'habits' ? 'habits' : button.dataset.workspace === 'timeline' ? 'timeline' : 'dashboard'))); $$('.nav-item,[data-page]').forEach(button => button.addEventListener('click', async event => { if (button.matches('a')) event.preventDefault(); navigate(button.dataset.page); if (button.dataset.page === 'dashboard') await refreshData(); })); $$('.segmented-control button').forEach(button => button.addEventListener('click', () => { dashboardView = button.dataset.view; $$('.segmented-control button').forEach(b => b.classList.remove('active')); button.classList.add('active'); renderDashboard(); }));
 $('#paceMonthSelect').addEventListener('change', event => { paceMonth = event.target.value; renderHomeVelocity(); });
+$('#homeVelocity').addEventListener('click', event => {
+  const overlay = event.target.closest('[data-pace-overlay]');
+  if (overlay) {
+    const key = overlay.dataset.paceOverlay;
+    paceChartOverlays[key] = !paceChartOverlays[key];
+    renderHomeVelocity();
+    return;
+  }
+  const dayTarget = event.target.closest('[data-pace-day]');
+  const actionTarget = event.target.closest('[data-pace-action]');
+  if (!dayTarget && !actionTarget) return;
+  const date = dayTarget ? `${paceMonth}-${String(dayTarget.dataset.paceDay).padStart(2, '0')}` : '';
+  transactionFilter = {
+    mode:date ? 'day' : (paceMonth === currentMonthKey() ? 'thisMonth' : 'monthRange'),
+    date,
+    fromMonth:paceMonth,
+    toMonth:paceMonth,
+    fromYear:paceMonth.slice(0, 4),
+    toYear:paceMonth.slice(0, 4),
+    type:'expense',
+    category:[],
+    spendGroup:[],
+    payment:'all',
+    search:'',
+    sort:'dateDesc'
+  };
+  navigate('transactions');
+});
+$('#dashboardForecast').addEventListener('change', event => {
+  if (event.target.id !== 'dashboardForecastRange') return;
+  dashboardForecastHistoryMonths = Number(event.target.value) || 6;
+  renderDashboardForecast();
+});
+$('#dashboardForecast').addEventListener('click', event => {
+  const target = event.target.closest('[data-action]');
+  if (!target) return;
+  if (target.dataset.action === 'dashboard-view-insights') { navigate('insights'); return; }
+  if (!['dashboard-view-transactions', 'dashboard-driver'].includes(target.dataset.action)) return;
+  transactionFilter = {
+    mode:'thisMonth',
+    fromMonth:currentMonthKey(),
+    toMonth:currentMonthKey(),
+    fromYear:currentYear(),
+    toYear:currentYear(),
+    type:'expense',
+    category:target.dataset.category ? [target.dataset.category] : [],
+    spendGroup:[],
+    payment:'all',
+    search:'',
+    sort:'dateDesc'
+  };
+  navigate('transactions');
+});
 let transactionFilterTimer;
 $('#subPageView').addEventListener('change', async event => {
   if (event.target.matches('[data-timeline-filter]')) {
