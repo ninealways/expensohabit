@@ -1,4 +1,7 @@
 function transactionRange(filter = transactionFilter) {
+  if (filter.mode === 'day' && /^\d{4}-\d{2}-\d{2}$/.test(String(filter.date || ''))) {
+    return { from:filter.date, to:filter.date, label:new Date(`${filter.date}T00:00:00`).toLocaleDateString('en-IN', { day:'numeric', month:'long', year:'numeric' }) };
+  }
   if (filter.mode === 'monthRange') return monthKeyRange(filter.fromMonth, filter.toMonth);
   if (filter.mode === 'yearRange') return yearKeyRange(filter.fromYear, filter.toYear);
   const range = monthKeyRange(currentMonthKey(), currentMonthKey());
@@ -76,6 +79,7 @@ function renderTransactionFilters(filter = transactionFilter) {
   const paymentOptions = [['all','All payment'],['upi','UPI'],['cash','Cash'],['bank','Bank'],['credit_card','Credit card'],['mixed','Mixed']].map(([value, label]) => `<option value="${value}" ${filter.payment === value ? 'selected' : ''}>${label}</option>`).join('');
   const sortOptions = [['dateDesc','Newest first'],['dateAsc','Oldest first'],['amountDesc','Amount high to low'],['amountAsc','Amount low to high'],['nameAsc','Name A-Z']].map(([value, label]) => `<option value="${value}" ${filter.sort === value ? 'selected' : ''}>${label}</option>`).join('');
   return `<form id="transactionFilters" class="transaction-filter-panel">
+    ${filter.mode === 'day' && filter.date ? `<div class="transaction-day-filter"><span>Showing the spending spike on <b>${new Date(`${filter.date}T00:00:00`).toLocaleDateString('en-IN', { day:'numeric', month:'long', year:'numeric' })}</b></span><button type="button" data-transaction-preset="thisMonth">Show this month</button></div>` : ''}
     <div class="insight-range-control transaction-range-control">
       <button type="button" class="${filter.mode === 'thisMonth' ? 'active' : ''}" data-transaction-preset="thisMonth">This month</button>
       <label class="${filter.mode === 'monthRange' ? 'active' : ''}">Month range<input name="fromMonth" type="text" data-picker="month" value="${fromMonth}" placeholder="From month" /><span>to</span><input name="toMonth" type="text" data-picker="month" value="${toMonth}" placeholder="To month" /><button type="submit" data-transaction-mode="monthRange">Apply</button></label>
@@ -145,7 +149,7 @@ function refreshTransactionResultsOnly() {
 
 function applyTransactionFiltersFromForm(form, mode = transactionFilter.mode || 'thisMonth', options = {}) {
   const data = new FormData(form);
-  transactionFilter = { mode, fromMonth:data.get('fromMonth'), toMonth:data.get('toMonth'), fromYear:data.get('fromYear'), toYear:data.get('toYear'), search:data.get('search') || '', type:data.get('type') || 'all', category:selectedTransactionFilterValues(form, 'category'), spendGroup:selectedTransactionFilterValues(form, 'spendGroup'), payment:data.get('payment') || 'all', sort:data.get('sort') || 'dateDesc' };
+  transactionFilter = { mode, date:mode === 'day' ? transactionFilter.date : '', fromMonth:data.get('fromMonth'), toMonth:data.get('toMonth'), fromYear:data.get('fromYear'), toYear:data.get('toYear'), search:data.get('search') || '', type:data.get('type') || 'all', category:selectedTransactionFilterValues(form, 'category'), spendGroup:selectedTransactionFilterValues(form, 'spendGroup'), payment:data.get('payment') || 'all', sort:data.get('sort') || 'dateDesc' };
   if (options.resultsOnly) {
     refreshTransactionResultsOnly();
     return;
