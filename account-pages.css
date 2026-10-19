@@ -126,6 +126,7 @@
 .account-overview-panel,
 .account-data-panel,
 .account-budget-panel,
+.account-minimum-reasons-panel,
 .account-actions-panel,
 .account-category-panel { padding:20px; }
 
@@ -210,6 +211,42 @@
 .account-data-panel { grid-column:2; }
 .account-data-list { display:grid;gap:9px; }
 .account-data-list > div { grid-template-columns:48px minmax(0,1fr) auto; }
+
+.account-minimum-reasons-panel { grid-column:1 / -1; }
+.account-heading-icon.teal { background:linear-gradient(145deg,#dcf8f0,#fff); }
+.account-selection-count { flex:0 0 auto;padding:7px 10px;border-radius:999px;color:#6f49dc;background:#f0ebff;font-size:9px;font-weight:900;white-space:nowrap; }
+.minimum-reasons-form { display:grid;gap:14px; }
+.minimum-reason-grid { display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px; }
+.minimum-reason-option { position:relative;min-width:0;cursor:pointer; }
+.minimum-reason-option > input { position:absolute;width:1px;height:1px;overflow:hidden;opacity:0;pointer-events:none; }
+.minimum-reason-option > span { position:relative;display:grid;grid-template-columns:38px minmax(0,1fr) 20px;grid-template-rows:auto auto;gap:3px 9px;align-items:center;min-height:76px;padding:11px;border:1px solid #ebeaf5;border-radius:15px;background:linear-gradient(145deg,#fff,#fbfaff);transition:border-color .16s ease,box-shadow .16s ease,transform .16s ease; }
+.minimum-reason-option > span > i { grid-row:1 / 3;display:grid;width:38px;height:38px;place-items:center;border-radius:12px;background:#f2edff; }
+.minimum-reason-option > span > i .rich-icon { width:29px;height:29px; }
+.minimum-reason-option b { align-self:end;color:var(--ink);font-size:10.5px;line-height:1.25; }
+.minimum-reason-option small { align-self:start;color:#7c88a7;font-size:8.5px;line-height:1.3; }
+.minimum-reason-option em { grid-column:3;grid-row:1 / 3;display:grid;width:20px;height:20px;place-items:center;border:1px solid #dfe1ed;border-radius:7px;color:transparent;background:#fff;font-size:10px;font-style:normal;font-weight:900; }
+.minimum-reason-option:hover > span { transform:translateY(-1px);border-color:#cfc5f5;box-shadow:0 8px 18px rgba(72,54,137,.07); }
+.minimum-reason-option > input:focus-visible + span { outline:3px solid rgba(120,87,244,.17);outline-offset:2px; }
+.minimum-reason-option > input:checked + span { border-color:#bdaaf7;background:linear-gradient(145deg,#fff,#f5f0ff);box-shadow:0 8px 19px rgba(107,70,214,.08); }
+.minimum-reason-option > input:checked + span > i { background:#ebe3ff; }
+.minimum-reason-option > input:checked + span > em { border-color:transparent;color:#fff;background:linear-gradient(135deg,#7442f3,#c257df);box-shadow:0 5px 10px rgba(113,67,221,.2); }
+.minimum-buffer-editor { display:grid;grid-template-columns:minmax(260px,1.15fr) minmax(330px,.9fr) minmax(220px,.65fr);gap:14px;align-items:center;padding:14px;border:1px solid #eceaf6;border-radius:17px;background:linear-gradient(120deg,#faf7ff,#fffaf7); }
+.minimum-buffer-copy { display:grid;grid-template-columns:46px minmax(0,1fr);gap:11px;align-items:center; }
+.minimum-buffer-copy > span { display:grid;width:46px;height:46px;place-items:center;border-radius:15px;background:#eee7ff; }
+.minimum-buffer-copy > span .rich-icon { width:35px;height:35px; }
+.minimum-buffer-copy h4 { margin:2px 0 3px;color:var(--ink);font-size:14px; }
+.minimum-buffer-copy small { display:block;color:#7480a1;font-size:9px;line-height:1.4; }
+.minimum-buffer-controls { display:grid;grid-template-columns:1fr 1fr;gap:8px; }
+.minimum-buffer-controls label { display:grid;gap:6px;color:#586482;font-size:8.5px;font-weight:900;letter-spacing:.04em;text-transform:uppercase; }
+.minimum-buffer-controls select,
+.minimum-buffer-controls input { width:100%;min-width:0;box-sizing:border-box;padding:10px 11px;border:1px solid #dfe2ef;border-radius:11px;color:var(--ink);background:#fff;font:800 11px 'Inter';outline:none; }
+.minimum-buffer-controls select:focus,
+.minimum-buffer-controls input:focus { border-color:#9b7bf2;box-shadow:0 0 0 3px rgba(120,87,244,.11); }
+.minimum-buffer-controls input:disabled { color:#9ca5ba;background:#f3f4f8;cursor:not-allowed; }
+.minimum-buffer-preview { padding:11px 12px;border-radius:12px;color:#7050c8;background:rgba(255,255,255,.78);font-size:10px;font-weight:800;line-height:1.45; }
+.minimum-reasons-footer { display:flex;align-items:center;justify-content:space-between;gap:16px;padding-top:12px;border-top:1px solid #eff0f6; }
+.minimum-reasons-footer p { max-width:720px;color:#7783a3;font-size:10px;line-height:1.45; }
+.minimum-reasons-footer .primary-button { flex:0 0 auto; }
 
 .account-category-panel-heading { align-items:center; }
 .account-category-panel-heading .primary-button { flex:0 0 auto; }
@@ -323,7 +360,11 @@
   .account-profile-grid,
   .account-settings-grid { grid-template-columns:1fr; }
   .account-budget-panel,
-  .account-data-panel { grid-column:1; }
+  .account-data-panel,
+  .account-minimum-reasons-panel { grid-column:1; }
+  .minimum-reason-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .minimum-buffer-editor { grid-template-columns:1fr 1fr; }
+  .minimum-buffer-preview { grid-column:1 / -1; }
   .account-action-grid { grid-template-columns:1fr; }
   .guide-quickstart,
   .guide-workspace-grid { grid-template-columns:1fr; }
@@ -348,6 +389,7 @@
   .account-overview-panel,
   .account-data-panel,
   .account-budget-panel,
+  .account-minimum-reasons-panel,
   .account-actions-panel,
   .account-category-panel { padding:15px; }
   .account-identity-main { align-items:flex-start; }
@@ -371,6 +413,12 @@
   .account-category-panel-heading .primary-button { width:100%; }
   .account-budget-panel .budget-form { grid-template-columns:1fr; }
   .account-budget-panel .budget-form .primary-button { width:100%; }
+  .minimum-reason-grid { grid-template-columns:1fr; }
+  .minimum-buffer-editor { grid-template-columns:1fr; }
+  .minimum-buffer-controls { grid-template-columns:1fr; }
+  .minimum-buffer-preview { grid-column:auto; }
+  .minimum-reasons-footer { align-items:stretch;flex-direction:column; }
+  .minimum-reasons-footer .primary-button { width:100%; }
   .account-category-group { padding:12px; }
   .account-category-heading { grid-template-columns:38px minmax(0,1fr) auto; }
   .account-category-icon { width:38px;height:38px; }

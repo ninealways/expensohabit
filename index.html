@@ -17,13 +17,12 @@
     <link rel="stylesheet" href="credit-card-redesign.css?v=20261007-03" />
     <link rel="stylesheet" href="finance-pages-redesign.css?v=20261008-01" />
     <link rel="stylesheet" href="timeline-redesign.css?v=20261006-02" />
-    <link rel="stylesheet" href="account-pages.css?v=20261001-03" />
+    <link rel="stylesheet" href="account-pages.css?v=20261020-02" />
     <link rel="stylesheet" href="admin-page.css?v=20261008-01" />
     <link rel="stylesheet" href="modal-redesign.css?v=20261007-02" />
-    <link rel="stylesheet" href="pace-check.css?v=20261015-01" />
-    <link rel="stylesheet" href="dashboard-forecast.css?v=20261014-01" />
+    <link rel="stylesheet" href="dashboard-forecast.css?v=20261020-03" />
     <link rel="stylesheet" href="insights-refresh.css?v=20261006-02" />
-    <link rel="stylesheet" href="insights-comparison.css?v=20261008-01" />
+    <link rel="stylesheet" href="insights-comparison.css?v=20261019-01" />
   </head>
   <body class="app-booting">
     <svg class="icon-sprite" aria-hidden="true">
@@ -171,14 +170,6 @@
 
         <section id="dashboardForecast" class="dashboard-forecast-section" aria-label="Monthly spend forecast and drivers"></section>
 
-        <section class="view-switch-row">
-          <div class="segmented-control" role="tablist" aria-label="Expense view">
-            <button class="active" data-view="all">All outflow</button>
-            <button data-view="real">Real expenses</button>
-          </div>
-          <p class="helper-text" id="dashboardViewHelper">All outflow includes loans &amp; investments in totals. The category breakdown stays expense-only.</p>
-        </section>
-
         <section class="content-grid">
           <article class="panel category-panel">
             <div class="panel-heading"><div><p class="panel-kicker" id="categoryPanelKicker">THIS MONTH</p><h3 id="categoryPanelTitle">Expense breakdown</h3><p class="panel-caption" id="categoryPanelSubtitle">Where your money goes this month.</p></div><button class="ghost-button" data-page="transactions">View all</button></div>
@@ -187,23 +178,6 @@
           <article class="panel upcoming-panel">
             <div class="panel-heading"><div><p class="panel-kicker">AUTO-ADDED ON DUE DATE</p><h3>Upcoming</h3></div><button class="ghost-button" data-page="schedule">Manage</button></div>
             <div id="upcomingList" class="upcoming-list"></div>
-          </article>
-        </section>
-
-        <section class="bottom-grid">
-          <article class="panel velocity-panel home-velocity-panel">
-            <div class="panel-heading"><div><p class="panel-kicker">SPEND VELOCITY</p><h3>Pace check</h3></div><label class="pace-month-control"><span class="sr-only">Pace check month</span><select id="paceMonthSelect" aria-label="Pace check month"></select></label></div>
-            <div id="homeVelocity" class="velocity-meter"></div>
-          </article>
-          <article class="panel logic-panel">
-            <div class="panel-heading"><div><p class="panel-kicker">THIS MONTH'S OUTFLOW</p><h3>Money map</h3></div><button class="ghost-button" data-page="outflow">View report</button></div>
-            <div class="money-flow-overview"><span>Total outflow</span><strong id="formulaTotal">₹0</strong><small>Where your money went this month</small><div class="money-flow-stack" id="moneyFlowStack" role="img" aria-label="Outflow split between expenses, loans and investments"><i id="mapSegmentExpense"></i><i id="mapSegmentLoan"></i><i id="mapSegmentInvestment"></i></div></div>
-            <div class="money-flow-rows">
-              <div class="money-flow-row expense"><span class="money-flow-icon"><img class="rich-icon" src="assets/icons/real-expenses.svg?v=20261001-02" alt="" /></span><div><b>Expenses</b><small>Expense transactions</small></div><div class="money-flow-value"><strong id="formulaExpense">₹0</strong><small id="mapShareExpense">0% of outflow</small></div></div>
-              <div class="money-flow-row loan"><span class="money-flow-icon"><img class="rich-icon" src="assets/icons/loans.svg?v=20261001-02" alt="" /></span><div><b>Loans</b><small>Loan payments</small></div><div class="money-flow-value"><strong id="formulaLoan">₹0</strong><small id="mapShareLoan">0% of outflow</small></div></div>
-              <div class="money-flow-row investment"><span class="money-flow-icon"><img class="rich-icon" src="assets/icons/investments.svg?v=20261001-02" alt="" /></span><div><b>Investments</b><small>Money set aside</small></div><div class="money-flow-value"><strong id="formulaInvestment">₹0</strong><small id="mapShareInvestment">0% of outflow</small></div></div>
-            </div>
-            <p class="money-flow-note">Expenses + loans + investments = total outflow</p>
           </article>
         </section>
         <section id="subPageView" class="sub-page-view" hidden></section>
@@ -443,16 +417,16 @@
     <script src="js/api.js?v=20260712-31"></script>
     <script src="js/auth.js?v=20260712-31"></script>
     <script src="js/router.js?v=20261008-01"></script>
-    <script src="js/pages/basic.js?v=20261001-03"></script>
+    <script src="js/pages/basic.js?v=20261020-02"></script>
     <script src="js/pages/admin.js?v=20261008-01"></script>
     <script src="js/pages/transactions.js?v=20261015-01"></script>
     <script src="js/pages/credit-card.js?v=20261007-03"></script>
     <script src="js/pages/schedule.js?v=20261008-01"></script>
     <script src="js/pages/habits.js?v=20261008-01"></script>
-    <script src="js/pages/insights.js?v=20261008-01"></script>
+    <script src="js/pages/insights.js?v=20261019-01"></script>
     <script src="js/pages/calendar.js?v=20260930-01"></script>
     <script src="js/pages/timeline.js?v=20261006-02"></script>
-    <script src="js/pages/dashboard-forecast.js?v=20261014-01"></script>
-    <script src="app.js?v=20261015-01"></script>
+    <script src="js/pages/dashboard-forecast.js?v=20261020-03"></script>
+    <script src="app.js?v=20261020-03"></script>
   </body>
 </html>

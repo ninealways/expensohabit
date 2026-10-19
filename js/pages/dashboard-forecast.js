@@ -1,4 +1,6 @@
 let dashboardForecastHistoryMonths = 6;
+let dashboardForecastIncludeInvestments = true;
+const dashboardDefaultMinimumExpenseReasons = ['essential', 'recurring', 'emergency'];
 
 function dashboardForecastMonthKey(date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
@@ -45,7 +47,7 @@ function dashboardForecastRealRows(transactions = []) {
 }
 
 function dashboardScheduleDatesInMonth(schedule, month) {
-  if (schedule.type !== 'expense' || schedule.archived === true) return [];
+  if (schedule.archived === true) return [];
   const monthDays = dashboardForecastMonthDays(month);
   const monthStart = `${month}-01`;
   const monthEnd = `${month}-${String(monthDays).padStart(2, '0')}`;
@@ -84,21 +86,35 @@ function dashboardScheduleDatesInMonth(schedule, month) {
   return dates.sort();
 }
 
-function dashboardScheduledRemaining(transactions, schedules, month, cutoffKey) {
+function dashboardScheduledRemaining(transactions, schedules, month, cutoffKey, types = ['expense'], options = {}) {
+  const allowedTypes = new Set(types);
+  const expenseReasons = options.expenseReasons instanceof Set ? options.expenseReasons : null;
   const byCategory = {};
+  const items = [];
   let total = 0;
   (schedules || []).forEach(schedule => {
+    if (!allowedTypes.has(schedule.type)) return;
+    if (schedule.type === 'expense' && expenseReasons && !expenseReasons.has(String(schedule.expenseReason || ''))) return;
     dashboardScheduleDatesInMonth(schedule, month).filter(date => date > cutoffKey).forEach(date => {
       if ((schedule.skippedMonths || []).includes(date)) return;
-      const posted = transactions.some(transaction => transaction.scheduleId === schedule.id && (transaction.periodKey === date || transaction.date === date));
+      const recurringMatchAllowed = !['Daily', 'Weekly', 'BiMonthly'].includes(schedule.frequency || 'Monthly');
+      const scheduleNames = [schedule.title, schedule.subcategory, schedule.category].map(value => String(value || '').trim().toLowerCase()).filter(Boolean);
+      const posted = transactions.some(transaction => {
+        if (transaction.scheduleId === schedule.id && (transaction.periodKey === date || transaction.date === date)) return true;
+        if (!recurringMatchAllowed || transaction.type !== schedule.type || !String(transaction.date || '').startsWith(month)) return false;
+        if (Math.abs(Number(transaction.amount || 0) - Number(schedule.amount || 0)) >= .01) return false;
+        const transactionNames = [transaction.subcategory, transaction.category].map(value => String(value || '').trim().toLowerCase()).filter(Boolean);
+        return scheduleNames.some(name => transactionNames.includes(name));
+      });
       if (posted) return;
       const amount = Number(schedule.amount || 0);
       const category = schedule.category || 'Other';
       total += amount;
       byCategory[category] = (byCategory[category] || 0) + amount;
+      items.push({ schedule, date, amount, category });
     });
   });
-  return { total, byCategory };
+  return { total, byCategory, items:items.sort((a, b) => a.date.localeCompare(b.date)) };
 }
 
 function dashboardForecastDriverNote(driver) {
@@ -125,11 +141,15 @@ function buildDashboardForecast(transactions = [], schedules = [], options = {})
   const month = options.month || new Date().toISOString().slice(0, 7);
   const asOf = options.asOf || new Date().toISOString().slice(0, 10);
   const historyLimit = Math.max(3, Math.min(12, Number(options.historyMonths) || 6));
+  const minimumExpenseReasons = new Set((Array.isArray(options.minimumExpenseReasons) ? options.minimumExpenseReasons : dashboardDefaultMinimumExpenseReasons).map(value => String(value || '')));
+  const minimumBufferMode = ['none','percentage','fixed'].includes(options.minimumBufferMode) ? options.minimumBufferMode : 'none';
+  const minimumBufferValue = minimumBufferMode === 'percentage' ? Math.min(100, Math.max(0, Number(options.minimumBufferValue || 0))) : Math.max(0, Number(options.minimumBufferValue || 0));
   const monthDays = dashboardForecastMonthDays(month);
   const isCurrentMonth = asOf.startsWith(month);
   const cutoffDay = isCurrentMonth ? Math.min(monthDays, Number(asOf.slice(8, 10)) || 1) : monthDays;
   const cutoffKey = `${month}-${String(cutoffDay).padStart(2, '0')}`;
   const realRows = dashboardForecastRealRows(transactions);
+  const datedRows = transactions.filter(transaction => /^\d{4}-\d{2}-\d{2}$/.test(String(transaction.date || '')));
   const currentRows = realRows.filter(row => row.date.startsWith(month) && row.date <= cutoffKey);
   const actualToDate = dashboardForecastSum(currentRows);
   const candidateHistoryMonths = Array.from({ length:historyLimit }, (_, index) => dashboardForecastShiftMonth(month, -(index + 1)));
@@ -143,6 +163,9 @@ function buildDashboardForecast(transactions = [], schedules = [], options = {})
   });
   const fullMonthTotals = historyMonths.map(historyMonth => dashboardForecastSum(historyRows[historyMonth]));
   const scheduled = dashboardScheduledRemaining(transactions, schedules, month, cutoffKey);
+  const scheduledLoans = dashboardScheduledRemaining(transactions, schedules, month, cutoffKey, ['loan']);
+  const scheduledInvestments = dashboardScheduledRemaining(transactions, schedules, month, cutoffKey, ['investment']);
+  const minimumScheduledExpenses = dashboardScheduledRemaining(transactions, schedules, month, cutoffKey, ['expense'], { expenseReasons:minimumExpenseReasons });
   const typicalRemaining = dashboardForecastMedian(remainingSamples);
   const projectedTotal = actualToDate + Math.max(typicalRemaining, scheduled.total);
   const lowEstimate = Math.min(projectedTotal, actualToDate + Math.max(dashboardForecastQuantile(remainingSamples, .25), scheduled.total));
@@ -182,6 +205,26 @@ function buildDashboardForecast(transactions = [], schedules = [], options = {})
     const scheduledRemaining = scheduled.byCategory[category] || 0;
     return { category, current, scheduledRemaining, projected:current + Math.max(dashboardForecastMedian(categoryRemainders), scheduledRemaining) };
   }).filter(row => row.projected > 0).sort((a, b) => b.projected - a.projected);
+  const isMinimumExpense = row => minimumExpenseReasons.has(String(row.expenseReason || ''));
+  const minimumHistorySamples = historyMonths.map(historyMonth => dashboardForecastSum(historyRows[historyMonth].filter(isMinimumExpense)));
+  const minimumExpenseActual = dashboardForecastSum(currentRows.filter(isMinimumExpense));
+  const minimumExpenseHistorical = dashboardForecastMedian(minimumHistorySamples);
+  const minimumExpenseCurrent = minimumExpenseActual + minimumScheduledExpenses.total;
+  const minimumExpenses = Math.max(minimumExpenseCurrent, minimumExpenseHistorical);
+  const postedLoans = dashboardForecastSum(datedRows.filter(row => row.type === 'loan' && row.date.startsWith(month) && row.date <= cutoffKey));
+  const postedInvestments = dashboardForecastSum(datedRows.filter(row => row.type === 'investment' && row.date.startsWith(month) && row.date <= cutoffKey));
+  const minimumLoanCurrent = postedLoans + scheduledLoans.total;
+  const minimumInvestmentCurrent = postedInvestments + scheduledInvestments.total;
+  const minimumLoanHistorical = dashboardForecastMedian(historyMonths.map(historyMonth => dashboardForecastSum(datedRows.filter(row => row.type === 'loan' && row.date.startsWith(historyMonth)))));
+  const minimumInvestmentHistorical = dashboardForecastMedian(historyMonths.map(historyMonth => dashboardForecastSum(datedRows.filter(row => row.type === 'investment' && row.date.startsWith(historyMonth)))));
+  const minimumLoans = Math.max(minimumLoanCurrent, minimumLoanHistorical);
+  const minimumInvestments = Math.max(minimumInvestmentCurrent, minimumInvestmentHistorical);
+  const minimumRequiredBeforeBuffer = minimumExpenses + minimumLoans;
+  const minimumBuffer = minimumBufferMode === 'percentage' ? minimumRequiredBeforeBuffer * minimumBufferValue / 100 : minimumBufferMode === 'fixed' ? minimumBufferValue : 0;
+  const minimumRequired = minimumRequiredBeforeBuffer + minimumBuffer;
+  const minimumWithInvestments = minimumRequired + minimumInvestments;
+  const projectedRequiredOutflow = Math.max(projectedTotal, minimumExpenses) + minimumLoans;
+  const projectedOutflowWithInvestments = projectedRequiredOutflow + minimumInvestments;
   const dailyActual = Array.from({ length:cutoffDay }, (_, index) => dashboardForecastSum(currentRows.filter(row => Number(row.date.slice(8, 10)) <= index + 1)));
   const typicalCumulative = Array.from({ length:monthDays }, (_, index) => dashboardForecastMedian(historyMonths.map(historyMonth => {
     const comparisonDay = Math.min(index + 1, dashboardForecastMonthDays(historyMonth));
@@ -207,6 +250,29 @@ function buildDashboardForecast(transactions = [], schedules = [], options = {})
     toDateChange:actualToDate - dashboardForecastSum(previousRowsToDate),
     drivers,
     categoryForecasts,
+    upcomingCommitments:[...scheduled.items, ...scheduledLoans.items, ...scheduledInvestments.items].sort((a, b) => a.date.localeCompare(b.date)),
+    minimum: {
+      reasons:[...minimumExpenseReasons],
+      bufferMode:minimumBufferMode,
+      bufferValue:minimumBufferValue,
+      buffer:minimumBuffer,
+      requiredBeforeBuffer:minimumRequiredBeforeBuffer,
+      expenses:minimumExpenses,
+      expenseActual:minimumExpenseActual,
+      expenseCurrent:minimumExpenseCurrent,
+      expenseHistorical:minimumExpenseHistorical,
+      loans:minimumLoans,
+      loanCurrent:minimumLoanCurrent,
+      loanHistorical:minimumLoanHistorical,
+      investments:minimumInvestments,
+      investmentCurrent:minimumInvestmentCurrent,
+      investmentHistorical:minimumInvestmentHistorical,
+      required:minimumRequired,
+      withInvestments:minimumWithInvestments,
+      projectedRequiredOutflow,
+      projectedOutflowWithInvestments,
+      actualOutflowToDate:actualToDate + postedLoans + postedInvestments
+    },
     dailyActual,
     typicalCumulative
   };
@@ -221,12 +287,9 @@ function dashboardForecastCategoryIcon(category = '') {
   return 'real-expenses';
 }
 
-function dashboardForecastChart(forecast) {
-  if (!forecast.monthsUsed && !forecast.actualToDate && !forecast.scheduledRemaining) {
-    return `<div class="forecast-chart forecast-chart-empty"><span>${richIcon('insight-pattern')}</span><b>Your projection is learning</b><small>Add expenses over time and this chart will compare your current pace with previous months.</small></div>`;
-  }
-  const width = 720, height = 252, left = 55, right = 16, top = 18, bottom = 208;
-  const chartMax = Math.max(1, forecast.highEstimate, forecast.projectedTotal, ...forecast.typicalCumulative) * 1.12;
+function dashboardForecastChart(forecast, budget, expenseFloor) {
+  const width = 820, height = 270, left = 58, right = 22, top = 22, bottom = 222;
+  const chartMax = Math.max(1, budget, expenseFloor, forecast.highEstimate, forecast.projectedTotal) * 1.12;
   const x = day => left + (width - left - right) * (day - 1) / Math.max(1, forecast.monthDays - 1);
   const y = value => bottom - value / chartMax * (bottom - top);
   const pointsPath = points => points.map((value, index) => `${index ? 'L' : 'M'}${x(value.day).toFixed(1)} ${y(value.amount).toFixed(1)}`).join(' ');
@@ -239,41 +302,94 @@ function dashboardForecastChart(forecast) {
   const lowPoints = forecastPoints.map(point => ({ day:point.day, amount:forecast.actualToDate + (forecast.lowEstimate - forecast.actualToDate) * ((point.day - forecast.cutoffDay) / Math.max(1, forecast.monthDays - forecast.cutoffDay)) }));
   const highPoints = forecastPoints.map(point => ({ day:point.day, amount:forecast.actualToDate + (forecast.highEstimate - forecast.actualToDate) * ((point.day - forecast.cutoffDay) / Math.max(1, forecast.monthDays - forecast.cutoffDay)) }));
   const bandPath = highPoints.length > 1 ? `${pointsPath(highPoints)} ${pointsPath([...lowPoints].reverse()).replace(/^M/, 'L')} Z` : '';
-  const typicalPoints = forecast.typicalCumulative.map((amount, index) => ({ day:index + 1, amount }));
+  const budgetPoints = Array.from({ length:forecast.monthDays }, (_, index) => ({ day:index + 1, amount:budget * (index + 1) / forecast.monthDays }));
+  const floorPoints = [{ day:1, amount:expenseFloor }, { day:forecast.monthDays, amount:expenseFloor }];
   const grid = Array.from({ length:4 }, (_, index) => {
     const amount = chartMax * index / 3;
     return `<line class="forecast-chart-grid" x1="${left}" x2="${width - right}" y1="${y(amount).toFixed(1)}" y2="${y(amount).toFixed(1)}"/><text class="forecast-chart-axis" x="4" y="${(y(amount) + 4).toFixed(1)}">${compactMoney(amount)}</text>`;
   }).join('');
   const monthLabel = new Date(`${forecast.month}-01T00:00:00`).toLocaleDateString('en-IN', { month:'short' });
-  const ticks = [...new Set([1, forecast.cutoffDay, forecast.monthDays])].map(day => `<text class="forecast-chart-axis" x="${x(day).toFixed(1)}" y="244" text-anchor="${day === 1 ? 'start' : day === forecast.monthDays ? 'end' : 'middle'}">${day} ${monthLabel}</text>`).join('');
-  return `<div class="forecast-chart"><svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Actual real expenses ${money(forecast.actualToDate)} through ${forecast.cutoffDay} ${monthLabel}; projected month end ${money(forecast.projectedTotal)}"><defs><linearGradient id="forecastActualFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7b43f6" stop-opacity=".23"/><stop offset="1" stop-color="#7b43f6" stop-opacity=".01"/></linearGradient></defs>${grid}${bandPath ? `<path class="forecast-confidence-band" d="${bandPath}"/>` : ''}<path class="forecast-typical-line" d="${pointsPath(typicalPoints)}"/><path class="forecast-actual-area" d="${pointsPath(actualPoints)} L${x(forecast.cutoffDay).toFixed(1)} ${bottom} L${left} ${bottom}Z"/><path class="forecast-actual-line" d="${pointsPath(actualPoints)}"/><path class="forecast-projected-line" d="${pointsPath(forecastPoints)}"/><line class="forecast-today-line" x1="${x(forecast.cutoffDay).toFixed(1)}" x2="${x(forecast.cutoffDay).toFixed(1)}" y1="${top}" y2="${bottom}"/><circle class="forecast-current-point" cx="${x(forecast.cutoffDay).toFixed(1)}" cy="${y(forecast.actualToDate).toFixed(1)}" r="5"><title>${money(forecast.actualToDate)} spent through ${forecast.cutoffDay} ${monthLabel}</title></circle>${ticks}</svg><div class="forecast-chart-legend"><span><i class="actual"></i>Actual</span><span><i class="projected"></i>Forecast</span><span><i class="typical"></i>Typical range</span></div></div>`;
+  const ticks = [...new Set([1, Math.ceil(forecast.monthDays / 2), forecast.cutoffDay, forecast.monthDays])].sort((a, b) => a - b).map(day => `<text class="forecast-chart-axis" x="${x(day).toFixed(1)}" y="258" text-anchor="${day === 1 ? 'start' : day === forecast.monthDays ? 'end' : 'middle'}">${day} ${monthLabel}</text>`).join('');
+  const actualHits = actualPoints.map(point => `<circle class="forecast-hover-hit" cx="${x(point.day).toFixed(1)}" cy="${y(point.amount).toFixed(1)}" r="8"><title>${point.day} ${monthLabel}: ${money(point.amount)} cumulative real spend</title></circle>`).join('');
+  const forecastHits = forecastPoints.filter((point, index) => index % 2 === 0 || point.day === forecast.monthDays).map(point => `<circle class="forecast-hover-hit" cx="${x(point.day).toFixed(1)}" cy="${y(point.amount).toFixed(1)}" r="8"><title>${point.day} ${monthLabel}: ${money(point.amount)} projected real spend</title></circle>`).join('');
+  return `<div class="forecast-chart"><svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Real expenses ${money(forecast.actualToDate)} through ${forecast.cutoffDay} ${monthLabel}, projected to ${money(forecast.projectedTotal)} against a ${money(budget)} expense budget"><defs><linearGradient id="forecastActualFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7b43f6" stop-opacity=".27"/><stop offset="1" stop-color="#7b43f6" stop-opacity=".01"/></linearGradient></defs>${grid}${bandPath ? `<path class="forecast-confidence-band" d="${bandPath}"/>` : ''}<path class="forecast-budget-line" d="${pointsPath(budgetPoints)}"/><path class="forecast-floor-line" d="${pointsPath(floorPoints)}"/><path class="forecast-actual-area" d="${pointsPath(actualPoints)} L${x(forecast.cutoffDay).toFixed(1)} ${bottom} L${left} ${bottom}Z"/><path class="forecast-actual-line" d="${pointsPath(actualPoints)}"/><path class="forecast-projected-line" d="${pointsPath(forecastPoints)}"/><line class="forecast-today-line" x1="${x(forecast.cutoffDay).toFixed(1)}" x2="${x(forecast.cutoffDay).toFixed(1)}" y1="${top}" y2="${bottom}"/>${actualHits}${forecastHits}<circle class="forecast-current-point" cx="${x(forecast.cutoffDay).toFixed(1)}" cy="${y(forecast.actualToDate).toFixed(1)}" r="5"><title>${forecast.cutoffDay} ${monthLabel}: ${money(forecast.actualToDate)} actual real spend</title></circle>${ticks}</svg><div class="forecast-chart-legend"><span><i class="actual"></i>Actual</span><span><i class="projected"></i>Forecast</span><span><i class="budget"></i>Expense budget</span><span><i class="floor"></i>Must-pay floor</span></div></div>`;
 }
 
 function renderDashboardForecast() {
   const target = document.querySelector('#dashboardForecast');
   if (!target) return;
-  const forecast = buildDashboardForecast(data.transactions || [], data.schedules || [], { month:currentMonthKey(), historyMonths:dashboardForecastHistoryMonths, asOf:today() });
+  const dashboardSettings = normalizeSettings(data.settings);
+  const forecast = buildDashboardForecast(data.transactions || [], data.schedules || [], { month:currentMonthKey(), historyMonths:dashboardForecastHistoryMonths, asOf:today(), minimumExpenseReasons:dashboardSettings.bareMinimumExpenseReasons, minimumBufferMode:dashboardSettings.bareMinimumBufferMode, minimumBufferValue:dashboardSettings.bareMinimumBufferValue });
   const monthLabel = new Date(`${forecast.month}-01T00:00:00`).toLocaleDateString('en-IN', { month:'long' });
   const previousLabel = new Date(`${forecast.previousMonth}-01T00:00:00`).toLocaleDateString('en-IN', { month:'long' });
-  const changeUp = forecast.projectedChange > 0;
-  const changeNeutral = Math.abs(forecast.projectedChange) < .5;
-  const changeText = !forecast.monthsUsed && !forecast.projectedTotal ? 'Add expenses to build a projection' : !forecast.previousMonthTotal && forecast.projectedTotal ? 'New projected spending' : changeNeutral ? `In line with ${previousLabel}` : `${money(Math.abs(forecast.projectedChange))} ${changeUp ? 'above' : 'below'} ${previousLabel}`;
   const confidenceClass = forecast.confidence.toLowerCase();
-  const topDrivers = forecast.drivers.slice(0, 4);
-  const maxDriver = Math.max(...topDrivers.map(driver => Math.abs(driver.delta)), 1);
-  const categoryRows = forecast.categoryForecasts.slice(0, 4);
-  const maxCategory = Math.max(...categoryRows.map(row => row.projected), 1);
-  target.innerHTML = `<div class="dashboard-forecast-grid">
-    <article class="panel forecast-panel">
-      <div class="panel-heading forecast-heading"><div><p class="panel-kicker">SPEND OUTLOOK</p><h3>Expected month spend</h3></div><label class="forecast-range-control"><span class="sr-only">Forecast history</span><select id="dashboardForecastRange" aria-label="Forecast history"><option value="3" ${dashboardForecastHistoryMonths === 3 ? 'selected' : ''}>Last 3 months</option><option value="6" ${dashboardForecastHistoryMonths === 6 ? 'selected' : ''}>Last 6 months</option><option value="12" ${dashboardForecastHistoryMonths === 12 ? 'selected' : ''}>Last 1 year</option></select></label></div>
-      <div class="forecast-content"><div class="forecast-primary"><strong>${money(forecast.projectedTotal)} <small>projected</small></strong><p>${money(forecast.actualToDate)} spent through ${forecast.cutoffDay} ${monthLabel.slice(0, 3)}</p><span class="forecast-confidence ${confidenceClass}">${forecast.confidence} confidence</span><small>${forecast.monthsUsed ? `Likely range ${money(forecast.lowEstimate)}–${money(forecast.highEstimate)} · ${forecast.monthsUsed} month${forecast.monthsUsed === 1 ? '' : 's'} used` : 'Add three completed months to establish a reliable range'}</small>${forecast.scheduledRemaining ? `<em>${money(forecast.scheduledRemaining)} in scheduled expenses still due</em>` : ''}</div>${dashboardForecastChart(forecast)}</div>
-      <button class="forecast-change-callout ${changeNeutral ? 'neutral' : changeUp ? 'up' : 'down'}" type="button" data-action="dashboard-view-transactions"><span>${changeNeutral ? '→' : changeUp ? '↑' : '↓'}</span><b>${changeText}</b><i>›</i></button>
+  const minimum = forecast.minimum;
+  const selectedMinimum = dashboardForecastIncludeInvestments ? minimum.withInvestments : minimum.required;
+  const selectedProjectedOutflow = dashboardForecastIncludeInvestments ? minimum.projectedOutflowWithInvestments : minimum.projectedRequiredOutflow;
+  const minimumDifference = minimum.actualOutflowToDate - selectedMinimum;
+  const projectedMinimumDifference = selectedProjectedOutflow - selectedMinimum;
+  const minimumDifferenceTone = Math.abs(minimumDifference) < .5 ? 'neutral' : minimumDifference > 0 ? 'over' : 'under';
+  const minimumDifferenceText = Math.abs(minimumDifference) < .5
+    ? 'Spending matches your baseline'
+    : minimumDifference > 0
+      ? `${money(minimumDifference)} spent above baseline`
+      : `${money(Math.abs(minimumDifference))} remains before baseline`;
+  const forecastRangeLabel = dashboardForecastHistoryMonths === 3 ? 'last 3 months' : dashboardForecastHistoryMonths === 12 ? 'last 1 year' : 'last 6 months';
+  const forecastHistoryAvailability = forecast.monthsUsed ? `${forecast.monthsUsed} with data` : 'no completed months yet';
+  const budget = budgetForMonth(forecast.month);
+  const safeToSpend = Math.max(0, budget - forecast.actualToDate - forecast.scheduledRemaining);
+  const forecastBudgetDelta = forecast.projectedTotal - budget;
+  const status = !budget
+    ? { key:'neutral', label:'Set a budget' }
+    : forecastBudgetDelta > 0 || minimumDifference > 0
+      ? { key:'watch', label:'Watch closely' }
+      : { key:'on-track', label:'On track' };
+  const attentionEnd = new Date(`${today()}T00:00:00`);
+  attentionEnd.setDate(attentionEnd.getDate() + 10);
+  const attentionEndKey = `${attentionEnd.getFullYear()}-${String(attentionEnd.getMonth() + 1).padStart(2, '0')}-${String(attentionEnd.getDate()).padStart(2, '0')}`;
+  const dueSoon = forecast.upcomingCommitments.filter(item => item.date <= attentionEndKey);
+  const dueSoonTotal = dashboardForecastSum(dueSoon);
+  const topDriver = forecast.drivers.find(driver => driver.delta > 0) || forecast.drivers[0];
+  const requiredGap = minimum.actualOutflowToDate - minimum.required;
+  const expenseFloorWidth = selectedMinimum ? minimum.expenses / selectedMinimum * 100 : 0;
+  const loanFloorWidth = selectedMinimum ? minimum.loans / selectedMinimum * 100 : 0;
+  const bufferFloorWidth = selectedMinimum ? minimum.buffer / selectedMinimum * 100 : 0;
+  const investmentFloorWidth = dashboardForecastIncludeInvestments && selectedMinimum ? minimum.investments / selectedMinimum * 100 : 0;
+  const reasonLabels = { essential:'Essential', planned:'Planned purchase', holiday:'Holiday', impulse:'Impulse purchase', recurring:'Recurring commitment', emergency:'Emergency', gift:'Gift or support', other:'Other' };
+  const minimumReasonSummary = minimum.reasons.length ? minimum.reasons.map(reason => reasonLabels[reason] || reason).join(', ') : 'no expense reasons';
+  const bufferLabel = minimum.bufferMode === 'percentage' ? `${minimum.bufferValue}% buffer` : minimum.bufferMode === 'fixed' ? 'Fixed buffer' : 'No buffer';
+  target.innerHTML = `<div class="dashboard-forecast-grid outlook-grid">
+    <article class="panel forecast-panel outlook-panel">
+      <div class="outlook-heading"><div><p class="panel-kicker">THIS MONTH</p><h3>Monthly outlook</h3></div><div class="outlook-heading-actions"><label class="forecast-range-control"><span class="sr-only">Forecast history</span><select id="dashboardForecastRange" aria-label="Forecast history"><option value="3" ${dashboardForecastHistoryMonths === 3 ? 'selected' : ''}>Last 3 months</option><option value="6" ${dashboardForecastHistoryMonths === 6 ? 'selected' : ''}>Last 6 months</option><option value="12" ${dashboardForecastHistoryMonths === 12 ? 'selected' : ''}>Last 1 year</option></select></label><span class="outlook-status ${status.key}">${status.label}</span></div></div>
+      <div class="outlook-spend-summary"><strong>${money(forecast.actualToDate)}</strong><span>real expenses through ${forecast.cutoffDay} ${monthLabel.slice(0, 3)}</span><em class="forecast-confidence ${confidenceClass}">${forecast.confidence} confidence</em><small>${forecast.monthsUsed ? `${forecast.monthsUsed} completed month${forecast.monthsUsed === 1 ? '' : 's'} inform the forecast` : 'The projection is still learning'}</small></div>
+      <div class="outlook-kpis">
+        <article class="projected"><span>${richIcon('insight-pattern')}</span><div><small>Projected finish</small><strong>${money(forecast.projectedTotal)}</strong><p>${forecastBudgetDelta > 0 ? `${money(forecastBudgetDelta)} above` : `${money(Math.abs(forecastBudgetDelta))} below`} expense budget</p></div></article>
+        <article class="budget"><span>${richIcon('insight-pace')}</span><div><small>Expense budget</small><strong>${money(budget)}</strong><p>${budget ? `${Math.round(forecast.actualToDate / budget * 100)}% used so far` : 'Add a monthly target'}</p></div></article>
+        <article class="minimum"><span>${richIcon('credit-paid')}</span><div><small>Bare minimum</small><strong>${money(selectedMinimum)}</strong><p>${dashboardForecastIncludeInvestments ? 'Includes optional investing' : 'Essentials and loans only'}</p></div></article>
+        <article class="safe"><span>${richIcon('real-expenses')}</span><div><small>Safe to spend</small><strong>${money(safeToSpend)}</strong><p>${forecast.scheduledRemaining ? `After ${money(forecast.scheduledRemaining)} still due` : 'Within expense budget'}</p></div></article>
+      </div>
+      ${dashboardForecastChart(forecast, budget, minimum.expenses)}
+      <section class="forecast-minimum" aria-labelledby="forecastMinimumTitle">
+        <div class="forecast-minimum-heading"><div><p class="panel-kicker">MONTHLY FLOOR</p><h4 id="forecastMinimumTitle">Bare minimum needed</h4><p>Projected from the ${forecastRangeLabel} (${forecastHistoryAvailability}) using ${esc(minimumReasonSummary)}.</p></div><div class="forecast-minimum-total"><small>${dashboardForecastIncludeInvestments ? 'With investments' : 'Required baseline'}</small><strong>${money(selectedMinimum)}</strong><span class="${minimumDifferenceTone}">${minimumDifferenceText}</span></div></div>
+        <div class="outlook-floor-track" aria-label="Bare minimum split"><i class="expense" style="width:${expenseFloorWidth}%"></i><i class="loan" style="width:${loanFloorWidth}%"></i>${minimum.buffer ? `<i class="buffer" style="width:${bufferFloorWidth}%"></i>` : ''}${dashboardForecastIncludeInvestments ? `<i class="investment" style="width:${investmentFloorWidth}%"></i>` : ''}</div>
+        <div class="forecast-minimum-parts">
+          <article><span class="forecast-minimum-icon expense">${richIcon('real-expenses')}</span><div><small>Must-pay expenses</small><strong>${money(minimum.expenses)}</strong><p>Typical ${money(minimum.expenseHistorical)} · current floor ${money(minimum.expenseCurrent)}</p></div></article>
+          <article><span class="forecast-minimum-icon loan">${richIcon('loans')}</span><div><small>Loan commitments</small><strong>${money(minimum.loans)}</strong><p>Typical ${money(minimum.loanHistorical)} · current floor ${money(minimum.loanCurrent)}</p></div></article>
+          <article><span class="forecast-minimum-icon buffer">${richIcon('insight-pace')}</span><div><small>Real-life buffer</small><strong>${money(minimum.buffer)}</strong><p>${bufferLabel} on ${money(minimum.requiredBeforeBuffer)}</p></div></article>
+          <article class="optional"><span class="forecast-minimum-icon investment">${richIcon('investments')}</span><div><small>Continue investing <em>Optional</em></small><strong>${money(minimum.investments)}</strong><p>Typical ${money(minimum.investmentHistorical)} · current floor ${money(minimum.investmentCurrent)}</p></div><button type="button" role="switch" aria-label="Include monthly investments in the baseline" aria-checked="${dashboardForecastIncludeInvestments}" data-action="dashboard-toggle-investments"><i></i><span>${dashboardForecastIncludeInvestments ? 'Included' : 'Add'}</span></button></article>
+        </div>
+        <div class="forecast-minimum-footer"><span>Total outflow so far <b>${money(minimum.actualOutflowToDate)}</b></span><span>Projected all-outflow <b>${money(selectedProjectedOutflow)}</b> <em class="${projectedMinimumDifference > 0 ? 'over' : projectedMinimumDifference < 0 ? 'under' : 'neutral'}">${projectedMinimumDifference > 0 ? '+' : projectedMinimumDifference < 0 ? '−' : ''}${money(Math.abs(projectedMinimumDifference))}</em></span></div>
+      </section>
     </article>
-    <article class="panel forecast-drivers-panel">
-      <div class="panel-heading"><div><p class="panel-kicker">MONTHLY DRIVERS</p><h3>What changed this month?</h3><p class="panel-caption">${monthLabel} vs ${previousLabel} through ${forecast.cutoffDay}${dashboardForecastOrdinal(forecast.cutoffDay)}</p></div></div>
-      <div class="forecast-driver-list">${topDrivers.length ? topDrivers.map(driver => `<button type="button" class="forecast-driver ${driver.delta > 0 ? 'increase' : 'decrease'}" data-action="dashboard-driver" data-category="${esc(driver.category)}"><span class="forecast-driver-icon">${richIcon(dashboardForecastCategoryIcon(driver.category))}</span><p><b>${esc(driver.category)}</b><small>${esc(driver.note)}</small></p><i><em style="width:${Math.max(9, Math.abs(driver.delta) / maxDriver * 100)}%"></em></i><strong>${driver.delta > 0 ? '+' : '−'}${money(Math.abs(driver.delta))}</strong></button>`).join('') : `<div class="forecast-empty"><span>${richIcon('insight-pattern')}</span><b>No monthly change yet</b><small>Add expenses this month to compare them with ${previousLabel}.</small></div>`}</div>
-      <div class="forecast-driver-total"><span>Net change</span><strong class="${forecast.toDateChange > 0 ? 'increase' : 'decrease'}">${forecast.toDateChange > 0 ? '+' : forecast.toDateChange < 0 ? '−' : ''}${money(Math.abs(forecast.toDateChange))}</strong><button type="button" data-action="dashboard-view-transactions">View transactions →</button></div>
-    </article>
-  </div>
-  <article class="panel forecast-category-panel"><div class="panel-heading"><div><p class="panel-kicker">CATEGORY OUTLOOK</p><h3>Forecast by category</h3><p class="panel-caption">Historical pattern and expenses still scheduled this month.</p></div><button class="ghost-button" type="button" data-action="dashboard-view-insights">View insights</button></div><div class="forecast-category-list">${categoryRows.length ? categoryRows.map(row => `<button type="button" class="forecast-category" data-action="dashboard-driver" data-category="${esc(row.category)}"><span class="forecast-category-icon">${richIcon(dashboardForecastCategoryIcon(row.category))}</span><p><b>${esc(row.category)}</b><strong>${money(row.projected)}</strong></p><i><em style="width:${Math.max(8, row.projected / maxCategory * 100)}%"></em></i></button>`).join('') : '<p class="forecast-category-empty">Category forecasts will appear after expense history is available.</p>'}</div></article>`;
+    <aside class="panel outlook-attention-panel">
+      <div class="panel-heading"><div><p class="panel-kicker">ACTION CENTRE</p><h3>What needs attention</h3><p class="panel-caption">The most useful signals for ${monthLabel}.</p></div></div>
+      <div class="outlook-attention-list">
+        <button type="button" class="outlook-attention-item ${minimumDifference > 0 ? 'alert' : 'positive'}" data-action="dashboard-view-transactions"><span>${richIcon(minimumDifference > 0 ? 'insight-alert' : 'credit-paid')}</span><div><b>${minimumDifference > 0 ? `${money(minimumDifference)} above your baseline` : `${money(Math.abs(minimumDifference))} remaining before baseline`}</b><small>${minimumDifference > 0 ? 'Total outflow has moved beyond your selected monthly floor.' : 'Your outflow remains below the selected monthly floor.'}</small></div><i>›</i></button>
+        <button type="button" class="outlook-attention-item due" data-action="dashboard-view-schedule"><span>${richIcon('schedule-overview')}</span><div><b>${dueSoon.length ? `${money(dueSoonTotal)} due in the next 10 days` : 'No commitments due in the next 10 days'}</b><small>${dueSoon.length ? `${dueSoon.length} upcoming commitment${dueSoon.length === 1 ? '' : 's'}, starting ${new Date(`${dueSoon[0].date}T00:00:00`).toLocaleDateString('en-IN', { day:'numeric', month:'short' })}.` : 'Your current schedule is clear for the next ten days.'}</small></div><i>›</i></button>
+        ${topDriver ? `<button type="button" class="outlook-attention-item driver" data-action="dashboard-driver" data-category="${esc(topDriver.category)}"><span>${richIcon(dashboardForecastCategoryIcon(topDriver.category))}</span><div><b>${esc(topDriver.category)} is ${money(Math.abs(topDriver.delta))} ${topDriver.delta > 0 ? 'higher' : 'lower'} than ${previousLabel}</b><small>${esc(topDriver.note)}</small></div><i>›</i></button>` : `<button type="button" class="outlook-attention-item driver" data-action="dashboard-view-insights"><span>${richIcon('insight-pattern')}</span><div><b>Your spending pattern is steady</b><small>Add more activity to reveal meaningful monthly changes.</small></div><i>›</i></button>`}
+      </div>
+      <button class="outlook-review-button" type="button" data-action="dashboard-view-transactions">Review spending <span>→</span></button>
+      <div class="outlook-coverage ${requiredGap >= 0 ? 'covered' : 'pending'}"><span>${richIcon(requiredGap >= 0 ? 'credit-paid' : 'insight-alert')}</span><div><b>${requiredGap >= 0 ? 'Required baseline is covered' : `${money(Math.abs(requiredGap))} still needed for the required baseline`}</b><small>${requiredGap >= 0 ? 'Your current outflow covers must-pay expenses, loans, and the selected buffer.' : 'Keep enough available for must-pay expenses, loans, and the selected buffer.'}</small></div></div>
+    </aside>
+  </div>`;
 }

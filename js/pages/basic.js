@@ -1,3 +1,14 @@
+const bareMinimumReasonChoices = [
+  { value:'essential', label:'Essential', description:'Everyday needs and unavoidable purchases.', icon:'real-expenses' },
+  { value:'recurring', label:'Recurring commitment', description:'Regular bills and repeat commitments.', icon:'schedule-overview' },
+  { value:'emergency', label:'Emergency', description:'Unexpected costs that could not be deferred.', icon:'insight-alert' },
+  { value:'planned', label:'Planned purchase', description:'Intentional purchases prepared in advance.', icon:'insight-pattern' },
+  { value:'holiday', label:'Holiday', description:'Travel and holiday-related spending.', icon:'timeline-travel' },
+  { value:'impulse', label:'Impulse purchase', description:'Unplanned discretionary purchases.', icon:'credit-spend' },
+  { value:'gift', label:'Gift or support', description:'Gifts and financial support for others.', icon:'timeline-personal' },
+  { value:'other', label:'Other', description:'Tagged expenses outside the main reasons.', icon:'insight-category' }
+];
+
 function renderSettingsPage() {
   const settings = normalizeSettings(data.settings);
   const categoryRows = ['expense','loan','investment'].map(kind => {
@@ -28,6 +39,7 @@ function renderSettingsPage() {
           <div><span class="account-action-icon amber">${richIcon('privacy')}</span><p><b>Portable backup</b><small>Download a JSON copy of the data currently loaded in the app.</small></p><button class="mini-button" data-action="export" type="button">Export data</button></div>
         </div>
       </article>
+      ${renderBareMinimumReasonSettings()}
     </section>
 
     <article class="panel account-category-panel">
@@ -36,6 +48,26 @@ function renderSettingsPage() {
       <div class="account-category-list">${categoryRows}</div>
     </article>
   </section>`;
+}
+
+function renderBareMinimumReasonSettings() {
+  const settings = normalizeSettings(data.settings);
+  const selected = new Set(settings.bareMinimumExpenseReasons);
+  const bufferMode = settings.bareMinimumBufferMode;
+  const bufferValue = settings.bareMinimumBufferValue;
+  const bufferPreview = bufferMode === 'percentage'
+    ? `A ₹60,000 required baseline becomes ${money(60000 * (1 + bufferValue / 100))}.`
+    : bufferMode === 'fixed'
+      ? `A ₹60,000 required baseline becomes ${money(60000 + bufferValue)}.`
+      : 'No buffer is currently added to the required baseline.';
+  return `<article class="panel account-minimum-reasons-panel">
+    <div class="account-card-heading"><div class="account-heading-copy"><span class="account-heading-icon teal">${richIcon('credit-paid')}</span><div><p class="panel-kicker">MONTHLY FLOOR</p><h3>Bare minimum calculation</h3><p class="subtitle">Choose which expense reasons count toward the must-pay portion of your monthly baseline. Loans remain included, while investments stay optional on the dashboard.</p></div></div><span class="account-selection-count" id="bareMinimumReasonCount">${selected.size} selected</span></div>
+    <form id="minimumReasonsSettingsForm" class="minimum-reasons-form">
+      <div class="minimum-reason-grid">${bareMinimumReasonChoices.map(reason => `<label class="minimum-reason-option"><input type="checkbox" name="bareMinimumExpenseReasons" value="${reason.value}" ${selected.has(reason.value) ? 'checked' : ''}/><span><i>${richIcon(reason.icon)}</i><b>${reason.label}</b><small>${reason.description}</small><em aria-hidden="true">✓</em></span></label>`).join('')}</div>
+      <section class="minimum-buffer-editor"><div class="minimum-buffer-copy"><span>${richIcon('insight-pace')}</span><div><p class="panel-kicker">REAL-LIFE ALLOWANCE</p><h4>Add a buffer</h4><small>Give the baseline room for necessary-but-imperfect spending without treating it as a strict best-case target.</small></div></div><div class="minimum-buffer-controls"><label>Buffer type<select name="bareMinimumBufferMode"><option value="none" ${bufferMode === 'none' ? 'selected' : ''}>No buffer</option><option value="percentage" ${bufferMode === 'percentage' ? 'selected' : ''}>Percentage</option><option value="fixed" ${bufferMode === 'fixed' ? 'selected' : ''}>Fixed amount</option></select></label><label id="bareMinimumBufferValueLabel">${bufferMode === 'fixed' ? 'Buffer amount (₹)' : 'Buffer percentage (%)'}<input name="bareMinimumBufferValue" type="number" min="0" ${bufferMode === 'percentage' ? 'max="100" step="1"' : 'step="1"'} value="${bufferValue}" ${bufferMode === 'none' ? 'disabled' : ''}/></label></div><p class="minimum-buffer-preview" id="bareMinimumBufferPreview">${bufferPreview}</p></section>
+      <div class="minimum-reasons-footer"><p>Only real expenses tagged with the selected reasons are used in the historical and current must-pay estimate.</p><button class="primary-button" type="submit">Save calculation</button></div>
+    </form>
+  </article>`;
 }
 
 function renderBudgetSettings() {

@@ -40,8 +40,9 @@ const seedHabits = [
   { id:'h3', name:'Walking', icon:'walk', color:'teal-bg', goalType:'count', target:6000, unit:'steps', frequency:'Daily', startDate:'2025-05-01', milestoneType:'total', milestoneTarget:100000, active:true },
   { id:'h4', name:'Sleep', icon:'moon', color:'blue-bg', goalType:'duration', target:7.5, unit:'hrs', frequency:'Daily', startDate:'2025-05-01', milestoneType:'days', milestoneTarget:30, active:true }
 ];
-const defaultSettings = { monthlyExpenseBudget:60000, monthlyBudgetOverrides:{} };
+const defaultSettings = { monthlyExpenseBudget:60000, monthlyBudgetOverrides:{}, bareMinimumExpenseReasons:['essential','recurring','emergency'], bareMinimumBufferMode:'none', bareMinimumBufferValue:0 };
 const validSpendGroups = ['need','commitment','growth','goodToHave','leisure'];
+const validExpenseReasons = ['essential','planned','holiday','impulse','recurring','emergency','gift','other'];
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname), { setHeaders: (res) => res.setHeader('Cache-Control', 'no-store') }));
@@ -427,11 +428,22 @@ app.delete('/api/notes/:id', requireAuth, async (req, res) => {
 app.put('/api/settings', requireAuth, async (req, res) => {
   try {
     const database = await ensureDatabase();
+    const existingSettings = await database.collection('settings').findOne({ ownerId:req.user.id });
     const monthlyExpenseBudget = Number(req.body.monthlyExpenseBudget);
     const monthlyBudgetOverrides = req.body.monthlyBudgetOverrides && typeof req.body.monthlyBudgetOverrides === 'object' ? req.body.monthlyBudgetOverrides : {};
     if (!monthlyExpenseBudget || monthlyExpenseBudget < 0) return res.status(400).json({ error:'Monthly expense budget must be a positive amount.' });
     const cleanOverrides = Object.fromEntries(Object.entries(monthlyBudgetOverrides).map(([month, value]) => [normalizeMonthKey(month), Number(value)]).filter(([month, value]) => month && value > 0));
-    const settings = { monthlyExpenseBudget, monthlyBudgetOverrides:cleanOverrides };
+    const reasonSource = Array.isArray(req.body.bareMinimumExpenseReasons)
+      ? req.body.bareMinimumExpenseReasons
+      : Array.isArray(existingSettings?.bareMinimumExpenseReasons)
+        ? existingSettings.bareMinimumExpenseReasons
+        : defaultSettings.bareMinimumExpenseReasons;
+    const bareMinimumExpenseReasons = [...new Set(reasonSource.map(value => String(value || '').trim().toLowerCase()).filter(value => validExpenseReasons.includes(value)))];
+    const requestedBufferMode = String(req.body.bareMinimumBufferMode || existingSettings?.bareMinimumBufferMode || defaultSettings.bareMinimumBufferMode);
+    const bareMinimumBufferMode = ['none','percentage','fixed'].includes(requestedBufferMode) ? requestedBufferMode : 'none';
+    const requestedBufferValue = Math.max(0, Number(req.body.bareMinimumBufferValue ?? existingSettings?.bareMinimumBufferValue ?? 0));
+    const bareMinimumBufferValue = bareMinimumBufferMode === 'percentage' ? Math.min(100, requestedBufferValue) : bareMinimumBufferMode === 'fixed' ? requestedBufferValue : 0;
+    const settings = { monthlyExpenseBudget, monthlyBudgetOverrides:cleanOverrides, bareMinimumExpenseReasons, bareMinimumBufferMode, bareMinimumBufferValue };
     await database.collection('settings').updateOne({ ownerId:req.user.id }, { $set:{ ownerId:req.user.id, ...settings } }, { upsert:true });
     res.json(settings);
   } catch (error) { res.status(500).json({ error:error.message }); }

@@ -1,4 +1,4 @@
-let data = { transactions: [], schedules: [], categories: [], habits: [], habitLogs: [], stockTrades: [], creditCards: [], notes: [], timelineEvents: [], settings: { monthlyExpenseBudget: 60000, monthlyBudgetOverrides: {} } };
+let data = { transactions: [], schedules: [], categories: [], habits: [], habitLogs: [], stockTrades: [], creditCards: [], notes: [], timelineEvents: [], settings: { monthlyExpenseBudget:60000, monthlyBudgetOverrides:{}, bareMinimumExpenseReasons:['essential','recurring','emergency'], bareMinimumBufferMode:'none', bareMinimumBufferValue:0 } };
 let activePage = 'dashboard';
 let activeType = 'expense';
 let authMode = 'login';
@@ -175,7 +175,7 @@ function habitMilestoneProgress(habit) {
   const label = type === 'total' && habit.goalType !== 'checkbox' ? `${Number(current || 0).toLocaleString('en-IN')} / ${Number(target).toLocaleString('en-IN')} ${habit.unit || ''}`.trim() : `${current} / ${target} days`;
   return { type, target, current, pct:target ? Math.min(100, Math.round(current / target * 100)) : 0, label };
 }
-const defaultSettings = { monthlyExpenseBudget: 60000, monthlyBudgetOverrides: {} };
+const defaultSettings = { monthlyExpenseBudget:60000, monthlyBudgetOverrides:{}, bareMinimumExpenseReasons:['essential','recurring','emergency'], bareMinimumBufferMode:'none', bareMinimumBufferValue:0 };
 const offlineDbName = 'expensohabit-offline';
 const offlineTransactionStore = 'pendingTransactions';
 
@@ -266,9 +266,20 @@ async function syncPendingTransactions(options = {}) {
 }
 function normalizeSettings(settings = {}) {
   const monthlyExpenseBudget = Number(settings.monthlyExpenseBudget || defaultSettings.monthlyExpenseBudget);
+  const validBareMinimumReasons = new Set(['essential','planned','holiday','impulse','recurring','emergency','gift','other']);
+  const hasSavedReasons = Array.isArray(settings.bareMinimumExpenseReasons);
+  const bareMinimumExpenseReasons = (hasSavedReasons ? settings.bareMinimumExpenseReasons : defaultSettings.bareMinimumExpenseReasons)
+    .map(value => String(value || '').trim().toLowerCase())
+    .filter((value, index, values) => validBareMinimumReasons.has(value) && values.indexOf(value) === index);
+  const bareMinimumBufferMode = ['none','percentage','fixed'].includes(settings.bareMinimumBufferMode) ? settings.bareMinimumBufferMode : defaultSettings.bareMinimumBufferMode;
+  const rawBufferValue = Math.max(0, Number(settings.bareMinimumBufferValue || 0));
+  const bareMinimumBufferValue = bareMinimumBufferMode === 'percentage' ? Math.min(100, rawBufferValue) : rawBufferValue;
   return {
     monthlyExpenseBudget,
-    monthlyBudgetOverrides: settings.monthlyBudgetOverrides && typeof settings.monthlyBudgetOverrides === 'object' ? settings.monthlyBudgetOverrides : {}
+    monthlyBudgetOverrides: settings.monthlyBudgetOverrides && typeof settings.monthlyBudgetOverrides === 'object' ? settings.monthlyBudgetOverrides : {},
+    bareMinimumExpenseReasons,
+    bareMinimumBufferMode,
+    bareMinimumBufferValue
   };
 }
 
@@ -507,24 +518,10 @@ function renderDashboard() {
   $('#totalOutflow').textContent = money(t.total); $('#realExpenses').textContent = money(t.real); $('#loanTotal').textContent = money(t.loan); $('#investmentTotal').textContent = money(t.investment);
   renderSummaryCards(t, previous);
   $$('.summary-trend small').forEach(label => { label.textContent = `vs ${comparisonLabel}`; });
-  $('#formulaExpense').textContent = money(t.expenseTotal); $('#formulaLoan').textContent = money(t.loan); $('#formulaInvestment').textContent = money(t.investment); $('#formulaTotal').textContent = money(t.total);
-  [['Expense', t.expenseTotal], ['Loan', t.loan], ['Investment', t.investment]].forEach(([name, amount]) => {
-    const share = t.total > 0 ? amount / t.total * 100 : 0;
-    $(`#mapSegment${name}`).style.width = `${share}%`;
-    $(`#mapShare${name}`).textContent = `${Math.round(share)}% of outflow`;
-  });
-  $('#moneyFlowStack').setAttribute('aria-label', `Monthly outflow: ${money(t.expenseTotal)} expenses, ${money(t.loan)} loans, and ${money(t.investment)} investments`);
-  const realMode = dashboardView === 'real';
-  $$('.segmented-control button').forEach(button => button.classList.toggle('active', button.dataset.view === dashboardView));
-  $('#dashboardViewHelper').textContent = realMode
-    ? 'Showing real expenses only in the category breakdown.'
-    : 'All outflow includes loans & investments in totals. The category breakdown stays expense-only.';
-  $('#categoryPanelKicker').textContent = realMode ? 'REAL EXPENSES' : 'THIS MONTH';
-  $('#categoryPanelTitle').textContent = realMode ? 'Real expense breakdown' : 'Expense breakdown';
-  $('#categoryPanelSubtitle').textContent = realMode
-    ? 'Day-to-day expense categories only.'
-    : 'Where your money goes this month.';
-  renderDashboardForecast(); renderCategories(dashboardView); renderUpcoming(); renderHomeVelocity();
+  $('#categoryPanelKicker').textContent = 'THIS MONTH';
+  $('#categoryPanelTitle').textContent = 'Expense breakdown';
+  $('#categoryPanelSubtitle').textContent = 'Where your real expenses went this month.';
+  renderDashboardForecast(); renderCategories('real'); renderUpcoming();
 }
 
 function paceRealTransactions(month, throughDay = 31) {
@@ -1437,35 +1434,6 @@ $('#transactionForm input[name="recurring"]').addEventListener('change', () => u
 $('#transactionForm select[name="frequency"]').addEventListener('change', () => updateDetailSections());
 $('#transactionForm select[name="paymentMode"]').addEventListener('change', updatePaymentSourceVisibility);
 $$('.type-tabs button').forEach(button => button.addEventListener('click', () => { setType(button.dataset.type); updateCategoryOptions(); })); $$('[data-workspace]').forEach(button => button.addEventListener('click', () => navigate(button.dataset.workspace === 'habits' ? 'habits' : button.dataset.workspace === 'timeline' ? 'timeline' : 'dashboard'))); $$('.nav-item,[data-page]').forEach(button => button.addEventListener('click', async event => { if (button.matches('a')) event.preventDefault(); navigate(button.dataset.page); if (button.dataset.page === 'dashboard') await refreshData(); })); $$('.segmented-control button').forEach(button => button.addEventListener('click', () => { dashboardView = button.dataset.view; $$('.segmented-control button').forEach(b => b.classList.remove('active')); button.classList.add('active'); renderDashboard(); }));
-$('#paceMonthSelect').addEventListener('change', event => { paceMonth = event.target.value; renderHomeVelocity(); });
-$('#homeVelocity').addEventListener('click', event => {
-  const overlay = event.target.closest('[data-pace-overlay]');
-  if (overlay) {
-    const key = overlay.dataset.paceOverlay;
-    paceChartOverlays[key] = !paceChartOverlays[key];
-    renderHomeVelocity();
-    return;
-  }
-  const dayTarget = event.target.closest('[data-pace-day]');
-  const actionTarget = event.target.closest('[data-pace-action]');
-  if (!dayTarget && !actionTarget) return;
-  const date = dayTarget ? `${paceMonth}-${String(dayTarget.dataset.paceDay).padStart(2, '0')}` : '';
-  transactionFilter = {
-    mode:date ? 'day' : (paceMonth === currentMonthKey() ? 'thisMonth' : 'monthRange'),
-    date,
-    fromMonth:paceMonth,
-    toMonth:paceMonth,
-    fromYear:paceMonth.slice(0, 4),
-    toYear:paceMonth.slice(0, 4),
-    type:'expense',
-    category:[],
-    spendGroup:[],
-    payment:'all',
-    search:'',
-    sort:'dateDesc'
-  };
-  navigate('transactions');
-});
 $('#dashboardForecast').addEventListener('change', event => {
   if (event.target.id !== 'dashboardForecastRange') return;
   dashboardForecastHistoryMonths = Number(event.target.value) || 6;
@@ -1474,7 +1442,13 @@ $('#dashboardForecast').addEventListener('change', event => {
 $('#dashboardForecast').addEventListener('click', event => {
   const target = event.target.closest('[data-action]');
   if (!target) return;
+  if (target.dataset.action === 'dashboard-toggle-investments') {
+    dashboardForecastIncludeInvestments = !dashboardForecastIncludeInvestments;
+    renderDashboardForecast();
+    return;
+  }
   if (target.dataset.action === 'dashboard-view-insights') { navigate('insights'); return; }
+  if (target.dataset.action === 'dashboard-view-schedule') { navigate('schedule'); return; }
   if (!['dashboard-view-transactions', 'dashboard-driver'].includes(target.dataset.action)) return;
   transactionFilter = {
     mode:'thisMonth',
@@ -1726,11 +1700,43 @@ $('#subPageView').addEventListener('click', event => {
   else if (target.dataset.action === 'edit-credit-card-bill') openCreditCardBillModal(card, creditCardBills(card).find(bill => bill.month === target.dataset.month));
   else openCreditCardModal(card);
 });
+function updateBareMinimumBufferEditor(form) {
+  if (!form) return;
+  const mode = form.elements.bareMinimumBufferMode?.value || 'none';
+  const valueInput = form.elements.bareMinimumBufferValue;
+  const value = Math.max(0, Number(valueInput?.value || 0));
+  const label = $('#bareMinimumBufferValueLabel');
+  const preview = $('#bareMinimumBufferPreview');
+  if (valueInput) {
+    valueInput.disabled = mode === 'none';
+    if (mode === 'percentage') valueInput.max = '100';
+    else valueInput.removeAttribute('max');
+  }
+  if (label) label.childNodes[0].textContent = mode === 'fixed' ? 'Buffer amount (₹)' : 'Buffer percentage (%)';
+  if (preview) preview.textContent = mode === 'percentage'
+    ? `A ₹60,000 required baseline becomes ${money(60000 * (1 + Math.min(100, value) / 100))}.`
+    : mode === 'fixed'
+      ? `A ₹60,000 required baseline becomes ${money(60000 + value)}.`
+      : 'No buffer is currently added to the required baseline.';
+}
 $('#subPageView').addEventListener('submit', async event => {
-  if (!['budgetSettingsForm','profileForm'].includes(event.target.id)) return;
+  if (!['budgetSettingsForm','minimumReasonsSettingsForm','profileForm'].includes(event.target.id)) return;
   event.preventDefault();
   if (event.target.id === 'profileForm') { await submitProfile(event); return; }
   const form = new FormData(event.target);
+  if (event.target.id === 'minimumReasonsSettingsForm') {
+    const settings = normalizeSettings(data.settings);
+    const bareMinimumExpenseReasons = form.getAll('bareMinimumExpenseReasons').map(value => String(value));
+    const bareMinimumBufferMode = String(form.get('bareMinimumBufferMode') || 'none');
+    const bareMinimumBufferValue = Math.max(0, Number(form.get('bareMinimumBufferValue') || 0));
+    const response = await fetch('/api/settings', { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ ...settings, bareMinimumExpenseReasons, bareMinimumBufferMode, bareMinimumBufferValue }) });
+    const result = await response.json();
+    if (!response.ok) { toast(result.error || 'Could not save bare minimum settings'); return; }
+    await loadData();
+    navigate('settings', false);
+    toast('Bare minimum calculation updated');
+    return;
+  }
   if (event.target.id === 'budgetSettingsForm') {
     const settings = normalizeSettings(data.settings);
     const overrideMonthInput = event.target.querySelector('[name="overrideMonth"]');
@@ -1741,7 +1747,7 @@ $('#subPageView').addEventListener('submit', async event => {
       if (overrideAmount > 0) monthlyBudgetOverrides[overrideMonth] = overrideAmount;
       else delete monthlyBudgetOverrides[overrideMonth];
     }
-    const response = await fetch('/api/settings', { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ monthlyExpenseBudget:Number(form.get('monthlyExpenseBudget')), monthlyBudgetOverrides }) });
+    const response = await fetch('/api/settings', { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ monthlyExpenseBudget:Number(form.get('monthlyExpenseBudget')), monthlyBudgetOverrides, bareMinimumExpenseReasons:settings.bareMinimumExpenseReasons, bareMinimumBufferMode:settings.bareMinimumBufferMode, bareMinimumBufferValue:settings.bareMinimumBufferValue }) });
     const result = await response.json();
     if (!response.ok) { toast(result.error || 'Could not save budget settings'); return; }
     await loadData();
@@ -1749,6 +1755,19 @@ $('#subPageView').addEventListener('submit', async event => {
     toast('Budget target saved');
     return;
   }
+});
+$('#subPageView').addEventListener('change', event => {
+  if (event.target.matches('#minimumReasonsSettingsForm input[name="bareMinimumExpenseReasons"]')) {
+    const form = event.target.form;
+    const count = form?.querySelectorAll('input[name="bareMinimumExpenseReasons"]:checked').length || 0;
+    const label = $('#bareMinimumReasonCount');
+    if (label) label.textContent = `${count} selected`;
+    return;
+  }
+  if (event.target.matches('#minimumReasonsSettingsForm select[name="bareMinimumBufferMode"]')) updateBareMinimumBufferEditor(event.target.form);
+});
+$('#subPageView').addEventListener('input', event => {
+  if (event.target.matches('#minimumReasonsSettingsForm input[name="bareMinimumBufferValue"]')) updateBareMinimumBufferEditor(event.target.form);
 });
 $('#subPageView').addEventListener('click', event => { const target = event.target.closest('[data-range]'); if (!target || target.dataset.action || activePage !== 'outflow') return; const range = target.dataset.range; const now = new Date(); const month = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`; const dates = reportDates(); const from = range === 'this-month' ? `${month}-01` : dates.from; const to = range === 'this-month' ? `${month}-${String(new Date(now.getFullYear(), now.getMonth()+1, 0).getDate()).padStart(2,'0')}` : dates.to; $('#subPageView').innerHTML = renderOutflowReport(from, to); });
 $('#subPageView').addEventListener('submit', event => { if (!['outflowFilters','insightFilters','transactionFilters'].includes(event.target.id)) return; event.preventDefault(); const form = new FormData(event.target); if (event.target.id === 'transactionFilters') { applyTransactionFiltersFromForm(event.target, event.submitter?.dataset.transactionMode || transactionFilter.mode || 'thisMonth'); return; } if (event.target.id === 'insightFilters') { const mode = event.submitter?.dataset.insightMode || 'monthRange'; const fromMonth = form.get('fromMonth'); const toMonth = form.get('toMonth'); const fromYear = form.get('fromYear'); const toYear = form.get('toYear'); insightFilter = mode === 'yearRange' ? { mode, fromYear, toYear, fromMonth, toMonth } : { mode, fromMonth, toMonth, fromYear, toYear }; insightCategoryDrill = ''; moneyFlowHistoryOffset = 0; $('#subPageView').innerHTML = renderInsightsPage(); return; } $('#subPageView').innerHTML = renderOutflowReport(form.get('from'), form.get('to')); });

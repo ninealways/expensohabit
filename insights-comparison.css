@@ -64,6 +64,7 @@
 .insight-reason-legend { display:flex;flex-wrap:wrap;gap:8px 13px;margin-top:12px; }
 .insight-reason-legend span { display:inline-flex;align-items:center;gap:5px;color:#67779d;font-size:10px; }
 .insight-reason-legend i { width:9px;height:9px;display:inline-block;border-radius:3px; }
+.insight-reason-legend b { color:#263568;font-size:10px;font-weight:800; }
 .insight-reason-range { display:block;margin-top:4px;color:#7884a1;font-size:10px;font-weight:650; }
 .insights-selected-reason { min-width:0; }
 .insights-selected-reason .insight-reason-panel { background:linear-gradient(135deg,#fff,#fcfaff 66%,#fff8f6); }
