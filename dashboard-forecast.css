@@ -1036,12 +1036,56 @@
 
 .outlook-review-button span { font-size: 17px; }
 
+.outlook-upcoming {
+  margin-top: 13px;
+  padding: 13px;
+  border: 1px solid #ecebf5;
+  border-radius: 16px;
+  background: rgba(255,255,255,.78);
+}
+
+.outlook-upcoming-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 3px;
+}
+
+.outlook-upcoming-heading h4 {
+  margin-top: 3px;
+  color: #17275c;
+  font-size: 14px;
+}
+
+.outlook-upcoming-heading .ghost-button {
+  padding: 4px 0;
+  font-size: 9px;
+}
+
+.outlook-upcoming-list .upcoming-item {
+  grid-template-columns: 30px minmax(0, 1fr) auto;
+  gap: 8px;
+  padding: 9px 0;
+}
+
+.outlook-upcoming-list .upcoming-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 9px;
+}
+
+.outlook-upcoming-list .upcoming-text b,
+.outlook-upcoming-list .upcoming-right b { font-size: 10px; }
+.outlook-upcoming-list .upcoming-text small { font-size: 8.5px; }
+.outlook-upcoming-list .tag { margin-top: 2px; font-size: 8px; }
+
 .outlook-coverage {
   display: grid;
   grid-template-columns: 38px minmax(0, 1fr);
   gap: 9px;
   align-items: center;
-  margin-top: auto;
+  margin-top: 12px;
   padding: 11px;
   border-radius: 14px;
 }
@@ -1064,7 +1108,167 @@
 .outlook-coverage small { color: #68779b; font-size: 8.5px; line-height: 1.4; }
 
 .dashboard-forecast-section + .content-grid {
-  grid-template-columns: minmax(0, 2fr) minmax(300px, 1fr);
+  grid-template-columns: minmax(0, 3fr) minmax(340px, 2fr);
+}
+
+.spending-traps-panel {
+  min-width: 0;
+  padding: 20px;
+  border: 1px solid rgba(113, 94, 190, .13);
+  background:
+    radial-gradient(circle at 100% 0, rgba(255, 111, 139, .10), transparent 34%),
+    linear-gradient(150deg, #fff 0%, #fff 68%, #faf7ff 100%);
+  box-shadow: 0 14px 38px rgba(45, 35, 104, .06);
+}
+
+.spending-traps-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.spending-traps-heading h3 {
+  margin-top: 4px;
+  color: #14255a;
+  font-size: 17px;
+}
+
+.spending-traps-heading .panel-caption {
+  margin-top: 4px;
+  color: #7480a1;
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.spending-traps-summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(120px, .75fr);
+  gap: 9px;
+  margin-top: 15px;
+}
+
+.spending-traps-summary > div {
+  display: grid;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid #ecebf5;
+  border-radius: 14px;
+  background: rgba(255,255,255,.88);
+}
+
+.spending-traps-summary small,
+.spending-traps-watch small {
+  color: #7c88a8;
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: .045em;
+  text-transform: uppercase;
+}
+
+.spending-traps-summary strong {
+  margin-top: 3px;
+  color: #e34469;
+  font-size: 25px;
+  line-height: 1.05;
+  letter-spacing: -.035em;
+}
+
+.spending-traps-summary b {
+  margin-top: 5px;
+  color: #17275c;
+  font-size: 15px;
+}
+
+.spending-traps-summary span {
+  margin-top: 4px;
+  color: #7d89a8;
+  font-size: 8.5px;
+}
+
+.spending-traps-impact {
+  background: linear-gradient(145deg, #f7f3ff, #fff7f8) !important;
+}
+
+.spending-trap-list {
+  display: grid;
+  gap: 7px;
+  margin-top: 10px;
+}
+
+.spending-trap-row,
+.spending-traps-empty {
+  display: grid;
+  grid-template-columns: 33px minmax(0, 1fr);
+  gap: 9px;
+  align-items: center;
+  padding: 9px 10px;
+  border: 1px solid #efedf6;
+  border-radius: 13px;
+  background: rgba(255,255,255,.82);
+}
+
+.spending-trap-row > span,
+.spending-traps-empty > span {
+  display: grid;
+  width: 33px;
+  height: 33px;
+  place-items: center;
+  border-radius: 11px;
+}
+
+.spending-trap-row > span .rich-icon,
+.spending-traps-empty > span .rich-icon { width: 100%; height: 100%; }
+.spending-trap-row.alert > span { background: #ffe6eb; }
+.spending-trap-row.rise > span { background: #f0e9ff; }
+.spending-trap-row.repeat > span { background: #fff0d9; }
+.spending-trap-row.weekend > span { background: #e5efff; }
+.spending-trap-row.watch > span { background: #e0f8f0; }
+.spending-traps-empty > span { background: #e0f8f0; }
+
+.spending-trap-row div,
+.spending-traps-empty div { display: grid; gap: 3px; min-width: 0; }
+.spending-trap-row b,
+.spending-traps-empty b { color: #18275b; font-size: 10px; line-height: 1.35; }
+.spending-trap-row small,
+.spending-traps-empty small { color: #7a87a7; font-size: 8.5px; line-height: 1.4; }
+
+.spending-traps-watch {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.spending-traps-watch > div {
+  display: grid;
+  min-width: 0;
+  padding: 10px;
+  border-radius: 12px;
+  background: #f6f4fc;
+}
+
+.spending-traps-watch b {
+  overflow: hidden;
+  margin-top: 3px;
+  color: #17275c;
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.spending-traps-watch span {
+  margin-top: 3px;
+  color: #7884a5;
+  font-size: 8px;
+  line-height: 1.4;
+}
+
+.spending-traps-method {
+  margin-top: 10px;
+  color: #929ab1;
+  font-size: 7.5px;
+  line-height: 1.45;
 }
 
 @media (max-width: 1100px) {
@@ -1093,6 +1297,9 @@
   .outlook-spend-summary .forecast-confidence { grid-column: 2; grid-row: 1; }
   .forecast-chart-legend { flex-wrap: wrap; }
   .outlook-panel .forecast-minimum-parts { grid-template-columns:1fr; }
+  .spending-traps-panel { padding: 16px; }
+  .spending-traps-summary,
+  .spending-traps-watch { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 420px) {
