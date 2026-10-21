@@ -287,6 +287,88 @@ function dashboardForecastCategoryIcon(category = '') {
   return 'real-expenses';
 }
 
+function buildDashboardSpendingTraps(transactions = [], options = {}) {
+  const month = options.month || currentMonthKey();
+  const asOf = options.asOf || today();
+  const historyLimit = Math.max(3, Math.min(12, Number(options.historyMonths) || 6));
+  const cutoffDay = asOf.startsWith(month) ? Math.min(dashboardForecastMonthDays(month), Number(asOf.slice(8, 10)) || 1) : dashboardForecastMonthDays(month);
+  const cutoffKey = `${month}-${String(cutoffDay).padStart(2, '0')}`;
+  const realRows = dashboardForecastRealRows(transactions);
+  const currentRows = realRows.filter(row => row.date.startsWith(month) && row.date <= cutoffKey);
+  const currentTotal = dashboardForecastSum(currentRows);
+  const historyCandidates = Array.from({ length:historyLimit }, (_, index) => dashboardForecastShiftMonth(month, -(index + 1)));
+  const historyRows = Object.fromEntries(historyCandidates.map(historyMonth => [historyMonth, realRows.filter(row => row.date.startsWith(historyMonth))]));
+  const historyMonths = historyCandidates.filter(historyMonth => historyRows[historyMonth].length);
+  const impulseRows = currentRows.filter(row => row.expenseReason === 'impulse');
+  const avoidableTotal = dashboardForecastSum(impulseRows);
+  const categories = [...new Set([...currentRows.map(row => row.category || 'Other'), ...historyMonths.flatMap(historyMonth => historyRows[historyMonth].map(row => row.category || 'Other'))])];
+  const categorySpikes = categories.map(category => {
+    const current = dashboardForecastSum(currentRows.filter(row => (row.category || 'Other') === category));
+    const samples = historyMonths.map(historyMonth => {
+      const comparisonDay = Math.min(cutoffDay, dashboardForecastMonthDays(historyMonth));
+      const comparisonKey = `${historyMonth}-${String(comparisonDay).padStart(2, '0')}`;
+      return dashboardForecastSum(historyRows[historyMonth].filter(row => (row.category || 'Other') === category && row.date <= comparisonKey));
+    });
+    const typical = dashboardForecastMedian(samples);
+    return { category, current, typical, delta:current - typical };
+  }).filter(row => historyMonths.length >= 2 && row.delta >= Math.max(500, row.typical * .25)).sort((a, b) => b.delta - a.delta);
+  const smallPurchaseGroups = currentRows.filter(row => Number(row.amount || 0) <= 1000).reduce((groups, row) => {
+    const key = row.subcategory || row.category || 'Small purchases';
+    const group = groups[key] ||= { label:key, count:0, total:0 };
+    group.count += 1;
+    group.total += Number(row.amount || 0);
+    return groups;
+  }, {});
+  const repeatedSmall = Object.values(smallPurchaseGroups).filter(group => group.count >= 3 && group.total >= 500).sort((a, b) => b.total - a.total)[0] || null;
+  const weekendImpulse = impulseRows.filter(row => {
+    const day = new Date(`${row.date}T00:00:00`).getDay();
+    return day === 0 || day === 6;
+  });
+  const weekendImpulseTotal = dashboardForecastSum(weekendImpulse);
+  const remainderRisks = categories.map(category => {
+    const samples = historyMonths.map(historyMonth => {
+      const comparisonDay = Math.min(cutoffDay, dashboardForecastMonthDays(historyMonth));
+      const comparisonKey = `${historyMonth}-${String(comparisonDay).padStart(2, '0')}`;
+      return dashboardForecastSum(historyRows[historyMonth].filter(row => (row.category || 'Other') === category && row.date > comparisonKey));
+    });
+    const positiveMonths = samples.filter(value => value > 0).length;
+    return { category, typical:dashboardForecastMedian(samples), positiveMonths };
+  }).filter(row => row.typical > 0 && row.positiveMonths >= Math.min(2, historyMonths.length)).sort((a, b) => b.typical - a.typical);
+  const historicalImpulseCategories = historyMonths.flatMap(historyMonth => historyRows[historyMonth]).filter(row => row.expenseReason === 'impulse').reduce((totals, row) => {
+    const key = row.category || 'Other';
+    totals[key] = (totals[key] || 0) + Number(row.amount || 0);
+    return totals;
+  }, {});
+  const nextMonthCategory = Object.entries(historicalImpulseCategories).sort((a, b) => b[1] - a[1])[0] || null;
+  const patterns = [];
+  if (avoidableTotal > 0) patterns.push({ tone:'alert', icon:'insight-alert', title:`${money(avoidableTotal)} in impulse spending`, detail:`${impulseRows.length} tagged purchase${impulseRows.length === 1 ? '' : 's'} · ${Math.round(avoidableTotal / Math.max(1, currentTotal) * 100)}% of real expenses.` });
+  const spike = categorySpikes[0];
+  if (spike) patterns.push({ tone:'rise', icon:dashboardForecastCategoryIcon(spike.category), title:`${spike.category} is ${money(spike.delta)} above typical`, detail:`Compared with the same point across ${historyMonths.length} recent month${historyMonths.length === 1 ? '' : 's'}.` });
+  if (repeatedSmall) patterns.push({ tone:'repeat', icon:'transactions', title:`${repeatedSmall.count} small ${repeatedSmall.label} purchases added up`, detail:`Together they account for ${money(repeatedSmall.total)} this month.` });
+  if (patterns.length < 3 && weekendImpulseTotal > 0 && weekendImpulse.length >= 2) patterns.push({ tone:'weekend', icon:'schedule-overview', title:`Weekends account for ${money(weekendImpulseTotal)} of impulse spend`, detail:`${Math.round(weekendImpulseTotal / Math.max(1, avoidableTotal) * 100)}% of this month's impulse-tagged expenses.` });
+  const lateMonthRisk = remainderRisks[0] || null;
+  if (patterns.length < 3 && lateMonthRisk) patterns.push({ tone:'watch', icon:dashboardForecastCategoryIcon(lateMonthRisk.category), title:`Watch ${lateMonthRisk.category} after the ${cutoffDay}${dashboardForecastOrdinal(cutoffDay)}`, detail:`It typically adds ${money(lateMonthRisk.typical)} before month-end.` });
+  const projectedImpact = Math.max(0, Number(options.projectedTotal || currentTotal) - avoidableTotal);
+  return { month, cutoffDay, currentTotal, avoidableTotal, projectedImpact, historyMonths, patterns:patterns.slice(0, 3), lateMonthRisk, nextMonthCategory };
+}
+
+function renderDashboardSpendingTraps() {
+  const target = document.querySelector('#spendingTraps');
+  if (!target) return;
+  const forecast = buildDashboardForecast(data.transactions || [], data.schedules || [], { month:currentMonthKey(), historyMonths:dashboardForecastHistoryMonths, asOf:today(), minimumExpenseReasons:normalizeSettings(data.settings).bareMinimumExpenseReasons, minimumBufferMode:normalizeSettings(data.settings).bareMinimumBufferMode, minimumBufferValue:normalizeSettings(data.settings).bareMinimumBufferValue });
+  const traps = buildDashboardSpendingTraps(data.transactions || [], { month:currentMonthKey(), historyMonths:dashboardForecastHistoryMonths, asOf:today(), projectedTotal:forecast.projectedTotal });
+  const avoidableShare = traps.currentTotal ? Math.round(traps.avoidableTotal / traps.currentTotal * 100) : 0;
+  const rangeLabel = dashboardForecastHistoryMonths === 12 ? '12-month' : `${dashboardForecastHistoryMonths}-month`;
+  const patterns = traps.patterns.length ? traps.patterns.map(pattern => `<article class="spending-trap-row ${pattern.tone}"><span>${richIcon(pattern.icon)}</span><div><b>${esc(pattern.title)}</b><small>${esc(pattern.detail)}</small></div></article>`).join('') : `<div class="spending-traps-empty"><span>${richIcon('credit-paid')}</span><div><b>No strong spending trap detected yet</b><small>Keep tagging expense reasons to make this warning more precise.</small></div></div>`;
+  const currentWatch = traps.lateMonthRisk ? `<div><small>Current watch</small><b>${esc(traps.lateMonthRisk.category)}</b><span>Typically ${money(traps.lateMonthRisk.typical)} after day ${traps.cutoffDay}</span></div>` : `<div><small>Current watch</small><b>No late-month pattern yet</b><span>More history will make this signal clearer.</span></div>`;
+  const nextWatch = traps.nextMonthCategory ? `<div><small>Next month</small><b>${esc(traps.nextMonthCategory[0])}</b><span>Largest impulse category in the ${rangeLabel} history.</span></div>` : `<div><small>Next month</small><b>Keep tagging reasons</b><span>Impulse history is not strong enough yet.</span></div>`;
+  target.innerHTML = `<div class="spending-traps-heading"><div><p class="panel-kicker">EARLY WARNING</p><h3 id="spendingTrapsTitle">Spending traps</h3><p class="panel-caption">Patterns that may push this and next month higher.</p></div><button class="ghost-button" type="button" data-action="dashboard-view-insights">Review</button></div>
+    <div class="spending-traps-summary"><div><small>Potentially avoidable</small><strong>${money(traps.avoidableTotal)}</strong><span>${traps.avoidableTotal ? `${avoidableShare}% of real expenses` : 'No impulse expenses tagged'}</span></div><div class="spending-traps-impact"><small>${traps.avoidableTotal ? 'If avoided' : 'Projected finish'}</small><b>${money(traps.projectedImpact)}</b><span>projected real spend</span></div></div>
+    <div class="spending-trap-list">${patterns}</div>
+    <div class="spending-traps-watch">${currentWatch}${nextWatch}</div>
+    <p class="spending-traps-method">Potentially avoidable includes impulse-tagged real expenses. Pattern comparisons use the same day of month across ${traps.historyMonths.length || 0} month${traps.historyMonths.length === 1 ? '' : 's'} with data.</p>`;
+}
+
 function dashboardForecastChart(forecast, budget, expenseFloor) {
   const width = 820, height = 270, left = 58, right = 22, top = 22, bottom = 222;
   const chartMax = Math.max(1, budget, expenseFloor, forecast.highEstimate, forecast.projectedTotal) * 1.12;
@@ -389,6 +471,10 @@ function renderDashboardForecast() {
         ${topDriver ? `<button type="button" class="outlook-attention-item driver" data-action="dashboard-driver" data-category="${esc(topDriver.category)}"><span>${richIcon(dashboardForecastCategoryIcon(topDriver.category))}</span><div><b>${esc(topDriver.category)} is ${money(Math.abs(topDriver.delta))} ${topDriver.delta > 0 ? 'higher' : 'lower'} than ${previousLabel}</b><small>${esc(topDriver.note)}</small></div><i>›</i></button>` : `<button type="button" class="outlook-attention-item driver" data-action="dashboard-view-insights"><span>${richIcon('insight-pattern')}</span><div><b>Your spending pattern is steady</b><small>Add more activity to reveal meaningful monthly changes.</small></div><i>›</i></button>`}
       </div>
       <button class="outlook-review-button" type="button" data-action="dashboard-view-transactions">Review spending <span>→</span></button>
+      <section class="outlook-upcoming" aria-labelledby="dashboardUpcomingTitle">
+        <div class="outlook-upcoming-heading"><div><p class="panel-kicker">AUTO-ADDED ON DUE DATE</p><h4 id="dashboardUpcomingTitle">Upcoming</h4></div><button type="button" class="ghost-button" data-action="dashboard-view-schedule">Manage</button></div>
+        <div id="upcomingList" class="upcoming-list outlook-upcoming-list"></div>
+      </section>
       <div class="outlook-coverage ${requiredGap >= 0 ? 'covered' : 'pending'}"><span>${richIcon(requiredGap >= 0 ? 'credit-paid' : 'insight-alert')}</span><div><b>${requiredGap >= 0 ? 'Required baseline is covered' : `${money(Math.abs(requiredGap))} still needed for the required baseline`}</b><small>${requiredGap >= 0 ? 'Your current outflow covers must-pay expenses, loans, and the selected buffer.' : 'Keep enough available for must-pay expenses, loans, and the selected buffer.'}</small></div></div>
     </aside>
   </div>`;

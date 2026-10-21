@@ -363,6 +363,7 @@ function renderInsightsTopTabs() {
   return `<div class="insights-page-tabs" role="tablist" aria-label="Insights sections">
     <button type="button" role="tab" id="insightsSpendTab" aria-controls="insightsSpendPanel" aria-selected="${insightPageTab === 'spend'}" class="${insightPageTab === 'spend' ? 'active' : ''}" data-insights-page-tab="spend">${richIcon('insight-flow')} Spend insights</button>
     <button type="button" role="tab" id="insightsMonthlyTab" aria-controls="insightsMonthlyPanel" aria-selected="${insightPageTab === 'monthly'}" class="${insightPageTab === 'monthly' ? 'active' : ''}" data-insights-page-tab="monthly">${richIcon('insight-pattern')} Monthly insights</button>
+    <button type="button" role="tab" id="insightsProjectionTab" aria-controls="insightsProjectionPanel" aria-selected="${insightPageTab === 'projection'}" class="${insightPageTab === 'projection' ? 'active' : ''}" data-insights-page-tab="projection">${richIcon('insight-pace')} Projection</button>
   </div>`;
 }
 function renderInsightsHero(filter, range, previousRange) {
@@ -376,6 +377,7 @@ function renderInsightsPage(filter = insightFilter) {
   const previousRange = previousInsightRange(filter, range);
   const tabs = renderInsightsTopTabs();
   const hero = renderInsightsHero(filter, range, previousRange);
+  if (insightPageTab === 'projection') return renderInsightsProjectionPage(tabs);
   if (insightPageTab === 'monthly') return `<article class="insights-shell">${tabs}<div id="insightsMonthlyPanel" role="tabpanel" aria-labelledby="insightsMonthlyTab" class="insights-page-panel">${hero}${renderInsightsComparisonSection(range.to.slice(0, 7))}</div></article>`;
   const current = insightTransactions(filter);
   const previous = data.transactions.filter(t => t.date >= previousRange.from && t.date <= previousRange.to);
