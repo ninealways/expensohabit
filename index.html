@@ -20,9 +20,10 @@
     <link rel="stylesheet" href="account-pages.css?v=20261020-02" />
     <link rel="stylesheet" href="admin-page.css?v=20261008-01" />
     <link rel="stylesheet" href="modal-redesign.css?v=20261007-02" />
-    <link rel="stylesheet" href="dashboard-forecast.css?v=20261020-03" />
+    <link rel="stylesheet" href="dashboard-forecast.css?v=20261021-02" />
     <link rel="stylesheet" href="insights-refresh.css?v=20261006-02" />
     <link rel="stylesheet" href="insights-comparison.css?v=20261019-01" />
+    <link rel="stylesheet" href="insights-projection.css?v=20261021-01" />
   </head>
   <body class="app-booting">
     <svg class="icon-sprite" aria-hidden="true">
@@ -175,9 +176,8 @@
             <div class="panel-heading"><div><p class="panel-kicker" id="categoryPanelKicker">THIS MONTH</p><h3 id="categoryPanelTitle">Expense breakdown</h3><p class="panel-caption" id="categoryPanelSubtitle">Where your money goes this month.</p></div><button class="ghost-button" data-page="transactions">View all</button></div>
             <div class="expense-breakdown"><div id="categoryDonut" class="home-category-donut-wrap"></div><div id="categoryList" class="category-list home-category-list"></div></div>
           </article>
-          <article class="panel upcoming-panel">
-            <div class="panel-heading"><div><p class="panel-kicker">AUTO-ADDED ON DUE DATE</p><h3>Upcoming</h3></div><button class="ghost-button" data-page="schedule">Manage</button></div>
-            <div id="upcomingList" class="upcoming-list"></div>
+          <article class="panel spending-traps-panel" aria-labelledby="spendingTrapsTitle">
+            <div id="spendingTraps"></div>
           </article>
         </section>
         <section id="subPageView" class="sub-page-view" hidden></section>
@@ -423,10 +423,11 @@
     <script src="js/pages/credit-card.js?v=20261007-03"></script>
     <script src="js/pages/schedule.js?v=20261008-01"></script>
     <script src="js/pages/habits.js?v=20261008-01"></script>
-    <script src="js/pages/insights.js?v=20261019-01"></script>
+    <script src="js/pages/insights.js?v=20261021-01"></script>
     <script src="js/pages/calendar.js?v=20260930-01"></script>
     <script src="js/pages/timeline.js?v=20261006-02"></script>
-    <script src="js/pages/dashboard-forecast.js?v=20261020-03"></script>
-    <script src="app.js?v=20261020-03"></script>
+    <script src="js/pages/dashboard-forecast.js?v=20261021-03"></script>
+    <script src="js/pages/insights-projection.js?v=20261021-02"></script>
+    <script src="app.js?v=20261021-03"></script>
   </body>
 </html>
