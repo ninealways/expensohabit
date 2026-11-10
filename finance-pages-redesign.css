@@ -147,8 +147,14 @@
 .schedule-plan-card .mini-button.reopen { color:#157b9b;background:#e5f6fb; }
 
 /* Investments */
-.investments-page .investment-tabs { width:min(470px,100%);max-width:none;margin:0; }
+.investments-page .investment-tabs { width:min(720px,100%);max-width:none;margin:0;grid-template-columns:repeat(3,minmax(0,1fr)); }
 .investments-page .investment-tabs .schedule-tab { padding:9px 13px; }
+.investments-page.trading-active { gap:9px; }
+.investments-page.trading-active .investments-page-hero { min-height:82px;padding:13px 17px; }
+.investments-page.trading-active .investments-page-hero h3 { margin-top:2px;font-size:22px; }
+.investments-page.trading-active .investments-page-hero .subtitle { margin-top:3px;font-size:9px; }
+.investments-page.trading-active .investment-tabs { padding:4px;border-radius:17px; }
+.investments-page.trading-active .investment-tabs .schedule-tab { padding:7px 11px;border-radius:13px; }
 .investments-page .investment-report-summary { margin:0;grid-template-columns:repeat(5,minmax(0,1fr)); }
 .investment-summary-card { min-height:118px;grid-template-columns:46px minmax(0,1fr);gap:10px;padding:13px; }
 .investment-summary-card .finance-kpi-icon { width:46px;height:46px;border-radius:14px; }
@@ -171,6 +177,8 @@
 .investment-position-card .investment-card-grid span { padding:9px;border:1px solid #efedf7;border-radius:12px;background:#faf9fd;font-size:8px; }
 .investment-position-card .investment-card-grid b { font-size:12px; }
 .investment-card-footer { display:flex;align-items:center;justify-content:space-between;gap:10px; }
+.investment-card-actions { display:flex;align-items:center;justify-content:flex-end;gap:6px; }
+.investment-growth-button { color:#087e68!important;background:#e4f8f2!important; }
 .investment-position-card .investment-gain { padding:6px 8px;border-radius:999px;background:#e0f8f0;font-size:9px; }
 .investment-position-card .investment-gain.negative { background:#ffeaee; }
 .investment-position-card .investment-note { display:block;margin-top:10px;padding:10px;border:1px solid #e8f5ef;border-radius:12px;background:#f6fdf9;font-size:8.5px;line-height:1.5; }
@@ -178,6 +186,123 @@
 .investment-breakdown-panel .outflow-group { margin:0;padding:0;border:0;box-shadow:none; }
 .investments-page .outflow-table { font-size:10px; }
 .investments-page .outflow-table th { font-size:8px; }
+#investmentGrowthModalBackdrop .investment-growth-modal { width:min(980px,100%); }
+#investmentGrowthModalBackdrop .modal-heading-icon { background:linear-gradient(145deg,#e5fff6,#f0ecff); }
+.investment-growth-summary { display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-bottom:12px; }
+.investment-growth-summary article { min-width:0;padding:11px 12px;border:1px solid #ece9f6;border-radius:13px;background:#faf9fd; }
+.investment-growth-summary span,
+.investment-growth-summary strong,
+.investment-growth-summary small { display:block; }
+.investment-growth-summary span { color:#7783a1;font-size:8px;font-weight:850;text-transform:uppercase;letter-spacing:.06em; }
+.investment-growth-summary strong { margin-top:4px;color:var(--ink);font-size:17px;line-height:1.1; }
+.investment-growth-summary small { margin-top:4px;color:#7b86a5;font-size:8px; }
+.investment-growth-summary .positive { border-color:#d8f2ea;background:#f2fcf8; }
+.investment-growth-summary .positive strong { color:#078c70; }
+.investment-growth-summary .negative { border-color:#ffdce3;background:#fff5f7; }
+.investment-growth-summary .negative strong { color:#d34d61; }
+.investment-growth-legend { display:flex;align-items:center;justify-content:flex-end;gap:15px;margin-bottom:2px;color:#6f7b9a;font-size:9px;font-weight:800; }
+.investment-growth-legend span { display:inline-flex;align-items:center;gap:6px; }
+.investment-growth-legend i { width:9px;height:9px;border-radius:3px;background:#7650ed; }
+.investment-growth-legend .value i { background:#12a886; }
+.investment-growth-legend .withdrawn i { background:#ef8b43; }
+.investment-growth-chart-wrap { overflow-x:auto;overflow-y:hidden;border:1px solid #ece9f6;border-radius:15px;background:linear-gradient(180deg,#fff,#fcfbff); }
+.investment-growth-chart { width:100%;min-width:720px;height:auto;display:block; }
+.investment-growth-grid { stroke:#ebe9f4;stroke-width:1; }
+.investment-growth-axis,
+.investment-growth-date { fill:#7280a0;font-size:9px;font-weight:750; }
+.investment-growth-line { fill:none;stroke-width:3;stroke-linecap:round;stroke-linejoin:round; }
+.investment-growth-line.invested { stroke:#7650ed; }
+.investment-growth-line.value { stroke:#12a886; }
+.investment-growth-line.withdrawn { stroke:#ef8b43; }
+.investment-growth-point { stroke:#fff;stroke-width:3;transition:r .16s ease,filter .16s ease; }
+.investment-growth-point:hover { r:7;filter:drop-shadow(0 5px 7px rgba(71,55,132,.18)); }
+.investment-growth-point.invested { fill:#7650ed; }
+.investment-growth-point.value { fill:#12a886; }
+.investment-growth-point.withdrawn { fill:#ef8b43; }
+.investment-growth-history { margin-top:12px; }
+.investment-growth-history-heading { display:flex;align-items:end;justify-content:space-between;gap:12px;margin-bottom:7px; }
+.investment-growth-history-heading h4 { margin:0;color:var(--ink);font-size:13px; }
+.investment-growth-history-heading span { color:#7b86a5;font-size:8.5px; }
+.investment-growth-history-table { overflow-x:auto;border:1px solid #ece9f6;border-radius:13px; }
+.investment-growth-history table { width:100%;min-width:720px;border-collapse:collapse;font-size:9px; }
+.investment-growth-history th { padding:8px 10px;color:#75809e;background:#faf8ff;font-size:7.5px;text-align:left;text-transform:uppercase;letter-spacing:.05em; }
+.investment-growth-history td { padding:8px 10px;border-top:1px solid #f0eef7;color:#52617f;white-space:nowrap; }
+.investment-growth-history td b { color:var(--ink); }
+.investment-growth-hint { margin:0;padding:10px;color:#6f7b9a;background:#faf8ff;font-size:8.5px;line-height:1.4; }
+.trading-flow-summary { display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px; }
+.trading-flow-kpi { min-height:88px;grid-template-columns:40px minmax(0,1fr);gap:10px;padding:11px 13px;border-radius:17px; }
+.trading-flow-kpi .finance-kpi-icon { width:40px;height:40px;border-radius:12px; }
+.trading-flow-kpi .finance-kpi-icon .rich-icon { width:33px;height:33px; }
+.trading-flow-kpi p { color:#7c86a5;font-size:9px;font-weight:850;text-transform:uppercase;letter-spacing:.06em; }
+.trading-flow-kpi strong { display:block;margin-top:2px;color:var(--ink);font-size:clamp(18px,1.7vw,23px);line-height:1.05; }
+.trading-flow-kpi small { display:block;margin-top:4px;color:#7b86a5;font-size:8px;line-height:1.25; }
+.trading-flow-kpi.added { border-color:#ffdce3;background:linear-gradient(145deg,#fff,#fff5f7); }
+.trading-flow-kpi.added .finance-kpi-icon { background:#ffe8ed; }
+.trading-flow-kpi.added strong { color:#d34d61; }
+.trading-flow-kpi.withdrawn { border-color:#d8f2ea;background:linear-gradient(145deg,#fff,#f2fcf8); }
+.trading-flow-kpi.withdrawn .finance-kpi-icon { background:#dcf8ef; }
+.trading-flow-kpi.withdrawn strong { color:#078c70; }
+.trading-flow-kpi.left.positive-card { border-color:#d8f2ea;background:linear-gradient(145deg,#fff,#f2fcf8); }
+.trading-flow-kpi.left.positive-card .finance-kpi-icon { background:#dcf8ef; }
+.trading-flow-kpi.left.positive-card strong { color:#078c70; }
+.trading-flow-kpi.negative-card { border-color:#ffdce3;background:linear-gradient(145deg,#fff,#fff5f7); }
+.trading-flow-kpi.negative-card .finance-kpi-icon { background:#ffe8ed; }
+.trading-flow-kpi.negative-card strong { color:#d34d61; }
+.trading-flow-chart-panel { padding:14px 16px 13px;overflow:hidden; }
+.trading-flow-chart-heading { align-items:center;margin-bottom:0; }
+.trading-flow-chart-heading h3 { font-size:15px; }
+.trading-flow-chart-heading .subtitle { margin-top:2px;font-size:8.5px; }
+.trading-flow-year-control { display:grid;gap:5px;color:#7b86a5;font-size:8px;font-weight:850;text-transform:uppercase;letter-spacing:.06em; }
+.trading-flow-year-control select { min-width:96px;padding:7px 28px 7px 10px;border:1px solid #e3e1ef;border-radius:10px;color:var(--ink);background:#fff;font-size:9px;font-weight:800; }
+.trading-flow-chart-legend { display:flex;align-items:center;justify-content:flex-end;gap:12px;margin:-2px 2px 0;color:#6f7b9a;font-size:8px;font-weight:800; }
+.trading-flow-chart-legend span { display:inline-flex;align-items:center;gap:6px; }
+.trading-flow-chart-legend i { width:9px;height:9px;border-radius:3px;background:#d34d61; }
+.trading-flow-chart-legend .withdrawn i { background:#078c70; }
+.trading-flow-chart-scroll { overflow-x:auto;overflow-y:hidden; }
+.trading-flow-chart { width:100%;min-width:680px;height:auto;display:block; }
+.trading-flow-chart-grid { stroke:#e9e7f2;stroke-width:1; }
+.trading-flow-chart-axis,
+.trading-flow-chart-month { fill:#7280a0;font-size:9px;font-weight:700; }
+.trading-flow-chart-month { font-size:9.5px;font-weight:800; }
+.trading-flow-chart-bar { transition:opacity .18s ease,filter .18s ease; }
+.trading-flow-chart-bar:hover { opacity:.82;filter:drop-shadow(0 5px 8px rgba(84,64,143,.16)); }
+.trading-flow-chart-bar.added { fill:#d34d61; }
+.trading-flow-chart-bar.withdrawn { fill:#078c70; }
+.trading-flow-chart-value { font-size:8px;font-weight:900; }
+.trading-flow-chart-value.added { fill:#d34d61; }
+.trading-flow-chart-value.withdrawn { fill:#078c70; }
+.trading-flow-chart-foot { display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;padding-top:8px;border-top:1px solid #efedf7; }
+.trading-flow-chart-foot span { min-width:0;padding:7px 9px;border-radius:10px;background:#faf9fd; }
+.trading-flow-chart-foot small,
+.trading-flow-chart-foot strong { display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
+.trading-flow-chart-foot small { color:#7b86a5;font-size:8px;font-weight:800; }
+.trading-flow-chart-foot strong { margin-top:3px;color:var(--ink);font-size:9px; }
+.trading-flow-chart-foot strong.added { color:#d34d61; }
+.trading-ledger-panel { padding:14px 16px; }
+.trading-ledger-panel .panel-heading { align-items:center; }
+.trading-ledger-panel .panel-heading h3 { font-size:15px; }
+.trading-ledger-panel .panel-heading .subtitle { margin-top:2px;font-size:8.5px; }
+.trading-ledger-panel .panel-heading .primary-button { flex:0 0 auto; }
+.trading-ledger-table-wrap { overflow-x:auto;border:1px solid #eeebf8;border-radius:16px; }
+.investments-page .trading-ledger-table { min-width:850px;margin:0; }
+.investments-page .trading-ledger-table th { padding:8px 10px;background:#faf8ff; }
+.investments-page .trading-ledger-table td { padding:8px 10px;vertical-align:middle; }
+.trading-market-badge,
+.trading-movement-badge { display:inline-flex;align-items:center;justify-content:center;min-height:21px;padding:3px 7px;border-radius:999px;font-size:8px;font-weight:850;white-space:nowrap; }
+.trading-market-badge.options { color:#6840d8;background:#eee8ff; }
+.trading-market-badge.crypto { color:#9a6500;background:#fff2cf; }
+.trading-market-badge.combined { color:#157b9b;background:#e4f6fb; }
+.trading-movement-badge.added { color:#d34d61;background:#ffeaee; }
+.trading-movement-badge.withdrawn { color:#078c70;background:#dff8f0; }
+.trading-note-cell { max-width:290px;color:#667391;line-height:1.3; }
+.trading-amount { font-weight:900;white-space:nowrap; }
+.trading-amount.added { color:#d34d61; }
+.trading-amount.withdrawn { color:#078c70; }
+.trading-ledger-table .positive { color:#078c70;font-weight:850;white-space:nowrap; }
+.trading-ledger-table .negative { color:#d34d61;font-weight:850;white-space:nowrap; }
+.trading-ledger-note { margin:8px 0 0;padding:7px 9px;border:1px solid #e9e4f8;border-radius:10px;color:#6f7b9a;background:#faf8ff;font-size:8px;line-height:1.35; }
+.trading-flow-empty { margin-top:4px; }
+.trading-flow-empty .primary-button { margin-top:7px; }
 
 /* Insights */
 .insights-shell { gap:12px; }
@@ -218,9 +343,11 @@
 .finance-empty p { font-size:9px;line-height:1.45; }
 
 #modalBackdrop,
-#stockTradeModalBackdrop { z-index:60;overflow-y:auto; }
+#stockTradeModalBackdrop,
+#tradingFlowModalBackdrop { z-index:60;overflow-y:auto; }
 #modalBackdrop .modal,
-#stockTradeModalBackdrop .modal { max-height:calc(100dvh - 40px);overflow-y:auto;overscroll-behavior:contain; }
+#stockTradeModalBackdrop .modal,
+#tradingFlowModalBackdrop .modal { max-height:calc(100dvh - 40px);overflow-y:auto;overscroll-behavior:contain; }
 
 @media (max-width:1250px) {
   .investments-page .investment-report-summary { grid-template-columns:repeat(3,minmax(0,1fr)); }
@@ -231,11 +358,16 @@
   .schedule-page .schedule-total-grid,
   .insights-kpi-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
   .investments-page .investment-report-summary { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .trading-flow-summary { grid-template-columns:repeat(3,minmax(0,1fr)); }
+  .trading-flow-kpi { grid-template-columns:36px minmax(0,1fr);padding:10px; }
+  .trading-flow-kpi .finance-kpi-icon { width:36px;height:36px; }
+  .trading-flow-kpi .finance-kpi-icon .rich-icon { width:30px;height:30px; }
 }
 
 @media (max-width:700px) {
   .finance-page-hero { align-items:flex-start;flex-direction:column; }
   .finance-page-hero .primary-button { width:100%; }
+  .investments-page.trading-active .investments-page-hero { min-height:0;padding:13px 15px; }
   .schedule-workspace .schedule-tabs { grid-template-columns:1fr; }
   .schedule-workspace .schedule-tab { justify-content:flex-start; }
   .schedule-plan-body { grid-template-columns:1fr; }
@@ -244,17 +376,30 @@
   .schedule-plan-amount { min-width:0; }
   .schedule-plan-card .schedule-actions { justify-content:flex-start; }
   .investment-position-card { min-height:0; }
+  .investment-growth-summary { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .trading-flow-summary { grid-template-columns:1fr; }
+  .trading-flow-chart-heading { align-items:stretch;flex-direction:column; }
+  .trading-flow-year-control { width:100%; }
+  .trading-flow-year-control select { width:100%; }
+  .trading-flow-chart-legend { justify-content:flex-start; }
+  .trading-flow-chart-foot { grid-template-columns:repeat(3,minmax(0,1fr)); }
+  .trading-ledger-panel .panel-heading { align-items:stretch;flex-direction:column; }
+  .trading-ledger-panel .panel-heading .primary-button { width:100%; }
 }
 
 @media (max-width:540px) {
   #modalBackdrop,
-  #stockTradeModalBackdrop { align-items:start;padding:10px; }
+  #stockTradeModalBackdrop,
+  #tradingFlowModalBackdrop { align-items:start;padding:10px; }
   #modalBackdrop .modal,
-  #stockTradeModalBackdrop .modal { max-height:calc(100dvh - 20px);margin:0 auto;padding:18px; }
+  #stockTradeModalBackdrop .modal,
+  #tradingFlowModalBackdrop .modal { max-height:calc(100dvh - 20px);margin:0 auto;padding:18px; }
   #modalBackdrop .modal-heading,
-  #stockTradeModalBackdrop .modal-heading { position:sticky;top:-18px;z-index:2;margin-bottom:10px;padding:18px 0 12px;background:#fff; }
+  #stockTradeModalBackdrop .modal-heading,
+  #tradingFlowModalBackdrop .modal-heading { position:sticky;top:-18px;z-index:2;margin-bottom:10px;padding:18px 0 12px;background:#fff; }
   #modalBackdrop .modal-actions,
-  #stockTradeModalBackdrop .modal-actions { position:sticky;bottom:-18px;z-index:2;margin:10px 0 0;padding:12px 0 18px;background:linear-gradient(180deg,rgba(255,255,255,.82),#fff 28%); }
+  #stockTradeModalBackdrop .modal-actions,
+  #tradingFlowModalBackdrop .modal-actions { position:sticky;bottom:-18px;z-index:2;margin:10px 0 0;padding:12px 0 18px;background:linear-gradient(180deg,rgba(255,255,255,.82),#fff 28%); }
   .finance-page-hero,
   .insights-hero { min-height:0;padding:16px; }
   .finance-page-hero h3,
@@ -265,6 +410,16 @@
   .investments-page .investment-report-summary { grid-template-columns:1fr; }
   .finance-kpi { min-height:112px;padding:14px; }
   .schedule-plan-card { min-height:0; }
-  .investments-page .investment-tabs { grid-template-columns:1fr 1fr; }
+  .investments-page .investment-tabs { grid-template-columns:repeat(3,minmax(0,1fr)); }
+  .investments-page .investment-tabs .schedule-tab { gap:4px;padding:9px 5px;font-size:9px; }
+  .investments-page .investment-tabs .schedule-tab-icon { display:none; }
   .investment-breakdown-panel { overflow-x:auto; }
+  .investment-card-footer { align-items:flex-start;flex-direction:column; }
+  .investment-card-actions { width:100%; }
+  .investment-card-actions .mini-button { flex:1; }
+  .investment-growth-summary { grid-template-columns:1fr; }
+  .investment-growth-legend { justify-content:flex-start;overflow-x:auto; }
+  .trading-flow-chart-panel { padding:14px; }
+  .trading-ledger-panel { padding:14px; }
+  .trading-flow-chart-foot { grid-template-columns:1fr; }
 }

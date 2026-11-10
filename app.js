@@ -1,4 +1,4 @@
-let data = { transactions: [], schedules: [], categories: [], habits: [], habitLogs: [], stockTrades: [], creditCards: [], notes: [], timelineEvents: [], settings: { monthlyExpenseBudget:60000, monthlyBudgetOverrides:{}, bareMinimumExpenseReasons:['essential','recurring','emergency'], bareMinimumBufferMode:'none', bareMinimumBufferValue:0 } };
+let data = { transactions: [], schedules: [], categories: [], habits: [], habitLogs: [], stockTrades: [], tradingFlows: [], creditCards: [], notes: [], timelineEvents: [], settings: { monthlyExpenseBudget:60000, monthlyBudgetOverrides:{}, bareMinimumExpenseReasons:['essential','recurring','emergency'], bareMinimumBufferMode:'none', bareMinimumBufferValue:0 } };
 let activePage = 'dashboard';
 let activeType = 'expense';
 let authMode = 'login';
@@ -7,6 +7,7 @@ let editingScheduleId = null;
 let editingCategoryId = null;
 let editingCreditCardId = null;
 let stockTradeSeed = null;
+let editingTradingFlowId = null;
 let dashboardView = 'all';
 let paceMonth = '';
 let paceChartOverlays = { previous:true, average:false };
@@ -23,6 +24,7 @@ let calendarComparisonOffset = 0;
 let privacyMode = localStorage.getItem('dailyExpensesPrivacy') !== 'shown';
 let scheduleTab = 'expense';
 let investmentTab = 'portfolio';
+let tradingFlowYear = '';
 let transactionFilter = { mode:'thisMonth', type:'all', category:[], spendGroup:[], payment:'all', search:'', sort:'dateDesc' };
 let transactionOpenMultiFilter = '';
 let activeWorkspace = 'expense';
@@ -35,6 +37,7 @@ let habitSleepRange = 'daily';
 let habitActivityRange = 'last7';
 let mobileStartupTransactionModalOpened = false;
 let expenseReasonModalTrigger = null;
+let investmentGrowthModalTrigger = null;
 let adminDirectoryState = null;
 let adminDirectoryFilter = { search:'', status:'all', sort:'joined', page:1 };
 
@@ -292,6 +295,7 @@ async function loadData() {
   data.habits = data.habits || [];
   data.habitLogs = data.habitLogs || [];
   data.stockTrades = data.stockTrades || [];
+  data.tradingFlows = data.tradingFlows || [];
   data.creditCards = data.creditCards || [];
   data.notes = data.notes || [];
   data.timelineEvents = data.timelineEvents || [];
@@ -434,7 +438,7 @@ function updateAccountAvatar() {
 function dashboardGreeting() { return `Good morning, ${displayName()} <span class="title-icon">${richIcon('insights')}</span>`; }
 function setAuthMode(mode) { authMode=mode; const isLogin=mode==='login'; $('#authTitle').textContent=isLogin?'Welcome back':'Create your account'; $('#authSubmit').textContent=isLogin?'Sign in':'Create account'; $('#authToggle').textContent=isLogin?'Create a new account':'I already have an account'; $('#authPassword').autocomplete=isLogin?'current-password':'new-password'; $('#authNameRow').hidden=isLogin; $('#authName').required=!isLogin; $('#inviteCodeRow').hidden=isLogin; $('#inviteCode').required=!isLogin; $('#authError').textContent=''; }
 async function submitAuth(event) { event.preventDefault(); const payload={ email:$('#authEmail').value, password:$('#authPassword').value }; if (authMode === 'register') { payload.name = $('#authName').value; payload.inviteCode = $('#inviteCode').value; } try { currentUser = authMode === 'login' ? await window.ExpensoAuth.login(payload) : await window.ExpensoAuth.register(payload); } catch (error) { $('#authError').textContent = error.message || 'Authentication failed'; return; } await syncPendingTransactions({ silent:true, skipReload:true }); await loadData(); updateCategoryOptions(); renderDashboard(); navigate(window.ExpensoRouter.pageFromLocation(), false); showAppShell(); maybeOpenMobileStartupTransactionModal(); toast(authMode==='login'?'Signed in':'Account created'); }
-async function logout() { try { await window.ExpensoAuth.logout(); } catch (error) { toast(error.message || 'Could not log out'); return; } currentUser = null; adminDirectoryState = null; data = { transactions: [], schedules: [], categories: [], habits: [], habitLogs: [], stockTrades: [], creditCards: [], notes: [], timelineEvents: [], settings:defaultSettings }; $('#authForm').reset(); setAuthMode('login'); history.pushState({ page:'dashboard' }, '', '/dashboard'); showAuthGate(); toast('Logged out'); }
+async function logout() { try { await window.ExpensoAuth.logout(); } catch (error) { toast(error.message || 'Could not log out'); return; } currentUser = null; adminDirectoryState = null; data = { transactions: [], schedules: [], categories: [], habits: [], habitLogs: [], stockTrades: [], tradingFlows: [], creditCards: [], notes: [], timelineEvents: [], settings:defaultSettings }; $('#authForm').reset(); setAuthMode('login'); history.pushState({ page:'dashboard' }, '', '/dashboard'); showAuthGate(); toast('Logged out'); }
 
 function totals() {
   const transactions = dashboardMonthTransactions();
@@ -843,7 +847,8 @@ function projectedContributionDates(schedule, valuationDate, projectionEndDate) 
 }
 function investmentProjection(schedule) {
   const invested = Number(schedule.amountInvestedToDate) || 0;
-  const currentValue = Number(schedule.currentValue) || invested;
+  const hasCurrentValue = schedule.currentValue !== undefined && schedule.currentValue !== null && schedule.currentValue !== '';
+  const currentValue = hasCurrentValue ? Math.max(0, Number(schedule.currentValue) || 0) : invested;
   const withdrawn = Number(schedule.amountWithdrawn) || 0;
   const netValue = Math.max(0, currentValue - withdrawn);
   const valuationDate = dateFromKey(schedule.investmentValuationDate || schedule.startDate || today());
@@ -857,6 +862,84 @@ function investmentProjection(schedule) {
   const currentValueFuture = contributionGrowth(netValue, valuationDate, projectionEndDate, rate);
   const months = monthsBetweenDates(valuationDate, projectionEndDate);
   return { invested, currentValue, withdrawn, netValue, gain, projected:true, months, valuationDate:dateKey(valuationDate), projectionEndDate:dateKey(projectionEndDate), contributionCount:contributionDates.length, futureValue:currentValueFuture + futureContributionValue, futureContributions, futureContributionValue };
+}
+function investmentValuationHistory(schedule = {}) {
+  const normalize = (point, index) => {
+    const invested = Math.max(0, Number(point.invested ?? point.amountInvestedToDate) || 0);
+    const hasCurrentValue = point.currentValue !== undefined && point.currentValue !== null && point.currentValue !== '';
+    const currentValue = hasCurrentValue ? Math.max(0, Number(point.currentValue) || 0) : invested;
+    const withdrawn = Math.max(0, Number(point.withdrawn ?? point.amountWithdrawn) || 0);
+    const requestedDate = String(point.valuationDate || point.investmentValuationDate || '').trim();
+    const valuationDate = /^\d{4}-\d{2}-\d{2}$/.test(requestedDate) ? requestedDate : schedule.investmentValuationDate || schedule.startDate || today();
+    return { id:point.id || `valuation-${index}`, valuationDate, invested, currentValue, withdrawn, recordedAt:point.recordedAt || '' };
+  };
+  const history = (Array.isArray(schedule.valuationHistory) ? schedule.valuationHistory : []).map(normalize);
+  if (!history.length) history.push(normalize(schedule, 0));
+  return history.sort((a, b) => a.valuationDate.localeCompare(b.valuationDate) || String(a.recordedAt).localeCompare(String(b.recordedAt)) || a.id.localeCompare(b.id));
+}
+function investmentGrowthDateLabel(value, withYear = true) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(value || ''))) return value || '—';
+  return new Date(`${value}T00:00:00`).toLocaleDateString('en-IN', { day:'numeric', month:'short', ...(withYear ? { year:'numeric' } : {}) });
+}
+function investmentGrowthRecordedLabel(point) {
+  const recordedAt = point.recordedAt ? new Date(point.recordedAt) : null;
+  if (!recordedAt || Number.isNaN(recordedAt.getTime())) return investmentGrowthDateLabel(point.valuationDate);
+  return recordedAt.toLocaleString('en-IN', { day:'numeric', month:'short', year:'numeric', hour:'numeric', minute:'2-digit' });
+}
+function investmentGrowthNiceMaximum(value) {
+  if (!Number.isFinite(value) || value <= 0) return 10000;
+  const padded = value * 1.08;
+  const magnitude = 10 ** Math.floor(Math.log10(padded));
+  const normalized = padded / magnitude;
+  const multiplier = normalized <= 1 ? 1 : normalized <= 2 ? 2 : normalized <= 5 ? 5 : 10;
+  return multiplier * magnitude;
+}
+function renderInvestmentGrowthChart(history) {
+  const width = 900;
+  const height = 320;
+  const padding = { left:72, right:24, top:26, bottom:52 };
+  const plotWidth = width - padding.left - padding.right;
+  const plotBottom = height - padding.bottom;
+  const plotHeight = plotBottom - padding.top;
+  const maxValue = investmentGrowthNiceMaximum(Math.max(0, ...history.flatMap(point => [point.invested, point.currentValue, point.withdrawn])));
+  const x = index => history.length === 1 ? padding.left + plotWidth / 2 : padding.left + index / (history.length - 1) * plotWidth;
+  const y = value => plotBottom - Math.max(0, value) / maxValue * plotHeight;
+  const ticks = [4, 3, 2, 1, 0].map(step => maxValue * step / 4);
+  const grid = ticks.map(value => `<g><line class="investment-growth-grid" x1="${padding.left}" x2="${width - padding.right}" y1="${y(value).toFixed(1)}" y2="${y(value).toFixed(1)}"></line><text class="investment-growth-axis" x="${padding.left - 10}" y="${(y(value) + 4).toFixed(1)}" text-anchor="end">${value ? compactMoney(value) : '₹0'}</text></g>`).join('');
+  const labelStep = Math.max(1, Math.ceil(history.length / 7));
+  const labels = history.map((point, index) => (index === 0 || index === history.length - 1 || index % labelStep === 0) ? `<text class="investment-growth-date" x="${x(index).toFixed(1)}" y="${height - 18}" text-anchor="middle">${esc(investmentGrowthDateLabel(point.valuationDate, false))}</text>` : '').join('');
+  const series = [
+    { key:'invested', className:'invested', label:'Invested' },
+    { key:'currentValue', className:'value', label:'Current value' },
+    { key:'withdrawn', className:'withdrawn', label:'Withdrawn' }
+  ];
+  const lines = series.map(item => {
+    const points = history.map((point, index) => `${x(index).toFixed(1)},${y(point[item.key]).toFixed(1)}`).join(' ');
+    const line = history.length > 1 ? `<polyline class="investment-growth-line ${item.className}" points="${points}"></polyline>` : '';
+    const dots = history.map((point, index) => `<circle class="investment-growth-point ${item.className}" cx="${x(index).toFixed(1)}" cy="${y(point[item.key]).toFixed(1)}" r="5"><title>${esc(`${investmentGrowthDateLabel(point.valuationDate)} · ${item.label}: ${money(point[item.key])}`)}</title></circle>`).join('');
+    return `${line}${dots}`;
+  }).join('');
+  return `<svg class="investment-growth-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="Investment value history showing invested amount, current value, and withdrawals">${grid}${lines}${labels}</svg>`;
+}
+function openInvestmentGrowthModal(schedule, trigger = null) {
+  const history = investmentValuationHistory(schedule);
+  const first = history[0];
+  const latest = history[history.length - 1];
+  const valueChange = latest.currentValue - first.currentValue;
+  const latestNet = Math.max(0, latest.currentValue - latest.withdrawn);
+  investmentGrowthModalTrigger = trigger;
+  $('#investmentGrowthModalTitle').textContent = `${schedule.subcategory || 'Investment'} growth`;
+  $('#investmentGrowthModalDescription').textContent = `${history.length} valuation ${history.length === 1 ? 'checkpoint' : 'checkpoints'} · latest ${investmentGrowthDateLabel(latest.valuationDate)}`;
+  $('#investmentGrowthSummary').innerHTML = `<article><span>Invested</span><strong>${money(latest.invested)}</strong></article><article><span>Current value</span><strong>${money(latest.currentValue)}</strong></article><article><span>Withdrawn</span><strong>${money(latest.withdrawn)}</strong></article><article class="${valueChange >= 0 ? 'positive' : 'negative'}"><span>Value change</span><strong>${valueChange >= 0 ? '+' : '−'}${money(Math.abs(valueChange))}</strong><small>Net value ${money(latestNet)}</small></article>`;
+  $('#investmentGrowthChart').innerHTML = renderInvestmentGrowthChart(history);
+  $('#investmentGrowthHistory').innerHTML = `<table><thead><tr><th>Valuation date</th><th>Invested</th><th>Current value</th><th>Withdrawn</th><th>Net value</th><th>Saved</th></tr></thead><tbody>${history.slice().reverse().map(point => `<tr><td><b>${investmentGrowthDateLabel(point.valuationDate)}</b></td><td>${money(point.invested)}</td><td>${money(point.currentValue)}</td><td>${money(point.withdrawn)}</td><td>${money(Math.max(0, point.currentValue - point.withdrawn))}</td><td>${esc(investmentGrowthRecordedLabel(point))}</td></tr>`).join('')}</tbody></table>${history.length === 1 ? '<p class="investment-growth-hint">Update this investment again to build its growth trend. The current position is your starting checkpoint.</p>' : ''}`;
+  $('#investmentGrowthModalBackdrop').hidden = false;
+  $('#closeInvestmentGrowthModal').focus();
+}
+function closeInvestmentGrowthModal() {
+  $('#investmentGrowthModalBackdrop').hidden = true;
+  investmentGrowthModalTrigger?.focus?.();
+  investmentGrowthModalTrigger = null;
 }
 function scheduleSummary(schedule) { if (schedule.type === 'expense') return ''; if (schedule.type === 'loan') { const projection = loanProjection(schedule); return projection ? `<div class="schedule-summary"><b>Estimated remaining · ${schedule.interestType === 'floating' ? 'Floating' : 'Fixed'}</b><br>${money(projection.principalPaid)} principal + <strong>${money(projection.interest)}</strong> interest<br><small>${projection.months} months · approx. EMI ${money(projection.payment)}${schedule.interestType === 'floating' ? ' · uses current rate' : ''}</small></div>` : ''; } const projection = investmentProjection(schedule); if (!projection) return ''; if (!projection.projected) return `<div class="schedule-summary"><b>Current position</b><br>Invested ${money(projection.invested)} · Gross ${money(projection.currentValue)} · Withdrawn ${money(projection.withdrawn)}<br>Net value <strong>${money(projection.netValue)}</strong><br><small class="${projection.gain >= 0 ? 'positive' : 'negative'}">${projection.gain >= 0 ? 'Gain' : 'Loss'} ${money(Math.abs(projection.gain))} · valuation ${projection.valuationDate}</small></div>`; return `<div class="schedule-summary"><b>Net current value ${money(projection.netValue)}</b><br>Projected value <strong>${money(projection.futureValue)}</strong><br><small>${projection.valuationDate} to ${projection.projectionEndDate} · ${projection.contributionCount} contributions ${money(projection.futureContributions)} · expected return ${schedule.expectedAnnualRate}%</small></div>`; }
 
@@ -1201,6 +1284,41 @@ async function submitStockTrade(event) {
   navigate('investments', false);
   toast(payload.tradeType === 'price' ? 'Current value updated' : 'Stock trade saved');
 }
+function openTradingFlowModal(flow = null) {
+  const form = $('#tradingFlowForm');
+  editingTradingFlowId = flow?.id || null;
+  form.reset();
+  form.movementType.value = flow?.movementType || 'added';
+  form.market.value = flow?.market || 'options';
+  form.amount.value = flow?.amount ?? '';
+  form.movementDate.value = flow?.movementDate || today();
+  form.note.value = flow?.note || '';
+  $('#tradingFlowModalTitle').textContent = flow ? 'Edit money movement' : 'Add money movement';
+  $('#tradingFlowModalBackdrop').hidden = false;
+  initializeDatePickers($('#tradingFlowModalBackdrop'));
+}
+function closeTradingFlowModal() {
+  editingTradingFlowId = null;
+  $('#tradingFlowModalBackdrop').hidden = true;
+  $('#tradingFlowForm').reset();
+}
+async function submitTradingFlow(event) {
+  event.preventDefault();
+  const payload = Object.fromEntries(new FormData(event.target).entries());
+  const response = await fetch(editingTradingFlowId ? `/api/trading-flows/${editingTradingFlowId}` : '/api/trading-flows', {
+    method:editingTradingFlowId ? 'PUT' : 'POST',
+    headers:{ 'Content-Type':'application/json' },
+    body:JSON.stringify(payload)
+  });
+  const result = await response.json();
+  if (!response.ok) { toast(result.error || 'Could not save money movement'); return; }
+  const wasEditing = !!editingTradingFlowId;
+  closeTradingFlowModal();
+  await loadData();
+  investmentTab = 'trading';
+  navigate('investments', false);
+  toast(wasEditing ? 'Money movement updated' : 'Money movement saved');
+}
 function openCreditCardModal(card = null) {
   const form = $('#creditCardForm');
   editingCreditCardId = card?.id || null;
@@ -1420,8 +1538,10 @@ async function deletePendingSchedule() {
 
 $('#heroAddButton').addEventListener('click', () => openModal()); $('#fabButton').addEventListener('click', () => openModal()); $('#topAddButton').addEventListener('click', () => openModal()); $('#closeModal').addEventListener('click', closeModal); $('#cancelModal').addEventListener('click', closeModal); $('#modalBackdrop').addEventListener('click', event => { if (event.target.id === 'modalBackdrop') closeModal(); }); $('#transactionForm').addEventListener('submit', addTransaction); $('#closeHabitModal').addEventListener('click', closeHabitModal); $('#cancelHabitModal').addEventListener('click', closeHabitModal); $('#habitModalBackdrop').addEventListener('click', event => { if (event.target.id === 'habitModalBackdrop') closeHabitModal(); }); $('#habitForm').addEventListener('submit', submitHabit); $('#habitForm').addEventListener('change', event => { if (event.target.matches('[name="icon"],[name="color"]')) updateHabitAppearancePreview(); }); $('#closeCategoryModal').addEventListener('click', closeCategoryModal); $('#cancelCategoryModal').addEventListener('click', closeCategoryModal); $('#categoryModalBackdrop').addEventListener('click', event => { if (event.target.id === 'categoryModalBackdrop') closeCategoryModal(); }); $('#categoryForm').addEventListener('submit', submitCategory); $('#categoryForm select[name="kind"]').addEventListener('change', updateCategoryModalSpendVisibility); $('#closeStockTradeModal').addEventListener('click', closeStockTradeModal); $('#cancelStockTradeModal').addEventListener('click', closeStockTradeModal); $('#stockTradeModalBackdrop').addEventListener('click', event => { if (event.target.id === 'stockTradeModalBackdrop') closeStockTradeModal(); }); $('#stockTradeForm').addEventListener('submit', submitStockTrade); $('#closeCreditCardModal').addEventListener('click', closeCreditCardModal); $('#cancelCreditCardModal').addEventListener('click', closeCreditCardModal); $('#creditCardModalBackdrop').addEventListener('click', event => { if (event.target.id === 'creditCardModalBackdrop') closeCreditCardModal(); }); $('#creditCardForm').addEventListener('submit', submitCreditCard); $('#fetchCreditBenefitsButton').addEventListener('click', fetchCreditCardBenefits); $('#closeCreditCardBillModal').addEventListener('click', closeCreditCardBillModal); $('#cancelCreditCardBillModal').addEventListener('click', closeCreditCardBillModal); $('#creditCardBillModalBackdrop').addEventListener('click', event => { if (event.target.id === 'creditCardBillModalBackdrop') closeCreditCardBillModal(); }); $('#creditCardBillForm').addEventListener('submit', submitCreditCardBill); $('#closeHabitCheckinModal').addEventListener('click', closeHabitCheckinModal); $('#cancelHabitCheckinModal').addEventListener('click', closeHabitCheckinModal); $('#habitCheckinModalBackdrop').addEventListener('click', event => { if (event.target.id === 'habitCheckinModalBackdrop') closeHabitCheckinModal(); }); $('#habitCheckinForm').addEventListener('submit', submitHabitCheckin); $('#closeConfirmModal').addEventListener('click', closeConfirmModal); $('#cancelConfirmModal').addEventListener('click', closeConfirmModal); $('#confirmModalBackdrop').addEventListener('click', event => { if (event.target.id === 'confirmModalBackdrop') closeConfirmModal(); }); $('#confirmArchiveButton').addEventListener('click', archivePendingSchedule); $('#confirmDeleteButton').addEventListener('click', deletePendingSchedule); $('#refreshButton').addEventListener('click', refreshData); $('#privacyButton').addEventListener('click', togglePrivacy);
 $('#closeExpenseReasonModal').addEventListener('click', closeExpenseReasonModal); $('#doneExpenseReasonModal').addEventListener('click', closeExpenseReasonModal); $('#expenseReasonModalBackdrop').addEventListener('click', event => { if (event.target.id === 'expenseReasonModalBackdrop') closeExpenseReasonModal(); });
+$('#closeInvestmentGrowthModal').addEventListener('click', closeInvestmentGrowthModal); $('#doneInvestmentGrowthModal').addEventListener('click', closeInvestmentGrowthModal); $('#investmentGrowthModalBackdrop').addEventListener('click', event => { if (event.target.id === 'investmentGrowthModalBackdrop') closeInvestmentGrowthModal(); });
 $('#closeCreditCardProductChangeModal').addEventListener('click', closeCreditCardProductChangeModal); $('#cancelCreditCardProductChangeModal').addEventListener('click', closeCreditCardProductChangeModal); $('#creditCardProductChangeModalBackdrop').addEventListener('click', event => { if (event.target.id === 'creditCardProductChangeModalBackdrop') closeCreditCardProductChangeModal(); }); $('#creditCardProductChangeForm').addEventListener('submit', submitCreditCardProductChange);
 $('#closeTimelineEventModal').addEventListener('click', closeTimelineEventModal); $('#cancelTimelineEventModal').addEventListener('click', closeTimelineEventModal); $('#timelineEventModalBackdrop').addEventListener('click', event => { if (event.target.id === 'timelineEventModalBackdrop') closeTimelineEventModal(); }); $('#timelineEventForm').addEventListener('submit', submitTimelineEvent);
+$('#closeTradingFlowModal').addEventListener('click', closeTradingFlowModal); $('#cancelTradingFlowModal').addEventListener('click', closeTradingFlowModal); $('#tradingFlowModalBackdrop').addEventListener('click', event => { if (event.target.id === 'tradingFlowModalBackdrop') closeTradingFlowModal(); }); $('#tradingFlowForm').addEventListener('submit', submitTradingFlow);
 $('#accountMenuButton').addEventListener('click', event => { event.stopPropagation(); $('#accountMenuPanel').hidden = !$('#accountMenuPanel').hidden; });
 $('#accountMenuPanel').addEventListener('click', async event => { const target = event.target.closest('[data-account-page],[data-account-action]'); if (!target) return; $('#accountMenuPanel').hidden = true; if (target.dataset.accountPage) { navigate(target.dataset.accountPage); return; } if (target.dataset.accountAction === 'logout') await logout(); });
 document.addEventListener('click', event => {
@@ -1674,6 +1794,12 @@ $('#subPageView').addEventListener('click', event => {
   $(`[data-projection-fingerprint="${insightProjectionFingerprint}"]`)?.focus();
 });
 $('#subPageView').addEventListener('change', event => {
+  if (event.target.id === 'tradingFlowYear') {
+    tradingFlowYear = event.target.value;
+    $('#subPageView').innerHTML = renderInvestmentsPage();
+    $('#tradingFlowYear')?.focus();
+    return;
+  }
   if (event.target.id === 'insightComparisonRange') {
     insightComparisonRange = event.target.value;
     const section = $('#insightsComparisonSection');
@@ -1685,6 +1811,20 @@ $('#subPageView').addEventListener('change', event => {
   insightProjectionRange = event.target.value;
   $('#subPageView').innerHTML = renderInsightsPage();
   $('#insightProjectionRange')?.focus();
+});
+$('#subPageView').addEventListener('click', async event => {
+  const target = event.target.closest('[data-action="open-trading-flow"],[data-action="edit-trading-flow"],[data-action="delete-trading-flow"]');
+  if (!target) return;
+  const flow = (data.tradingFlows || []).find(item => item.id === target.dataset.id);
+  if (target.dataset.action === 'open-trading-flow') { openTradingFlowModal(); return; }
+  if (target.dataset.action === 'edit-trading-flow') { if (flow) openTradingFlowModal(flow); return; }
+  if (!flow || !window.confirm(`Delete this ${flow.movementType === 'withdrawn' ? 'withdrawal' : 'deposit'} of ${money(flow.amount)}?`)) return;
+  const response = await fetch(`/api/trading-flows/${flow.id}`, { method:'DELETE' });
+  if (!response.ok) { toast('Could not delete money movement'); return; }
+  await loadData();
+  investmentTab = 'trading';
+  navigate('investments', false);
+  toast('Money movement deleted');
 });
 $('#subPageView').addEventListener('click', async event => { const target = event.target.closest('[data-action],[data-page],[data-range],[data-insight-preset],[data-insight-category],[data-insight-back],[data-money-flow-history-nav],[data-transaction-preset],[data-investment-tab],[data-calendar-view],[data-calendar-type],[data-calendar-date],[data-calendar-nav]'); if (!target) return; if (target.dataset.calendarView) { calendarFilter.view = target.dataset.calendarView; calendarFilter.month = calendarFilter.month || currentMonthKey(); calendarFilter.selectedDate = calendarFilter.selectedDate || today(); $('#subPageView').innerHTML = renderCalendarPage(); return; } if (target.dataset.calendarType) { calendarFilter.type = target.dataset.calendarType; $('#subPageView').innerHTML = renderCalendarPage(); return; } if (target.dataset.calendarDate) { calendarFilter.selectedDate = target.dataset.calendarDate; calendarFilter.month = target.dataset.calendarDate.slice(0, 7); $('#subPageView').innerHTML = renderCalendarPage(); return; } if (target.dataset.calendarNav) { const current = new Date(`${calendarFilter.view === 'week' ? (calendarFilter.selectedDate || today()) : `${calendarFilter.month || currentMonthKey()}-01`}T00:00:00`); const direction = target.dataset.calendarNav === 'next' ? 1 : -1; const nextDate = calendarFilter.view === 'week' ? addDays(current, direction * 7) : addMonthsToDate(current, direction); calendarFilter.selectedDate = dateKey(nextDate); calendarFilter.month = monthInputKey(nextDate); $('#subPageView').innerHTML = renderCalendarPage(); return; } if (target.dataset.moneyFlowHistoryNav) { moneyFlowHistoryOffset = target.dataset.moneyFlowHistoryNav === 'back' ? Math.min(8, moneyFlowHistoryOffset + 3) : Math.max(0, moneyFlowHistoryOffset - 3); $('#subPageView').innerHTML = renderInsightsPage(); return; } if (target.dataset.insightCategory) { insightCategoryDrill = target.dataset.insightCategory; $('#subPageView').innerHTML = renderInsightsPage(); return; } if (target.dataset.insightBack) { insightCategoryDrill = ''; $('#subPageView').innerHTML = renderInsightsPage(); return; } if (target.dataset.insightPreset === 'thisMonth') { insightFilter = { mode:'thisMonth' }; insightCategoryDrill = ''; moneyFlowHistoryOffset = 0; $('#subPageView').innerHTML = renderInsightsPage(); return; } if (target.dataset.investmentTab) { investmentTab = target.dataset.investmentTab; $('#subPageView').innerHTML = renderInvestmentsPage(); return; } if (target.dataset.transactionPreset === 'thisMonth') { const form = $('#transactionFilters'); transactionFilter = { ...transactionFilter, mode:'thisMonth', fromMonth:currentMonthKey(), toMonth:currentMonthKey(), fromYear:currentYear(), toYear:currentYear(), search:form?.search?.value || transactionFilter.search, type:form?.type?.value || transactionFilter.type, category:selectedTransactionFilterValues(form, 'category'), spendGroup:selectedTransactionFilterValues(form, 'spendGroup'), payment:form?.payment?.value || transactionFilter.payment || 'all', sort:form?.sort?.value || transactionFilter.sort }; $('#subPageView').innerHTML = renderTransactionsPage(); return; } if (target.dataset.page) { navigate(target.dataset.page); if (target.dataset.page === 'dashboard') await refreshData(); return; } const action = target.dataset.action; if (!action) return; if (action === 'open-credit-card-modal') { openCreditCardModal(); return; } if (action === 'credit-card-view-all') { $('#creditCardHistoryPanel')?.scrollIntoView({ behavior:'smooth', block:'start' }); $('#creditCardHistoryPanel')?.classList.add('panel-highlight'); setTimeout(() => $('#creditCardHistoryPanel')?.classList.remove('panel-highlight'), 1200); return; } if (action === 'credit-card-manage') { openCreditCardModal(); return; } if (action === 'toggle-credit-card-active') { const card = data.creditCards.find(item => item.id === target.dataset.id); if (!card) return; const response = await fetch(`/api/credit-cards/${card.id}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ active:card.active === false }) }); if (!response.ok) { toast('Could not update card'); return; } await loadData(); navigate('creditCard', false); toast(card.active === false ? 'Card activated' : 'Card deactivated'); return; } if (action === 'sleep-range') { habitSleepRange = target.dataset.range || 'daily'; $('#subPageView').innerHTML = renderHabitInsightsPage(); return; } if (action === 'open-habit-modal') { openHabitModal(); return; } if (action === 'open-habit-checkin') { openHabitCheckinModal(target.dataset.date || today(), target.dataset.id || ''); return; } if (action === 'edit-habit') { const habit = data.habits.find(item => item.id === target.dataset.id); if (habit) openHabitModal(habit); return; } if (action === 'toggle-habit-active') { const habit = data.habits.find(item => item.id === target.dataset.id); if (!habit) return; const response = await fetch(`/api/habits/${habit.id}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ active:habit.active === false }) }); if (!response.ok) { toast('Could not update habit'); return; } await loadData(); navigate('habitManage', false); toast(habit.active === false ? 'Habit activated' : 'Habit paused'); return; } if (action === 'confirm-delete-habit') { const habit = data.habits.find(item => item.id === target.dataset.id); if (habit) openConfirmDeleteHabit(habit); return; } if (action === 'delete-habit-log') { const response = await fetch(`/api/habit-logs/${target.dataset.id}/${target.dataset.date}`, { method:'DELETE' }); if (!response.ok) { toast('Could not delete check-in'); return; } await loadData(); navigate('habitCheckins', false); toast('Check-in deleted'); return; } if (action === 'toggle-habit') { const habit = data.habits.find(item => item.id === target.dataset.id); if (!habit) return; const done = habitCompleted(habit); await saveHabitLog(habit, done ? 0 : Number(habit.target || 1), !done); return; } if (action === 'log-habit') { const habit = data.habits.find(item => item.id === target.dataset.id); if (!habit) return; const current = habitLog(habit.id)?.value || ''; const value = window.prompt(`Enter ${habit.name} value (${habit.unit || 'value'})`, current); if (value === null) return; await saveHabitLog(habit, value); return; } if (action === 'open-stock-trade') { openStockTradeModal({ symbol:target.dataset.symbol || '', companyName:target.dataset.company || '', tradeType:target.dataset.tradeType || 'buy', currentPrice:target.dataset.currentPrice || '' }); return; } if (action === 'delete-stock-trade') { if (!window.confirm('Delete this stock trade?')) return; const response = await fetch(`/api/stock-trades/${target.dataset.id}`, { method:'DELETE' }); if (!response.ok) { toast('Could not delete stock trade'); return; } await loadData(); investmentTab='stocks'; navigate('investments', false); toast('Stock trade deleted'); return; } if (action === 'schedule-tab') { scheduleTab = target.dataset.tab || 'expense'; $('#subPageView').innerHTML = renderSubPage('schedule'); return; } if (action === 'logout') { await logout(); return; } if (action === 'refresh-profile') { await refreshData(); return; } if (action === 'open-add' || action === 'open-schedule') { openModal(activePage === 'investments' ? 'investment' : activePage === 'schedule' ? scheduleTab : 'expense'); if (activePage === 'investments' || action === 'open-schedule') { $('[name="recurring"]').checked = true; updateDetailSections(); } } if (action === 'export') exportData(); if (action === 'skip-schedule') toast('This schedule was skipped once'); if (action === 'edit') { const transaction = data.transactions.find(item => item.id === target.dataset.id); if (transaction) openModal(transaction.type, transaction); } if (action === 'delete') { const transaction = data.transactions.find(item => item.id === target.dataset.id); if (!transaction || !window.confirm(`Delete ${transaction.subcategory || transaction.category} for ${money(transaction.amount)}?`)) return; const response = await fetch(`/api/transactions/${transaction.id}`, { method:'DELETE' }); if (!response.ok) { toast('Could not delete transaction'); return; } data = await (await fetch('/api/data')).json(); navigate('transactions', false); toast('Transaction deleted'); } if (action === 'edit-schedule') { const response = await fetch(`/api/schedules/${target.dataset.id}`); if (!response.ok) { toast('Could not load the latest schedule'); return; } openScheduleModal(await response.json()); } if (action === 'open-category-modal') { openCategoryModal(); return; } if (action === 'edit-category') { const category = data.categories.find(item => item.id === target.dataset.id); if (category) openCategoryModal(category); return; } });
 $('#subPageView').addEventListener('click', event => {
@@ -1791,6 +1931,12 @@ $('#subPageView').addEventListener('input', event => {
 });
 $('#subPageView').addEventListener('click', event => { const target = event.target.closest('[data-range]'); if (!target || target.dataset.action || activePage !== 'outflow') return; const range = target.dataset.range; const now = new Date(); const month = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`; const dates = reportDates(); const from = range === 'this-month' ? `${month}-01` : dates.from; const to = range === 'this-month' ? `${month}-${String(new Date(now.getFullYear(), now.getMonth()+1, 0).getDate()).padStart(2,'0')}` : dates.to; $('#subPageView').innerHTML = renderOutflowReport(from, to); });
 $('#subPageView').addEventListener('submit', event => { if (!['outflowFilters','insightFilters','transactionFilters'].includes(event.target.id)) return; event.preventDefault(); const form = new FormData(event.target); if (event.target.id === 'transactionFilters') { applyTransactionFiltersFromForm(event.target, event.submitter?.dataset.transactionMode || transactionFilter.mode || 'thisMonth'); return; } if (event.target.id === 'insightFilters') { const mode = event.submitter?.dataset.insightMode || 'monthRange'; const fromMonth = form.get('fromMonth'); const toMonth = form.get('toMonth'); const fromYear = form.get('fromYear'); const toYear = form.get('toYear'); insightFilter = mode === 'yearRange' ? { mode, fromYear, toYear, fromMonth, toMonth } : { mode, fromMonth, toMonth, fromYear, toYear }; insightCategoryDrill = ''; moneyFlowHistoryOffset = 0; $('#subPageView').innerHTML = renderInsightsPage(); return; } $('#subPageView').innerHTML = renderOutflowReport(form.get('from'), form.get('to')); });
+$('#subPageView').addEventListener('click', event => {
+  const target = event.target.closest('[data-action="open-investment-growth"]');
+  if (!target) return;
+  const schedule = (data.schedules || []).find(item => item.id === target.dataset.id && item.type === 'investment');
+  if (schedule) openInvestmentGrowthModal(schedule, target);
+});
 new MutationObserver(() => initializeDatePickers($('#subPageView'))).observe($('#subPageView'), { childList:true, subtree:true });
 window.addEventListener('popstate', () => navigate(window.ExpensoRouter.pageFromLocation(), false));
 const topbar = document.querySelector('.topbar');

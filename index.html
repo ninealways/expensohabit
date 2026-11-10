@@ -15,11 +15,11 @@
     <link rel="stylesheet" href="design-system.css?v=20261001-11" />
     <link rel="stylesheet" href="habits-redesign.css?v=20261008-01" />
     <link rel="stylesheet" href="credit-card-redesign.css?v=20261007-03" />
-    <link rel="stylesheet" href="finance-pages-redesign.css?v=20261008-01" />
+    <link rel="stylesheet" href="finance-pages-redesign.css?v=20261109-01" />
     <link rel="stylesheet" href="timeline-redesign.css?v=20261006-02" />
     <link rel="stylesheet" href="account-pages.css?v=20261020-02" />
     <link rel="stylesheet" href="admin-page.css?v=20261008-01" />
-    <link rel="stylesheet" href="modal-redesign.css?v=20261007-02" />
+    <link rel="stylesheet" href="modal-redesign.css?v=20261105-01" />
     <link rel="stylesheet" href="dashboard-forecast.css?v=20261021-02" />
     <link rel="stylesheet" href="insights-refresh.css?v=20261006-02" />
     <link rel="stylesheet" href="insights-comparison.css?v=20261019-01" />
@@ -242,6 +242,17 @@
       </section>
     </div>
 
+    <div class="modal-backdrop" id="investmentGrowthModalBackdrop" hidden>
+      <section class="modal investment-growth-modal" role="dialog" aria-modal="true" aria-labelledby="investmentGrowthModalTitle">
+        <div class="modal-heading"><span class="modal-heading-icon"><img src="assets/icons/investment-growth.svg" alt="" /></span><div class="modal-heading-copy"><p class="panel-kicker">VALUE HISTORY</p><h3 id="investmentGrowthModalTitle">Investment growth</h3><p class="modal-description" id="investmentGrowthModalDescription">Track how this investment changes over time.</p></div><button class="close-button" id="closeInvestmentGrowthModal" type="button" aria-label="Close investment growth">×</button></div>
+        <div class="investment-growth-summary" id="investmentGrowthSummary"></div>
+        <div class="investment-growth-legend" aria-label="Chart legend"><span class="invested"><i></i>Invested</span><span class="value"><i></i>Current value</span><span class="withdrawn"><i></i>Withdrawn</span></div>
+        <div class="investment-growth-chart-wrap" id="investmentGrowthChart"></div>
+        <section class="investment-growth-history"><div class="investment-growth-history-heading"><h4>Valuation checkpoints</h4><span>Every saved value update</span></div><div class="investment-growth-history-table" id="investmentGrowthHistory"></div></section>
+        <div class="modal-actions"><button type="button" class="primary-button" id="doneInvestmentGrowthModal">Done</button></div>
+      </section>
+    </div>
+
     <div class="modal-backdrop" id="habitModalBackdrop" hidden>
       <section class="modal habit-modal" role="dialog" aria-modal="true" aria-labelledby="habitModalTitle">
         <div class="modal-heading"><span class="modal-heading-icon"><img src="assets/icons/habits.svg" alt="" /></span><div class="modal-heading-copy"><p class="panel-kicker">HABIT SETUP</p><h3 id="habitModalTitle">Add habit</h3><p class="modal-description">Build a routine that fits your goals.</p></div><button class="close-button" id="closeHabitModal" type="button" aria-label="Close habit form">×</button></div>
@@ -316,6 +327,19 @@
           <div class="form-row"><label>Fees / charges<input name="fees" type="number" min="0" step="0.01" placeholder="0" /></label><label>Current price<input name="currentPrice" type="number" min="0" step="0.01" placeholder="Optional" /></label></div>
           <label>Notes<textarea name="notes" rows="3" placeholder="Why bought/sold, broker note, target, etc."></textarea></label>
           <div class="modal-actions"><button type="button" class="secondary-button" id="cancelStockTradeModal">Cancel</button><button class="primary-button" type="submit">Save trade</button></div>
+        </form>
+      </section>
+    </div>
+
+    <div class="modal-backdrop" id="tradingFlowModalBackdrop" hidden>
+      <section class="modal trading-flow-modal" role="dialog" aria-modal="true" aria-labelledby="tradingFlowModalTitle">
+        <div class="modal-heading"><span class="modal-heading-icon"><img src="assets/icons/timeline-trading.svg" alt="" /></span><div class="modal-heading-copy"><p class="panel-kicker">TRADING CASH FLOW</p><h3 id="tradingFlowModalTitle">Add money movement</h3><p class="modal-description">Record money added to or withdrawn from options and crypto trading.</p></div><button class="close-button" id="closeTradingFlowModal" type="button" aria-label="Close trading money form">×</button></div>
+        <form id="tradingFlowForm" class="trading-flow-form">
+          <div class="form-row"><label>Movement<select name="movementType" required><option value="added">Money added</option><option value="withdrawn">Money withdrawn</option></select></label><label>Trading area<select name="market" required><option value="options">Options</option><option value="crypto">Crypto</option><option value="combined">Shared trading balance</option></select></label></div>
+          <div class="form-row"><label>Amount (₹)<input name="amount" type="number" min="0.01" step="0.01" placeholder="0" required /></label><label>Date<input name="movementDate" type="text" data-picker="date" required /></label></div>
+          <label>Note<textarea name="note" rows="3" maxlength="300" placeholder="Broker transfer, profit withdrawal, capital added..."></textarea></label>
+          <p class="form-help trading-flow-help">Money left is calculated as total withdrawn minus total added. It does not include trading profit or loss that remains inside the broker or exchange.</p>
+          <div class="modal-actions"><button type="button" class="secondary-button" id="cancelTradingFlowModal">Cancel</button><button class="primary-button" type="submit">Save movement</button></div>
         </form>
       </section>
     </div>
@@ -417,7 +441,7 @@
     <script src="js/api.js?v=20260712-31"></script>
     <script src="js/auth.js?v=20260712-31"></script>
     <script src="js/router.js?v=20261008-01"></script>
-    <script src="js/pages/basic.js?v=20261020-02"></script>
+    <script src="js/pages/basic.js?v=20261109-01"></script>
     <script src="js/pages/admin.js?v=20261008-01"></script>
     <script src="js/pages/transactions.js?v=20261015-01"></script>
     <script src="js/pages/credit-card.js?v=20261007-03"></script>
@@ -428,6 +452,6 @@
     <script src="js/pages/timeline.js?v=20261006-02"></script>
     <script src="js/pages/dashboard-forecast.js?v=20261021-03"></script>
     <script src="js/pages/insights-projection.js?v=20261021-02"></script>
-    <script src="app.js?v=20261021-03"></script>
+    <script src="app.js?v=20261109-01"></script>
   </body>
 </html>
