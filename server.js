@@ -44,6 +44,33 @@ const defaultSettings = { monthlyExpenseBudget:60000, monthlyBudgetOverrides:{},
 const validSpendGroups = ['need','commitment','growth','goodToHave','leisure'];
 const validExpenseReasons = ['essential','planned','holiday','impulse','recurring','emergency','gift','other'];
 
+function inclusiveReadingDays(startDate, endDate) {
+  return Math.max(1, Math.round((Date.parse(`${endDate}T00:00:00Z`) - Date.parse(`${startDate}T00:00:00Z`)) / 86400000) + 1);
+}
+
+async function syncReadingBookDurations(database, ownerId, habitId) {
+  const collection = database.collection('habitLogs');
+  const logs = await collection.find({ ownerId, habitId }).sort({ date:1 }).toArray();
+  const openBooks = new Map();
+  const durations = new Map();
+  logs.forEach(log => {
+    const title = String(log.bookTitle || '').trim().toLowerCase();
+    if (!title || !/^\d{4}-\d{2}-\d{2}$/.test(log.date || '')) return;
+    if (!openBooks.has(title)) openBooks.set(title, log.date);
+    if (log.bookStatus === 'completed') {
+      durations.set(String(log._id), inclusiveReadingDays(openBooks.get(title), log.date));
+      openBooks.delete(title);
+    }
+  });
+  const operations = logs.flatMap(log => {
+    const days = durations.get(String(log._id));
+    if (days && log.bookReadingDurationDays !== days) return [{ updateOne:{ filter:{ _id:log._id, ownerId }, update:{ $set:{ bookReadingDurationDays:days } } } }];
+    if (!days && Object.prototype.hasOwnProperty.call(log, 'bookReadingDurationDays')) return [{ updateOne:{ filter:{ _id:log._id, ownerId }, update:{ $unset:{ bookReadingDurationDays:'' } } } }];
+    return [];
+  });
+  if (operations.length) await collection.bulkWrite(operations);
+}
+
 app.use(express.json());
 app.use(express.static(path.join(__dirname), { setHeaders: (res) => res.setHeader('Cache-Control', 'no-store') }));
 
@@ -262,6 +289,11 @@ async function ensureDatabase() {
       { $set:{ valuationHistory:[investmentValuationSnapshot(schedule, { id:`iv-baseline-${schedule.id}`, recordedAt })] } }
     );
   }));
+  const readingDurationsToBackfill = await habitLogs.distinct('ownerId', { bookStatus:'completed', bookTitle:{ $exists:true, $ne:'' }, bookReadingDurationDays:{ $exists:false } });
+  for (const ownerId of readingDurationsToBackfill) {
+    const habitIds = await habitLogs.distinct('habitId', { ownerId, bookStatus:'completed', bookTitle:{ $exists:true, $ne:'' }, bookReadingDurationDays:{ $exists:false } });
+    for (const habitId of habitIds) await syncReadingBookDurations(db, ownerId, habitId);
+  }
   return db;
 }
 
@@ -872,7 +904,7 @@ app.delete('/api/habits/:id', requireAuth, async (req, res) => {
 app.post('/api/habit-logs', requireAuth, async (req, res) => {
   try {
     const database = await ensureDatabase();
-    const { habitId, date, value, completed, note, sleepStart, sleepEnd, bookTitle, bookStatus, bookNote, bookRating } = req.body;
+    const { habitId, date, value, completed, note, sleepStart, sleepEnd, bookTitle, bookAuthor, bookTotalPages, bookStatus, bookNote, bookRating } = req.body;
     if (!habitId || !/^\d{4}-\d{2}-\d{2}$/.test(String(date || ''))) return res.status(400).json({ error:'Habit and date are required.' });
     const habit = await database.collection('habits').findOne({ id:habitId, ownerId:req.user.id });
     if (!habit) return res.status(404).json({ error:'Habit not found.' });
@@ -881,10 +913,37 @@ app.post('/api/habit-logs', requireAuth, async (req, res) => {
     const cleanBookStatus = ['inProgress', 'reading', 'completed', 'paused'].includes(bookStatus) ? bookStatus : '';
     const isReadingHabit = String(`${habit.name || ''} ${habit.icon || ''}`).toLowerCase().includes('read') || habit.icon === 'book';
     const cleanBookRating = Number(bookRating || 0);
-    const log = { id:`hl-${habitId}-${date}`, ownerId:req.user.id, habitId, date, value:numericValue, completed:typeof completed === 'boolean' ? completed : isReadingHabit ? cleanBookStatus === 'completed' : numericValue >= Number(habit.target || 1), note:note?.trim() || '', ...(sleepValue !== null ? { sleepStart, sleepEnd } : {}), ...(isReadingHabit || bookTitle || cleanBookStatus || bookNote || cleanBookRating ? { bookTitle:String(bookTitle || '').trim(), bookStatus:cleanBookStatus || (bookTitle ? 'inProgress' : ''), bookNote:String(bookNote || '').trim(), bookRating:cleanBookStatus === 'completed' && cleanBookRating >= 1 && cleanBookRating <= 5 ? cleanBookRating : '' } : {}), updatedAt:new Date() };
+    const cleanBookTotalPages = Number(bookTotalPages || 0);
+    if (bookTotalPages !== '' && bookTotalPages !== undefined && bookTotalPages !== null && (!Number.isSafeInteger(cleanBookTotalPages) || cleanBookTotalPages < 1)) return res.status(400).json({ error:'Total book pages must be a positive whole number.' });
+    const log = { id:`hl-${habitId}-${date}`, ownerId:req.user.id, habitId, date, value:numericValue, completed:typeof completed === 'boolean' ? completed : isReadingHabit ? cleanBookStatus === 'completed' : numericValue >= Number(habit.target || 1), note:note?.trim() || '', ...(sleepValue !== null ? { sleepStart, sleepEnd } : {}), ...(isReadingHabit || bookTitle || cleanBookStatus || bookNote || cleanBookRating ? { bookTitle:String(bookTitle || '').trim(), bookAuthor:String(bookAuthor || '').trim().slice(0, 160), bookTotalPages:cleanBookTotalPages || null, bookStatus:cleanBookStatus || (bookTitle ? 'inProgress' : ''), bookNote:String(bookNote || '').trim(), bookRating:cleanBookStatus === 'completed' && cleanBookRating >= 1 && cleanBookRating <= 5 ? cleanBookRating : '' } : {}), updatedAt:new Date() };
     await database.collection('habitLogs').updateOne({ ownerId:req.user.id, habitId, date }, { $set:log }, { upsert:true });
-    const { ownerId, _id, ...publicLog } = log;
+    if (isReadingHabit) await syncReadingBookDurations(database, req.user.id, habitId);
+    const savedLog = await database.collection('habitLogs').findOne({ ownerId:req.user.id, habitId, date });
+    const { ownerId, _id, ...publicLog } = savedLog;
     res.json(publicLog);
+  } catch (error) { res.status(500).json({ error:error.message }); }
+});
+
+app.put('/api/reading-books', requireAuth, async (req, res) => {
+  try {
+    const { habitId, originalTitle, logDates, title, author, totalPages, comment } = req.body;
+    const cleanTitle = String(title || '').trim();
+    const cleanAuthor = String(author || '').trim();
+    const cleanComment = String(comment || '').trim();
+    const dates = Array.isArray(logDates) ? [...new Set(logDates)] : [];
+    const pageCount = totalPages === '' || totalPages === null || totalPages === undefined ? null : Number(totalPages);
+    if (!habitId || !String(originalTitle || '').trim() || !cleanTitle || cleanTitle.length > 160 || cleanAuthor.length > 160 || cleanComment.length > 2000) return res.status(400).json({ error:'Valid book details are required.' });
+    if (!dates.length || dates.length > 1000 || dates.some(date => typeof date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(date))) return res.status(400).json({ error:'Valid book check-ins are required.' });
+    if (pageCount !== null && (!Number.isSafeInteger(pageCount) || pageCount < 1)) return res.status(400).json({ error:'Total book pages must be a positive whole number.' });
+    const database = await ensureDatabase();
+    const habit = await database.collection('habits').findOne({ id:habitId, ownerId:req.user.id });
+    if (!habit || !(String(`${habit.name || ''} ${habit.icon || ''}`).toLowerCase().includes('read') || habit.icon === 'book')) return res.status(404).json({ error:'Reading habit not found.' });
+    const logs = await database.collection('habitLogs').find({ ownerId:req.user.id, habitId, date:{ $in:dates } }).toArray();
+    if (logs.length !== dates.length || logs.some(log => String(log.bookTitle || '').trim().toLowerCase() !== String(originalTitle).trim().toLowerCase())) return res.status(409).json({ error:'Book check-ins changed. Refresh and try again.' });
+    const ids = logs.map(log => log._id);
+    await database.collection('habitLogs').updateMany({ _id:{ $in:ids }, ownerId:req.user.id }, { $set:{ bookTitle:cleanTitle, bookAuthor:cleanAuthor, bookTotalPages:pageCount, bookJournalComment:cleanComment, updatedAt:new Date() } });
+    await syncReadingBookDurations(database, req.user.id, habitId);
+    res.json({ ok:true, updated:ids.length });
   } catch (error) { res.status(500).json({ error:error.message }); }
 });
 
@@ -892,7 +951,9 @@ app.delete('/api/habit-logs/:habitId/:date', requireAuth, async (req, res) => {
   try {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(String(req.params.date || ''))) return res.status(400).json({ error:'Valid date is required.' });
     const database = await ensureDatabase();
+    const removed = await database.collection('habitLogs').findOne({ ownerId:req.user.id, habitId:req.params.habitId, date:req.params.date });
     await database.collection('habitLogs').deleteOne({ ownerId:req.user.id, habitId:req.params.habitId, date:req.params.date });
+    if (removed?.bookTitle) await syncReadingBookDurations(database, req.user.id, req.params.habitId);
     res.json({ ok:true });
   } catch (error) { res.status(500).json({ error:error.message }); }
 });
