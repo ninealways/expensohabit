@@ -63,6 +63,64 @@ function renderHabitDashboardConsistency(rows, dates) {
   </div>`;
 }
 
+function readingJournalBooks() {
+  const readingIds = new Set((data.habits || []).filter(isReadingHabit).map(habit => habit.id));
+  const logs = (data.habitLogs || []).filter(log => readingIds.has(log.habitId) && log.bookTitle?.trim() && log.date <= today()).sort((a, b) => a.date.localeCompare(b.date));
+  const books = [];
+  const openBooks = new Map();
+  logs.forEach(log => {
+    const title = log.bookTitle.trim();
+    const key = `${log.habitId}:${title.toLocaleLowerCase()}`;
+    let book = openBooks.get(key);
+    if (!book) {
+      book = { habitId:log.habitId, title, author:'', totalPages:0, started:log.date, completed:'', durationDays:0, lastDate:log.date, logDates:[], pages:0, readingDays:new Set(), comment:'', journalComment:undefined, rating:0, status:'inProgress' };
+      books.push(book);
+      openBooks.set(key, book);
+    }
+    book.lastDate = log.date;
+    book.logDates.push(log.date);
+    book.pages += Math.max(0, Number(log.value || 0));
+    if (Number(log.value || 0) > 0) book.readingDays.add(log.date);
+    if (log.bookAuthor?.trim()) book.author = log.bookAuthor.trim();
+    if (Number(log.bookTotalPages || 0) > 0) book.totalPages = Number(log.bookTotalPages);
+    if (log.bookNote?.trim() || log.note?.trim()) book.comment = (log.bookNote || log.note).trim();
+    if (Object.hasOwn(log, 'bookJournalComment')) book.journalComment = log.bookJournalComment;
+    if (Number(log.bookRating || 0) > 0) book.rating = Number(log.bookRating);
+    book.status = log.bookStatus || book.status;
+    if (log.bookStatus === 'completed') {
+      book.completed = log.date;
+      book.durationDays = Number(log.bookReadingDurationDays || 0);
+      openBooks.delete(key);
+    }
+  });
+  const readingRank = book => book.completed ? 1 : book.status === 'paused' ? 2 : 0;
+  return books.map(book => ({ ...book, comment:book.journalComment === undefined ? book.comment : book.journalComment })).sort((a, b) => readingRank(a) - readingRank(b) || b.lastDate.localeCompare(a.lastDate) || a.title.localeCompare(b.title));
+}
+
+function renderReadingJournal(books, readingHabit) {
+  const completed = books.filter(book => book.completed).length;
+  const pages = books.reduce((sum, book) => sum + book.pages, 0);
+  const readingDays = new Set(books.flatMap(book => [...book.readingDays]));
+  const average = readingDays.size ? Math.round(pages / readingDays.size * 10) / 10 : 0;
+  const shortDate = date => date ? new Date(`${date}T00:00:00`).toLocaleDateString('en-IN', { day:'numeric', month:'short', year:'numeric' }) : '—';
+  const calendarDays = (start, end) => Math.max(1, Math.round((Date.parse(`${end}T00:00:00Z`) - Date.parse(`${start}T00:00:00Z`)) / 86400000) + 1);
+  const bookRow = (book, index) => `<div class="habit-reading-book">
+    <span class="habit-reading-book-icon" aria-hidden="true">${richIcon('habit-reading')}</span>
+    <div class="habit-reading-book-title"><b>${esc(book.title)}</b><small>${esc(book.author || 'Author not added')}</small><span class="habit-reading-book-status ${book.completed ? 'completed' : ''}">${book.completed ? '✓ Completed' : readingStatusLabel(book.status)}</span><button class="habit-reading-book-edit" data-action="edit-reading-book" data-book-index="${index}" type="button" aria-label="Edit ${esc(book.title)}">Edit book</button></div>
+    <div class="habit-reading-book-detail"><small>Started</small><b>${shortDate(book.started)}</b></div>
+    <div class="habit-reading-book-detail"><small>Completed</small><b>${shortDate(book.completed)}</b></div>
+    <div class="habit-reading-book-detail"><small>Days reading</small><b>${book.completed && book.durationDays > 0 ? book.durationDays : calendarDays(book.started, book.completed || (book.status === 'paused' ? book.lastDate : today()))} days${book.completed ? '' : book.status === 'paused' ? ' before pause' : ' so far'}</b></div>
+    <div class="habit-reading-book-detail"><small>Pages read</small><b>${Math.round(book.pages).toLocaleString('en-IN')}${book.totalPages ? ` / ${book.totalPages.toLocaleString('en-IN')}` : ''}</b></div>
+    <div class="habit-reading-book-detail"><small>Avg / reading day</small><b>${book.readingDays.size ? (book.pages / book.readingDays.size).toLocaleString('en-IN', { maximumFractionDigits:1 }) : '0'} pages</b></div>
+    <div class="habit-reading-book-comment"><small>Comment${book.rating ? ` · ${'★'.repeat(book.rating)}` : ''}</small><p>${esc(book.comment || 'No comment yet')}</p></div>
+  </div>`;
+  return `<article class="panel habit-reading-journal">
+    <div class="panel-heading"><div class="habit-reading-journal-heading"><span class="habit-reading-journal-icon">${richIcon('habit-reading')}</span><div><p class="panel-kicker">READING JOURNAL</p><h3>Your books</h3><p class="subtitle">Every page adds up.</p></div></div>${readingHabit ? `<button class="mini-button" data-action="open-habit-checkin" data-id="${esc(readingHabit.id)}" type="button">＋ Log reading</button>` : '<button class="mini-button" data-action="open-habit-modal" type="button">＋ Add reading habit</button>'}</div>
+    <div class="habit-reading-journal-summary"><div><span>${richIcon('habit-reading')}</span><b>${completed.toLocaleString('en-IN')}</b><small>books completed</small></div><div><span>${richIcon('habit-patterns')}</span><b>${Math.round(pages).toLocaleString('en-IN')}</b><small>pages read</small></div><div><span>${richIcon('habit-weekly')}</span><b>${average.toLocaleString('en-IN', { maximumFractionDigits:1 })}</b><small>pages per logged day</small></div></div>
+    ${books.length ? `<div class="habit-reading-journal-list">${books.slice(0, 3).map(bookRow).join('')}${books.length > 3 ? `<details class="habit-reading-journal-more"><summary>View all ${books.length} books</summary><div class="habit-reading-journal-list">${books.slice(3).map((book, index) => bookRow(book, index + 3)).join('')}</div></details>` : ''}</div>` : '<p class="habit-reading-journal-empty">No books logged yet. Add a title to a Reading check-in to start your journal.</p>'}
+  </article>`;
+}
+
 function renderHabitsPage() {
   const habits = activeStartedHabits();
   const habitColorById = new Map(habits.map((habit, index) => [habit.id, habitDashboardPalette[index % habitDashboardPalette.length]]));
@@ -89,6 +147,7 @@ function renderHabitsPage() {
   const weeklyBlocks = habitDashboardWeeklyBlocks(habits);
   const readingHabits = habits.filter(habit => isReadingHabit(habit));
   const readingHabit = readingHabits[0];
+  const readingBooks = readingJournalBooks();
   const currentMonth = currentMonthKey();
   const previousMonth = monthInputKey(addMonthsToDate(new Date(`${currentMonth}-01T00:00:00`), -1));
   const readingSummary = readingStatsForMonths(readingHabits, [previousMonth, currentMonth]);
@@ -177,6 +236,7 @@ function renderHabitsPage() {
 
       <article class="panel habit-dashboard-context-panel"><div class="panel-heading"><div><p class="panel-kicker">READING &amp; RECOVERY</p><h3>Current context</h3></div></div><div class="habit-dashboard-context-list"><div><span class="habit-dashboard-habit-icon">${richIcon('habit-reading')}</span><p><b>${currentBook ? esc(currentBook) : 'Reading tracker'}</b><small>${readingMonth.started.length} started · ${readingMonth.completed.length} completed this month${latestBook?.rating ? ` · latest ${'★'.repeat(latestBook.rating)}${'☆'.repeat(5 - latestBook.rating)}` : ''}</small></p><button class="mini-button" data-action="open-habit-checkin" data-id="${readingHabit?.id || ''}" type="button">Log</button></div><div><span class="habit-dashboard-habit-icon">${richIcon('habit-sleep')}</span><p><b>${sleepAverage ? `${sleepAverage.toFixed(1)} hrs average` : 'Sleep tracker'}</b><small>${sleepLogs.length ? `${sleepTargetHits}/${sleepLogs.length} nights met ${sleepTarget}h target` : 'Log sleep to build your recovery baseline'}</small></p><button class="mini-button" data-action="open-habit-checkin" data-id="${sleepHabit?.id || ''}" type="button">Log</button></div></div></article>
     </section>
+    ${renderReadingJournal(readingBooks, readingHabit)}
   </section>`;
 }
 

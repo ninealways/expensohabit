@@ -29,6 +29,7 @@ let transactionFilter = { mode:'thisMonth', type:'all', category:[], spendGroup:
 let transactionOpenMultiFilter = '';
 let activeWorkspace = 'expense';
 let editingHabitId = null;
+let editingReadingBook = null;
 let pendingHabitDeleteId = null;
 let pendingScheduleDeleteId = null;
 let habitCheckinDate = '';
@@ -1147,8 +1148,9 @@ function updateHabitAppearancePreview() {
 }
 function renderReadingFields(habit, log, checked, date) {
   const bookTitle = log?.bookTitle || currentReadingTitle(habit, date);
+  const previousBookLog = (data.habitLogs || []).filter(item => item.habitId === habit.id && item.bookTitle?.trim().toLowerCase() === bookTitle.trim().toLowerCase() && item.date <= date).sort((a, b) => b.date.localeCompare(a.date))[0];
   const status = log?.bookStatus || 'inProgress';
-  return `<div class="reading-fields"><label>Book / material<input name="bookTitle-${habit.id}" value="${esc(bookTitle)}" placeholder="Book title, article, course..." /></label><label>Pages read<input name="value-${habit.id}" type="number" step="1" min="0" value="${log?.value || ''}" placeholder="${habitTargetText(habit)}" /></label><label>Status<select name="bookStatus-${habit.id}" data-reading-status="${habit.id}"><option value="inProgress" ${status === 'inProgress' ? 'selected' : ''}>In progress</option><option value="reading" ${status === 'reading' ? 'selected' : ''}>Started / reading</option><option value="completed" ${status === 'completed' ? 'selected' : ''}>Completed</option><option value="paused" ${status === 'paused' ? 'selected' : ''}>Paused</option></select></label><label class="reading-rating-field ${status === 'completed' ? '' : 'hidden'}" data-reading-rating="${habit.id}">Rating<select name="bookRating-${habit.id}"><option value="">No rating</option>${[1,2,3,4,5].map(rating => `<option value="${rating}" ${Number(log?.bookRating || 0) === rating ? 'selected' : ''}>${'★'.repeat(rating)}${'☆'.repeat(5 - rating)} · ${rating}/5</option>`).join('')}</select></label><label class="reading-note-field">Completion note<textarea name="bookNote-${habit.id}" rows="2" placeholder="Summary, takeaway, or final note...">${esc(log?.bookNote || '')}</textarea></label></div>`;
+  return `<div class="reading-fields"><label>Book / material<input name="bookTitle-${habit.id}" value="${esc(bookTitle)}" placeholder="Book title, article, course..." /></label><label>Pages read<input name="value-${habit.id}" type="number" step="1" min="0" value="${log?.value || ''}" placeholder="${habitTargetText(habit)}" /></label><label>Author (optional)<input name="bookAuthor-${habit.id}" value="${esc(log?.bookAuthor || previousBookLog?.bookAuthor || '')}" placeholder="Author's name" /></label><label>Total pages in book (optional)<input name="bookTotalPages-${habit.id}" type="number" step="1" min="1" value="${log?.bookTotalPages || previousBookLog?.bookTotalPages || ''}" placeholder="e.g. 320" /></label><label>Status<select name="bookStatus-${habit.id}" data-reading-status="${habit.id}"><option value="inProgress" ${status === 'inProgress' ? 'selected' : ''}>In progress</option><option value="reading" ${status === 'reading' ? 'selected' : ''}>Started / reading</option><option value="completed" ${status === 'completed' ? 'selected' : ''}>Completed</option><option value="paused" ${status === 'paused' ? 'selected' : ''}>Paused</option></select></label><label class="reading-rating-field ${status === 'completed' ? '' : 'hidden'}" data-reading-rating="${habit.id}">Rating<select name="bookRating-${habit.id}"><option value="">No rating</option>${[1,2,3,4,5].map(rating => `<option value="${rating}" ${Number(log?.bookRating || 0) === rating ? 'selected' : ''}>${'★'.repeat(rating)}${'☆'.repeat(5 - rating)} · ${rating}/5</option>`).join('')}</select></label><label class="reading-note-field">Completion note<textarea name="bookNote-${habit.id}" rows="2" placeholder="Summary, takeaway, or final note...">${esc(log?.bookNote || '')}</textarea></label></div>`;
 }
 function renderHabitCheckinRows(date, focusHabitId = '') {
   const habits = activeHabits().filter(habit => habitIsStarted(habit, date)).filter(habit => !focusHabitId || habit.id === focusHabitId);
@@ -1175,6 +1177,32 @@ function openHabitCheckinModal(date = today(), focusHabitId = '') {
   initializeDatePickers($('#habitCheckinModalBackdrop'));
 }
 function closeHabitCheckinModal() { habitCheckinFocusId = ''; $('#habitCheckinModalBackdrop').hidden = true; $('#habitCheckinForm').reset(); $('#habitCheckinList').innerHTML = ''; }
+function openReadingBookModal(index) {
+  const book = readingJournalBooks()[index];
+  if (!book) { toast('Book details changed. Refresh and try again.'); return; }
+  editingReadingBook = { habitId:book.habitId, originalTitle:book.title, logDates:book.logDates };
+  const form = $('#readingBookForm');
+  form.reset();
+  form.elements.title.value = book.title;
+  form.elements.author.value = book.author;
+  form.elements.totalPages.value = book.totalPages || '';
+  form.elements.comment.value = book.comment || '';
+  $('#readingBookModalTitle').textContent = `Edit ${book.title}`;
+  $('#readingBookModalBackdrop').hidden = false;
+  form.elements.author.focus();
+}
+function closeReadingBookModal() { editingReadingBook = null; $('#readingBookModalBackdrop').hidden = true; $('#readingBookForm').reset(); }
+async function submitReadingBook(event) {
+  event.preventDefault();
+  if (!editingReadingBook) return;
+  const form = event.target;
+  const response = await fetch('/api/reading-books', { method:'PUT', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify({ ...editingReadingBook, title:form.elements.title.value, author:form.elements.author.value, totalPages:form.elements.totalPages.value, comment:form.elements.comment.value }) });
+  if (!response.ok) { const result = await response.json(); toast(result.error || 'Could not update book'); return; }
+  closeReadingBookModal();
+  await loadData();
+  navigate('habits', false);
+  toast('Book updated');
+}
 function openConfirmDeleteHabit(habit) {
   pendingHabitDeleteId = habit?.id || null;
   pendingScheduleDeleteId = null;
@@ -1473,7 +1501,7 @@ async function saveHabitLog(habit, value, completed = null, date = today(), note
   const numericValue = habit.goalType === 'checkbox' ? (completed ? 1 : 0) : Number(value || 0);
   const existing = habitLog(habit.id, date);
   const reading = isReadingHabit(habit);
-  const payload = { habitId:habit.id, date, value:numericValue, completed:completed === null ? numericValue >= Number(habit.target || 1) : completed, note, ...(reading && existing ? { bookTitle:existing.bookTitle || '', bookStatus:existing.bookStatus || 'inProgress', bookNote:existing.bookNote || '', bookRating:existing.bookRating || '' } : {}) };
+  const payload = { habitId:habit.id, date, value:numericValue, completed:completed === null ? numericValue >= Number(habit.target || 1) : completed, note, ...(reading && existing ? { bookTitle:existing.bookTitle || '', bookAuthor:existing.bookAuthor || '', bookTotalPages:existing.bookTotalPages || '', bookStatus:existing.bookStatus || 'inProgress', bookNote:existing.bookNote || '', bookRating:existing.bookRating || '' } : {}) };
   const response = await fetch('/api/habit-logs', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) });
   const result = await response.json();
   if (!response.ok) { toast(result.error || 'Could not update habit'); return; }
@@ -1495,11 +1523,13 @@ async function submitHabitCheckin(event) {
     const value = sleep ? sleepHours(sleepStart, sleepEnd) : habit.goalType === 'checkbox' ? (completed ? 1 : 0) : form.elements[`value-${habit.id}`]?.value || 0;
     const note = form.elements[`note-${habit.id}`]?.value || '';
     const bookTitle = form.elements[`bookTitle-${habit.id}`]?.value || '';
+    const bookAuthor = form.elements[`bookAuthor-${habit.id}`]?.value || '';
+    const bookTotalPages = form.elements[`bookTotalPages-${habit.id}`]?.value || '';
     const bookStatus = form.elements[`bookStatus-${habit.id}`]?.value || 'inProgress';
     const bookNote = form.elements[`bookNote-${habit.id}`]?.value || '';
     const bookRating = form.elements[`bookRating-${habit.id}`]?.value || '';
     const dailyCompleted = reading ? completed || Number(value || 0) >= Number(habit.target || 1) : habit.goalType === 'checkbox' ? completed : completed || Number(value || 0) >= Number(habit.target || 1);
-    const response = await fetch('/api/habit-logs', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ habitId:habit.id, date, value, completed:dailyCompleted, note, ...(sleep ? { sleepStart, sleepEnd } : {}), ...(reading ? { bookTitle, bookStatus, bookNote, bookRating:bookStatus === 'completed' ? bookRating : '' } : {}) }) });
+    const response = await fetch('/api/habit-logs', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ habitId:habit.id, date, value, completed:dailyCompleted, note, ...(sleep ? { sleepStart, sleepEnd } : {}), ...(reading ? { bookTitle, bookAuthor, bookTotalPages, bookStatus, bookNote, bookRating:bookStatus === 'completed' ? bookRating : '' } : {}) }) });
     if (!response.ok) { const result = await response.json(); toast(result.error || 'Could not save check-in'); return; }
   }
   closeHabitCheckinModal();
@@ -1542,6 +1572,7 @@ $('#closeInvestmentGrowthModal').addEventListener('click', closeInvestmentGrowth
 $('#closeCreditCardProductChangeModal').addEventListener('click', closeCreditCardProductChangeModal); $('#cancelCreditCardProductChangeModal').addEventListener('click', closeCreditCardProductChangeModal); $('#creditCardProductChangeModalBackdrop').addEventListener('click', event => { if (event.target.id === 'creditCardProductChangeModalBackdrop') closeCreditCardProductChangeModal(); }); $('#creditCardProductChangeForm').addEventListener('submit', submitCreditCardProductChange);
 $('#closeTimelineEventModal').addEventListener('click', closeTimelineEventModal); $('#cancelTimelineEventModal').addEventListener('click', closeTimelineEventModal); $('#timelineEventModalBackdrop').addEventListener('click', event => { if (event.target.id === 'timelineEventModalBackdrop') closeTimelineEventModal(); }); $('#timelineEventForm').addEventListener('submit', submitTimelineEvent);
 $('#closeTradingFlowModal').addEventListener('click', closeTradingFlowModal); $('#cancelTradingFlowModal').addEventListener('click', closeTradingFlowModal); $('#tradingFlowModalBackdrop').addEventListener('click', event => { if (event.target.id === 'tradingFlowModalBackdrop') closeTradingFlowModal(); }); $('#tradingFlowForm').addEventListener('submit', submitTradingFlow);
+$('#closeReadingBookModal').addEventListener('click', closeReadingBookModal); $('#cancelReadingBookModal').addEventListener('click', closeReadingBookModal); $('#readingBookModalBackdrop').addEventListener('click', event => { if (event.target.id === 'readingBookModalBackdrop') closeReadingBookModal(); }); $('#readingBookForm').addEventListener('submit', submitReadingBook);
 $('#accountMenuButton').addEventListener('click', event => { event.stopPropagation(); $('#accountMenuPanel').hidden = !$('#accountMenuPanel').hidden; });
 $('#accountMenuPanel').addEventListener('click', async event => { const target = event.target.closest('[data-account-page],[data-account-action]'); if (!target) return; $('#accountMenuPanel').hidden = true; if (target.dataset.accountPage) { navigate(target.dataset.accountPage); return; } if (target.dataset.accountAction === 'logout') await logout(); });
 document.addEventListener('click', event => {
@@ -1833,6 +1864,13 @@ $('#subPageView').addEventListener('click', event => {
   habitActivityRange = ['last7','last30','all'].includes(target.dataset.range) ? target.dataset.range : 'last7';
   $('#subPageView').innerHTML = renderHabitsPage();
 });
+$('#subPageView').addEventListener('click', event => {
+  const target = event.target.closest('[data-action="edit-reading-book"]');
+  if (!target) return;
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  openReadingBookModal(Number(target.dataset.bookIndex));
+}, true);
 $('#subPageView').addEventListener('click', event => {
   const target = event.target.closest('[data-action="credit-card-view-all"]');
   if (!target) return;
