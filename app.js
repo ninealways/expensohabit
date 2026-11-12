@@ -1043,7 +1043,7 @@ function navigate(page, updateUrl = true) {
   if (page === 'habitManage') { dashboardSections.forEach(section => section.hidden = true); subPage.hidden = false; subPage.innerHTML = renderHabitManagePage(); initializeDatePickers(subPage); return; }
   if (page === 'habitCheckins') { dashboardSections.forEach(section => section.hidden = true); subPage.hidden = false; subPage.innerHTML = renderHabitCheckinsPage(); initializeDatePickers(subPage); return; }
   if (page === 'timeline') { dashboardSections.forEach(section => section.hidden = true); subPage.hidden = false; subPage.innerHTML = renderTimelinePage(); $('#pageTitle').textContent = pageTitles.timeline; return; }
-  if (page === 'dashboard') { dashboardSections.forEach(section => section.hidden = false); subPage.hidden = true; $('#pageTitle').innerHTML = dashboardGreeting(); return; }
+  if (page === 'dashboard') { dashboardSections.forEach(section => section.hidden = false); subPage.hidden = true; $('#pageTitle').innerHTML = dashboardGreeting(); renderDashboard(); return; }
   dashboardSections.forEach(section => section.hidden = true); subPage.hidden = false; subPage.innerHTML = renderSubPage(page); $('#pageTitle').textContent = pageTitles[page] || pageTitles.settings; initializeDatePickers(subPage); if (page === 'admin') loadAdminDirectory();
 }
 

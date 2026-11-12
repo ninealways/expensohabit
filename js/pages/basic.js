@@ -11,6 +11,10 @@ const bareMinimumReasonChoices = [
 
 function renderSettingsPage() {
   const settings = normalizeSettings(data.settings);
+  const month = currentMonthKey();
+  const currentOverride = Number(settings.monthlyBudgetOverrides?.[month] || 0);
+  const currentTarget = currentOverride || settings.monthlyExpenseBudget;
+  const currentMonthLabel = new Date(`${month}-01T00:00:00`).toLocaleDateString('en-IN', { month:'long' });
   const categoryRows = ['expense','loan','investment'].map(kind => {
     const categories = data.categories.filter(c => c.kind === kind).sort((a, b) => a.name.localeCompare(b.name));
     const title = kind === 'expense' ? 'Expense categories' : kind === 'loan' ? 'Loan categories' : 'Investment categories';
@@ -26,7 +30,7 @@ function renderSettingsPage() {
 
     <section class="account-status-grid" aria-label="Settings summary">
       <article class="account-status-card"><span class="purple">${richIcon('refresh')}</span><div><p>Storage</p><strong>Synced</strong><small>Account data is up to date</small></div></article>
-      <article class="account-status-card"><span class="amber">${richIcon('insight-pace')}</span><div><p>Monthly target</p><strong>${money(settings.monthlyExpenseBudget)}</strong><small>Default expense budget</small></div></article>
+      <article class="account-status-card"><span class="amber">${richIcon('insight-pace')}</span><div><p>${currentMonthLabel} target</p><strong>${money(currentTarget)}</strong><small>${currentOverride ? `Monthly override · ${money(settings.monthlyExpenseBudget)} default` : 'Default expense budget'}</small></div></article>
       <article class="account-status-card"><span class="teal">${richIcon('insight-category')}</span><div><p>Categories</p><strong>${data.categories.length}</strong><small>Across expenses, loans and investments</small></div></article>
     </section>
 
@@ -74,7 +78,7 @@ function renderBudgetSettings() {
   const settings = normalizeSettings(data.settings);
   const overrides = Object.entries(settings.monthlyBudgetOverrides || {}).sort((a, b) => b[0].localeCompare(a[0]));
   const currentOverride = settings.monthlyBudgetOverrides?.[currentMonthKey()] || '';
-  return `<article class="panel budget-editor account-budget-panel"><div class="account-card-heading"><div class="account-heading-copy"><span class="account-heading-icon amber">${richIcon('insight-pace')}</span><div><p class="panel-kicker">SPENDING PLAN</p><h3>Monthly expense target</h3><p class="subtitle">Set the baseline used by Insights to measure your spending pace.</p></div></div></div><form id="budgetSettingsForm" class="budget-form"><label>Default monthly expense target<input name="monthlyExpenseBudget" type="number" min="0" step="1" value="${settings.monthlyExpenseBudget}" required /></label><label>Override month<input name="overrideMonth" type="text" data-picker="month" value="${currentMonthKey()}" /></label><label>Override amount<input name="overrideAmount" type="number" min="0" step="1" value="${currentOverride}" placeholder="Optional" /></label><button class="primary-button" type="submit">Save target</button></form><p class="budget-help">A month override replaces the default target only for that month.</p>${overrides.length ? `<div class="budget-chip-grid">${overrides.map(([month, value]) => `<span class="budget-chip">${month}<b>${money(value)}</b></span>`).join('')}</div>` : '<p class="empty-state">No monthly overrides yet.</p>'}</article>`;
+  return `<article class="panel budget-editor account-budget-panel"><div class="account-card-heading"><div class="account-heading-copy"><span class="account-heading-icon amber">${richIcon('insight-pace')}</span><div><p class="panel-kicker">SPENDING PLAN</p><h3>Monthly expense target</h3><p class="subtitle">Set the target used by Dashboard and Insights to measure your spending pace.</p></div></div></div><form id="budgetSettingsForm" class="budget-form"><label>Default monthly expense target<input name="monthlyExpenseBudget" type="number" min="0" step="1" value="${settings.monthlyExpenseBudget}" required /></label><label>Override month<input name="overrideMonth" type="text" data-picker="month" value="${currentMonthKey()}" /></label><label>Override amount<input name="overrideAmount" type="number" min="0" step="1" value="${currentOverride}" placeholder="Optional" /></label><button class="primary-button" type="submit">Save target</button></form><p class="budget-help">A month override replaces the default target only for that month.</p>${overrides.length ? `<div class="budget-chip-grid">${overrides.map(([month, value]) => `<span class="budget-chip">${month}<b>${money(value)}</b></span>`).join('')}</div>` : '<p class="empty-state">No monthly overrides yet.</p>'}</article>`;
 }
 
 function renderOutflowReport(from = reportDates().from, to = reportDates().to) {
